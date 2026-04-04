@@ -37,6 +37,7 @@ tools: [read, edit, search, execute, todo]
 3. APIクライアント関数を作成する
 4. React コンポーネントを実装する
 5. テストを追加する
+6. `@reviewer` を呼び出してコードレビューを受け、指摘があれば修正する
 
 ## コンポーネント規約
 

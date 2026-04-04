@@ -31,6 +31,7 @@ tools: [read, edit, search, execute, web, todo]
 2. FeliCa Polling で IDm を取得する
 3. 取得した IDm をバックエンド API に POST する
 4. UI に結果を表示する（打刻成功/失敗/未登録カード）
+5. `@reviewer` を呼び出してコードレビューを受け、指摘があれば修正する
 
 ## NFC 読み取りパターン
 
