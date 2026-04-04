@@ -145,6 +145,7 @@ kint/
 - **依存性注入**: FastAPI の Depends を活用
 - **非同期**: DB操作は全て async/await (aiosqlite)
 - **エラーハンドリング**: カスタム例外クラス → HTTPException へ変換
+- **実行環境分離**: Server（Linux/FastAPI）と Desktop（Windows/PySide6+nfcpy）は Python 実行環境を分離し、依存関係・環境変数を共有しない
 
 ## ビルド・テスト
 
@@ -181,10 +182,16 @@ uv run alembic revision --autogenerate -m "description"
 # Docker（本番）
 docker compose up -d
 
+# Server 用環境変数テンプレート
+cp .env.example .env
+
 # === Windows Desktop App ===
 
 # 依存関係インストール
 cd desktop && uv sync
+
+# Desktop 用環境変数テンプレート
+cd desktop && cp .env.example .env
 
 # 開発時実行
 cd desktop && uv run python -m kint_desktop.main

@@ -1,5 +1,39 @@
 # Kint 実装計画
 
+## 0. Python 実行環境分離方針
+- Server（FastAPI）と NFC打刻クライアント（PySide6）は別環境で実行する。
+- 依存関係は Server と Desktop で分離し、同一 virtualenv を共有しない。
+- 環境変数ファイルも分離し、Server 側は `.env`、Desktop 側は `desktop/.env` を使用する。
+- 運用コマンドは以下を基準とする。
+  - Server: `uv sync` / `uv run ...`
+  - Desktop: `cd desktop && uv sync` / `cd desktop && uv run ...`
+
+## 0-1. 環境分離タスク（横断）
+
+### ENV-01: Server Python 環境固定
+- 担当: @backend
+- 実装範囲:
+  - Server 側依存をルート `pyproject.toml` のみに定義。
+  - Desktop 依存をルート側に混在させない。
+- 受け入れ条件:
+  - Linux Server で `uv sync` 後、Backend が単体起動できる。
+
+### ENV-02: Desktop Python 環境固定
+- 担当: @nfc
+- 実装範囲:
+  - Desktop 側依存を `desktop/pyproject.toml` のみに定義。
+  - nfcpy / PySide6 系を Server 環境へ持ち込まない。
+- 受け入れ条件:
+  - Windows 端末で `cd desktop && uv sync` 後、Desktop が単体起動できる。
+
+### ENV-03: 環境変数テンプレート分離
+- 担当: @devops
+- 実装範囲:
+  - `.env.example`（Server）と `desktop/.env.example`（Desktop）を分離管理。
+  - 共通値と固有値を分けて記載する。
+- 受け入れ条件:
+  - 両環境で必要な変数が欠落なく定義される。
+
 ## 1. 実装チケット分解（@backend 向け）
 
 ### BE-01: 打刻 API 入力拡張（NFC / user_id 両対応）
