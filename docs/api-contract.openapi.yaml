@@ -1,0 +1,479 @@
+openapi: 3.1.0
+info:
+  title: Kint Attendance API
+  version: 1.0.0
+  description: >-
+    Kint NFC勤怠管理システムの API 契約書。
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Punch
+  - name: Card
+  - name: Attendance
+  - name: Shift
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Web 管理画面ユーザーのログイン
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 現在のログインユーザー情報を取得
+      responses:
+        '200':
+          description: 現在のユーザー情報
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /punches:
+    post:
+      tags: [Punch]
+      summary: Desktop アプリから NFC 打刻を登録
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PunchRequest'
+      responses:
+        '200':
+          description: 打刻成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PunchResponse'
+        '404':
+          description: カード未登録
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 競合（二重打刻または不正な状態遷移）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cards/registrations:
+    post:
+      tags: [Card]
+      summary: Desktop アプリから NFC カードを利用者へ登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardRegistrationRequest'
+      responses:
+        '201':
+          description: カード登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardRegistrationResponse'
+        '409':
+          description: カード競合
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /attendance:
+    get:
+      tags: [Attendance]
+      summary: 勤怠一覧を取得
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: user_id
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: 勤怠一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceListResponse'
+
+  /attendance/{attendance_id}:
+    patch:
+      tags: [Attendance]
+      summary: 勤怠記録を修正（本人または管理者）
+      description: >-
+        利用者本人は自分の勤怠記録のみ修正できます。管理者は全利用者の勤怠記録を修正できます。
+        修正時は reason が必須で、変更前後の値、実行者、実行日時、修正理由を変更履歴として必ず保存します。
+      parameters:
+        - in: path
+          name: attendance_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendancePatchRequest'
+      responses:
+        '200':
+          description: 勤怠修正成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceRecord'
+        '403':
+          description: 権限不足（他人の勤怠記録を修正しようとした場合を含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象レコードなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /attendance/{attendance_id}/history:
+    get:
+      tags: [Attendance]
+      summary: 勤怠変更履歴を取得（本人または管理者）
+      description: >-
+        利用者本人は自分の勤怠記録の変更履歴を取得できます。管理者は全利用者の変更履歴を取得できます。
+      parameters:
+        - in: path
+          name: attendance_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 勤怠変更履歴
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceHistoryResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象レコードなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shifts/sync:
+    post:
+      tags: [Shift]
+      summary: Google Calendar 同期を実行
+      responses:
+        '202':
+          description: 同期受付完了
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSyncAcceptedResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginResponse:
+      type: object
+      required: [access_token, token_type, user]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [bearer]
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      required: [id, role, name, email]
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+          enum: [admin, employee]
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    PunchRequest:
+      type: object
+      required: [card_idm, device_id, occurred_at]
+      properties:
+        card_idm:
+          type: string
+          description: FeliCa の IDm
+        device_id:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+
+    PunchResponse:
+      type: object
+      required: [attendance_id, user_id, action, occurred_at, message]
+      properties:
+        attendance_id:
+          type: string
+        user_id:
+          type: string
+        action:
+          type: string
+          enum: [check_in, check_out]
+        occurred_at:
+          type: string
+          format: date-time
+        message:
+          type: string
+
+    CardRegistrationRequest:
+      type: object
+      required: [user_id, card_idm]
+      properties:
+        user_id:
+          type: string
+        card_idm:
+          type: string
+
+    CardRegistrationResponse:
+      type: object
+      required: [card_id, user_id, card_idm, is_active]
+      properties:
+        card_id:
+          type: string
+        user_id:
+          type: string
+        card_idm:
+          type: string
+        is_active:
+          type: boolean
+
+    AttendanceRecord:
+      type: object
+      required: [id, user_id, work_date]
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        card_idm:
+          type: string
+          nullable: true
+        work_date:
+          type: string
+          format: date
+        check_in:
+          type: string
+          format: date-time
+          nullable: true
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+        source:
+          type: string
+          enum: [desktop_nfc, admin_manual, self_service]
+        updated_reason:
+          type: string
+          nullable: true
+        last_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_updated_by_user_id:
+          type: string
+          nullable: true
+
+    AttendanceHistorySnapshot:
+      type: object
+      properties:
+        check_in:
+          type: string
+          format: date-time
+          nullable: true
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+
+    AttendanceHistoryEntry:
+      type: object
+      required: [id, attendance_id, actor_user_id, actor_role, changed_at, before, after, reason]
+      properties:
+        id:
+          type: string
+        attendance_id:
+          type: string
+        actor_user_id:
+          type: string
+        actor_role:
+          type: string
+          enum: [admin, employee]
+        changed_at:
+          type: string
+          format: date-time
+        before:
+          $ref: '#/components/schemas/AttendanceHistorySnapshot'
+        after:
+          $ref: '#/components/schemas/AttendanceHistorySnapshot'
+        reason:
+          type: string
+
+    AttendanceListResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceRecord'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+
+    AttendancePatchRequest:
+      type: object
+      required: [reason]
+      properties:
+        check_in:
+          type: string
+          format: date-time
+          nullable: true
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          minLength: 1
+          description: 修正理由。監査ログに保存されます。
+
+    AttendanceHistoryResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceHistoryEntry'
+        total:
+          type: integer
+
+    ShiftSyncAcceptedResponse:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+          enum: [accepted]
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 機械判読用エラーコード
+        message:
+          type: string
+        detail:
+          type: object
+          additionalProperties: true
