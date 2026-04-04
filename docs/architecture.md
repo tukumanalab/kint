@@ -61,11 +61,11 @@ sequenceDiagram
   participant Db as SQLite
   participant Cal as Calendar Adapter
 
-  Emp->>Desk: NFCカードをタッチ
+  Emp->>Desk: NFCカードをタッチ（カード忘れ時は user_id 入力）
   Desk->>Rt: POST /api/v1/punches
   Rt->>Sv: バリデーションして委譲
-  Sv->>Rp: card_idm から利用者を特定
-  Rp->>Db: SELECT card and user
+  Sv->>Rp: card_idm または user_id から利用者を特定
+  Rp->>Db: SELECT card and user / SELECT user
   Db-->>Rp: user
   Sv->>Rp: 当日の勤怠を取得
   Rp->>Db: SELECT attendance by date
@@ -109,6 +109,8 @@ erDiagram
   - 根拠: 監査証跡を確保するため。
 - ADR-005: 利用者本人による勤怠修正を許可し、全変更履歴を不変ログとして保持する。
   - 根拠: 現場運用の柔軟性を確保しつつ、変更の追跡可能性を失わないため。
+- ADR-006: カード忘れ時は user_id による打刻を許可する。
+  - 根拠: 打刻機会損失を防ぎつつ、打刻元 `source` と監査ログでトレーサビリティを維持するため。
 
 ## 8. トレードオフ整理
 - 現時点の推奨構成はモジュラモノリス。

@@ -61,7 +61,10 @@ paths:
   /punches:
     post:
       tags: [Punch]
-      summary: Desktop アプリから NFC 打刻を登録
+      summary: Desktop アプリから打刻を登録（NFC または user_id）
+      description: >-
+        通常は card_idm で打刻します。カード忘れ時は user_id での打刻を許可します。
+        user_id 打刻時は reason を必須とします。
       parameters:
         - in: header
           name: Idempotency-Key
@@ -82,7 +85,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PunchResponse'
         '404':
-          description: カード未登録
+          description: カード未登録またはユーザー未登録
           content:
             application/json:
               schema:
@@ -273,7 +276,7 @@ components:
 
     UserProfile:
       type: object
-      required: [id, role, name, email]
+      required: [id, role, name, full_name, email]
       properties:
         id:
           type: string
@@ -282,17 +285,30 @@ components:
           enum: [admin, employee]
         name:
           type: string
+        full_name:
+          type: string
+          description: 本名（氏名）
         email:
           type: string
           format: email
 
     PunchRequest:
       type: object
-      required: [card_idm, device_id, occurred_at]
+      required: [device_id, occurred_at]
+      oneOf:
+        - required: [card_idm]
+        - required: [user_id, reason]
       properties:
         card_idm:
           type: string
           description: FeliCa の IDm
+        user_id:
+          type: string
+          description: カード忘れ時に使用するユーザーID
+        reason:
+          type: string
+          description: user_id 打刻時の理由
+          minLength: 1
         device_id:
           type: string
         occurred_at:
@@ -313,6 +329,10 @@ components:
         occurred_at:
           type: string
           format: date-time
+        method:
+          type: string
+          enum: [card_idm, user_id]
+          description: 打刻に使用した識別方法
         message:
           type: string
 
@@ -362,7 +382,7 @@ components:
           nullable: true
         source:
           type: string
-          enum: [desktop_nfc, admin_manual, self_service]
+          enum: [desktop_nfc, desktop_user_id, admin_manual, self_service]
         updated_reason:
           type: string
           nullable: true

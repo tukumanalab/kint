@@ -24,6 +24,7 @@
 |---------------------|---------------|-------------------------------|------------------------------|
 | `id`                | TEXT          | PK                            | UUID v4                      |
 | `name`              | TEXT          | NOT NULL                      | 表示名                       |
+| `full_name`         | TEXT          | NOT NULL                      | 本名（氏名）                 |
 | `email`             | TEXT          | NOT NULL, UNIQUE              | ログイン用メールアドレス     |
 | `password_hash`     | TEXT          | NOT NULL                      | bcrypt ハッシュ              |
 | `role`              | TEXT          | NOT NULL, CHECK(role IN ('admin','employee')) | ロール |
@@ -43,10 +44,15 @@
 |--------------|----------|-----------------------------|--------------------------|
 | `id`         | TEXT     | PK                          | UUID v4                  |
 | `user_id`    | TEXT     | NOT NULL, FK → users.id ON DELETE CASCADE | 所有ユーザー |
-| `card_idm`   | TEXT     | NOT NULL, UNIQUE            | FeliCa IDm（16進文字列） |
+| `card_idm`   | TEXT     | NOT NULL, UNIQUE            | FeliCa IDm（16進文字列）。ユーザー間の共有禁止 |
 | `is_active`  | INTEGER  | NOT NULL, DEFAULT 1         | 有効フラグ（1=有効）     |
 | `created_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 作成日時       |
 | `updated_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 更新日時       |
+
+> **カード所有ルール**
+> - 1ユーザーが複数の IDm カードを登録できる（`user_id` 単独の UNIQUE 制約なし）。
+> - 同一 IDm を複数ユーザーで共有することは禁止（`card_idm` に UNIQUE 制約）。
+> - 打刻時は `card_idm` で一意にユーザーを特定できる。
 
 インデックス:
 - `ix_cards_card_idm` — UNIQUE インデックス（打刻時のカード検索）
@@ -64,12 +70,16 @@
 | `work_date`                | DATE     | NOT NULL                                               | 勤務日（YYYY-MM-DD）                 |
 | `check_in`                 | DATETIME | NULL                                                   | 出勤日時                             |
 | `check_out`                | DATETIME | NULL                                                   | 退勤日時                             |
-| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('desktop_nfc','admin_manual','self_service')) | 打刻元 |
+| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('desktop_nfc','desktop_user_id','admin_manual','self_service')) | 打刻元 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
 | `last_updated_at`          | DATETIME | NULL                                                   | 最終修正日時                         |
 | `created_at`               | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | 作成日時                             |
 | `updated_at`               | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | 更新日時                             |
+
+運用ルール:
+- 通常打刻: `source = 'desktop_nfc'`（`card_idm` 解決）
+- カード忘れ打刻: `source = 'desktop_user_id'`（`user_id` 直接指定、理由必須）
 
 制約:
 - `uq_attendances_user_work_date` — (user_id, work_date) UNIQUE（1日1レコード）
@@ -136,6 +146,7 @@ erDiagram
   users {
     TEXT id PK
     TEXT name
+    TEXT full_name
     TEXT email
     TEXT password_hash
     TEXT role
