@@ -152,31 +152,31 @@ kint/
 # === サーバー側 ===
 
 # Backend 依存関係インストール
-pip install -e ".[dev]"
+uv sync
 
 # Frontend 依存関係インストール
 cd frontend && npm install
 
 # Backend 開発サーバー起動
-uvicorn src.kint.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.kint.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend 開発サーバー起動
 cd frontend && npm run dev
 
 # Backend テスト
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Frontend テスト
 cd frontend && npm test
 
 # リント
-ruff check src/ tests/
-ruff format src/ tests/
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
 cd frontend && npm run lint
 
 # マイグレーション
-alembic upgrade head
-alembic revision --autogenerate -m "description"
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
 
 # Docker（本番）
 docker compose up -d
@@ -184,13 +184,13 @@ docker compose up -d
 # === Windows Desktop App ===
 
 # 依存関係インストール
-cd desktop && pip install -e ".[dev]"
+cd desktop && uv sync
 
 # 開発時実行
-cd desktop && python -m kint_desktop.main
+cd desktop && uv run python -m kint_desktop.main
 
 # テスト
-cd desktop && pytest tests/ -v
+cd desktop && uv run pytest tests/ -v
 
 # exe ビルド (Windows環境で実行)
 cd desktop && pyinstaller build.spec
