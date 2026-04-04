@@ -28,6 +28,7 @@ class Card(Base):
 
     user: Mapped["User"] = relationship(back_populates="cards")  # noqa: F821
     attendances: Mapped[list["Attendance"]] = relationship(  # noqa: F821
-        back_populates="card", foreign_keys="Attendance.card_idm",
+        back_populates="card",
+        foreign_keys="Attendance.card_idm",
         primaryjoin="Card.card_idm == foreign(Attendance.card_idm)",
     )

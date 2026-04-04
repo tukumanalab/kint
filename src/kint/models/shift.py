@@ -12,9 +12,7 @@ class Shift(Base):
     """Google Calendar から取得したシフト情報。"""
 
     __tablename__ = "shifts"
-    __table_args__ = (
-        UniqueConstraint("google_event_id", name="uq_shifts_google_event_id"),
-    )
+    __table_args__ = (UniqueConstraint("google_event_id", name="uq_shifts_google_event_id"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(

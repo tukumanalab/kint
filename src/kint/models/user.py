@@ -12,9 +12,7 @@ class User(Base):
     """管理者・従業員のアカウント情報。"""
 
     __tablename__ = "users"
-    __table_args__ = (
-        CheckConstraint("role IN ('admin', 'employee')", name="ck_users_role"),
-    )
+    __table_args__ = (CheckConstraint("role IN ('admin', 'employee')", name="ck_users_role"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)

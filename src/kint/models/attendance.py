@@ -53,9 +53,7 @@ class Attendance(Base):
         primaryjoin="Attendance.card_idm == foreign(Card.card_idm)",
         foreign_keys="[Attendance.card_idm]",
     )
-    change_logs: Mapped[list["AttendanceChangeLog"]] = relationship(
-        back_populates="attendance"
-    )
+    change_logs: Mapped[list["AttendanceChangeLog"]] = relationship(back_populates="attendance")
 
 
 class AttendanceChangeLog(Base):
