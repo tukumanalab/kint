@@ -1,0 +1,82 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# uv / pip
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# pyinstaller (desktop)
+desktop/dist/
+desktop/build/
+*.spec.bak
+
+# ===== 環境変数 =====
+.env
+.env.*
+!.env.example
+
+# ===== SQLite DB =====
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ===== Alembic =====
+# バージョンファイルは管理対象のため除外しない
+
+# ===== Node.js / Frontend =====
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ===== ビルド成果物 =====
+src/kint/static/
+
+# ===== テスト・カバレッジ =====
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+
+# ===== エディタ =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===== Windows =====
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== Google 認証情報 =====
+credentials.json
+token.json
+service-account*.json
+
+# ===== ログ =====
+*.log
+logs/
