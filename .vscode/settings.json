@@ -1,0 +1,23 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "uv": true
+    },
+
+    // Python
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+    // pytest (Backend)
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestPath": "${workspaceFolder}/.venv/bin/pytest",
+    "python.testing.pytestArgs": [
+        "tests",
+        "-v",
+        "--tb=short"
+    ],
+    "python.testing.cwd": "${workspaceFolder}",
+
+    // Vitest (Frontend)
+    "vitest.rootConfig": "${workspaceFolder}/frontend/vitest.config.ts",
+    "vitest.workspaceConfig": "${workspaceFolder}/frontend/vitest.config.ts"
+}

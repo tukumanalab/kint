@@ -1,0 +1,17 @@
+{
+    "recommendations": [
+        // Python
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "charliermarsh.ruff",
+        // Testing
+        "vitest.explorer",
+        // Frontend
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        // Utilities
+        "EditorConfig.EditorConfig",
+        "ms-azuretools.vscode-docker"
+    ]
+}

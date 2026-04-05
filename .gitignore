@@ -53,7 +53,6 @@ htmlcov/
 .hypothesis/
 
 # ===== エディタ =====
-.vscode/
 .idea/
 *.swp
 *.swo
