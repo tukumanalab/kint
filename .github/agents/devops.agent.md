@@ -10,7 +10,6 @@ tools: [read, edit, search, execute, todo]
 - Dockerfile / docker-compose.yml の作成・最適化
 - CI/CDパイプライン構築（GitHub Actions）
 - Linux サーバーデプロイ設定
-- Windows デスクトップアプリの exe ビルド・配布 (PyInstaller)
 - 環境変数・シークレット管理
 - SQLite バックアップ・リストア手順
 
@@ -20,8 +19,7 @@ tools: [read, edit, search, execute, todo]
 - シークレットはイメージに含めない
 - ヘルスチェックを必ず設定する
 - SQLite DB ファイルは volume でホストにマウントする
-- NFC読み取りは Windows デスクトップアプリで行うため、サーバー側にUSBデバイスは不要
-- Desktop App の exe ビルドは Windows 環境の GitHub Actions または手動で実行
+- NFC読み取りはブラウザの WebUSB で行うため、サーバー側に USB デバイスは不要
 
 ## アプローチ
 

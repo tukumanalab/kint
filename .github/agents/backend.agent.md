@@ -41,6 +41,6 @@ async def check_in(
     card_idm: str,
     service: AttendanceService = Depends(get_attendance_service),
 ) -> AttendanceResponse:
-    """チェックイン処理を実行する。FeliCa IDm をデスクトップアプリから受け取る。"""
+    """チェックイン処理を実行する。FeliCa IDm を Web アプリから受け取る。"""
     return await service.check_in(card_idm)
 ```

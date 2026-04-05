@@ -77,10 +77,11 @@ kint/
 │       │   ├── AttendanceList.tsx
 │       │   └── Admin/
 │       ├── hooks/               # カスタムフック
-│       │   └── useAuth.ts
+│       │   ├── useAuth.ts
+│       │   └── useNfcReader.ts
+│       ├── nfc/                 # WebUSB + PaSoRi NFC 通信
 │       ├── pages/               # ページコンポーネント
 │       └── types/               # TypeScript 型定義
-├── desktop/                     # 旧Desktop打刻アプリ（移行完了後に撤去予定）
 ├── tests/                       # Backend テスト
 │   ├── conftest.py
 │   ├── test_attendance.py
@@ -91,7 +92,7 @@ kint/
 
 ## コーディング規約
 
-### Python (Backend + Desktop App)
+### Python (Backend)
 - Ruff でフォーマット・リント (line-length = 100)
 - 型ヒント必須 (全関数の引数・返り値)
 - docstring は日本語で簡潔に
@@ -110,13 +111,13 @@ kint/
 ## アーキテクチャ方針
 
 ```
-[ブラウザ(WebUSB)]                [Linux Server]              [ブラウザ]
-┌─────────────┐    HTTPS/REST    ┌─────────────┐             ┌─────────────┐
-│ Punch UI    │ ─────────────→  │  FastAPI     │  ←───────── │ Admin UI    │
-│ + PaSoRi    │  打刻・カード登録  │  Backend    │  管理・参照   │ React SPA   │
-│ WebUSB      │                  │  + SQLite   │             │             │
-└─────────────┘                  └─────────────┘             └─────────────┘
-  NFC読み取り                      Google Calendar
+[Linux Server]                            [ブラウザ]
+┌─────────────┐    HTTPS/REST    ┌───────────────┐
+│  FastAPI      │  ←──────────→  │ React SPA       │
+│  Backend     │  打刻・管理・参照  │ + WebUSB/PaSoRi │
+│  + SQLite    │                  │ NFC読み取り     │
+└─────────────┘                  └───────────────┘
+  Google Calendar
 ```
 
 - **Backend**: Router → Service → Repository パターン。ルーターはHTTPのみ、ビジネスロジックはサービス層
@@ -201,8 +202,8 @@ cp .env.example .env
 
 - `@architect` - システム設計・API設計・コンポーネント設計
 - `@backend` - バックエンドAPI実装 (FastAPI + SQLite)
-- `@frontend` - React SPA Web管理画面の実装
+- `@frontend` - React SPA Webアプリの実装（WebUSB NFC 打刻含む）
 - `@database` - DB設計・マイグレーション・クエリ最適化 (SQLite)
-- `@nfc` - WebUSB + PaSoRi 連携設計/実装支援
+- `@nfc` - WebUSB + PaSoRi 低レベル通信・ FeliCa コマンド実装
 - `@reviewer` - コードレビュー・品質チェック
-- `@devops` - Docker・デプロイ・CI/CD・Windows exe ビルド
+- `@devops` - Docker・デプロイ・CI/CD
