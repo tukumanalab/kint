@@ -1,6 +1,6 @@
 ---
 description: "Use when building the React SPA web management UI, TypeScript components, hooks, API client code, or Vite configuration for viewing/editing attendance records and admin features."
-tools: [read, edit, search, execute, todo]
+tools: [read, edit, search, execute, todo, playwright/*]
 ---
 
 あなたはNFC勤怠管理システム「Kint」のWeb管理画面のフロントエンド開発者です。
