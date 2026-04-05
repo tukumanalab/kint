@@ -61,9 +61,9 @@ paths:
   /punches:
     post:
       tags: [Punch]
-      summary: Desktop アプリから打刻を登録（NFC または user_id）
+      summary: Web アプリから打刻を登録（WebUSB NFC または user_id）
       description: >-
-        通常は card_idm で打刻します。カード忘れ時は user_id での打刻を許可します。
+        通常は WebUSB 経由で取得した card_idm で打刻します。カード忘れ時は user_id での打刻を許可します。
         user_id 打刻時は reason を必須とします。
       parameters:
         - in: header
@@ -100,7 +100,7 @@ paths:
   /cards/registrations:
     post:
       tags: [Card]
-      summary: Desktop アプリから NFC カードを利用者へ登録
+      summary: Web アプリから NFC カードを利用者へ登録（WebUSB）
       requestBody:
         required: true
         content:
@@ -382,7 +382,7 @@ components:
           nullable: true
         source:
           type: string
-          enum: [desktop_nfc, desktop_user_id, admin_manual, self_service]
+          enum: [webusb_nfc, web_user_id, admin_manual, self_service]
         updated_reason:
           type: string
           nullable: true

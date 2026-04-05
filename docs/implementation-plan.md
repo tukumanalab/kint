@@ -1,42 +1,25 @@
 # Kint 実装計画
 
-## 0. Python 実行環境分離方針
-- Server（FastAPI）と NFC打刻クライアント（PySide6）は別環境で実行する。
-- 依存関係は Server と Desktop で分離し、同一 virtualenv を共有しない。
-- 環境変数ファイルも分離し、Server 側は `.env`、Desktop 側は `desktop/.env` を使用する。
-- 運用コマンドは以下を基準とする。
-  - Server: `uv sync` / `uv run ...`
-  - Desktop: `cd desktop && uv sync` / `cd desktop && uv run ...`
+## 0. 実行環境方針
+- Server は Linux 上で FastAPI を実行する。
+- 打刻クライアントは専用 Desktop アプリではなく、Web ブラウザ上の React アプリで実行する。
+- NFC 読み取りは WebUSB を利用し、PaSoRi を USB 接続して IDm を取得する。
+- Python 依存は Server のみで管理し、クライアント側は Node.js 依存で管理する。
 
-## 0-1. 環境分離タスク（横断）
+## 0-1. 対応ブラウザ確定（実装前提）
+- 公式サポート: Windows 11 + Chrome / Edge（最新安定版）
+- 準サポート: Windows 10 + Chrome / Edge（最新安定版）
+- 非サポート: Firefox / Safari / モバイルブラウザ
 
-### ENV-01: Server Python 環境固定
-- 担当: @backend
-- 実装範囲:
-  - Server 側依存をルート `pyproject.toml` のみに定義。
-  - Desktop 依存をルート側に混在させない。
-- 受け入れ条件:
-  - Linux Server で `uv sync` 後、Backend が単体起動できる。
-
-### ENV-02: Desktop Python 環境固定
-- 担当: @nfc
-- 実装範囲:
-  - Desktop 側依存を `desktop/pyproject.toml` のみに定義。
-  - nfcpy / PySide6 系を Server 環境へ持ち込まない。
-- 受け入れ条件:
-  - Windows 端末で `cd desktop && uv sync` 後、Desktop が単体起動できる。
-
-### ENV-03: 環境変数テンプレート分離
-- 担当: @devops
-- 実装範囲:
-  - `.env.example`（Server）と `desktop/.env.example`（Desktop）を分離管理。
-  - 共通値と固有値を分けて記載する。
-- 受け入れ条件:
-  - 両環境で必要な変数が欠落なく定義される。
+## 0-2. 運用要件確定（実装前提）
+- 打刻ページは HTTPS 配信（開発時 `localhost` 許容）。
+- 打刻画面で WebUSB 接続状態を表示する。
+- WebUSB 失敗時は user_id + reason の代替打刻へ遷移する。
+- サポート外ブラウザは打刻 UI を無効化し、案内メッセージを表示する。
 
 ## 1. 実装チケット分解（@backend 向け）
 
-### BE-01: 打刻 API 入力拡張（NFC / user_id 両対応）
+### BE-01: 打刻 API 入力拡張（WebUSB NFC / user_id 両対応）
 - 目的:
   - POST /punches で card_idm と user_id のどちらでも打刻可能にする。
 - 実装範囲:
@@ -61,11 +44,11 @@
 - 目的:
   - 打刻方法の追跡性を担保する。
 - 実装範囲:
-  - attendances.source に desktop_nfc / desktop_user_id を保存。
+  - attendances.source に webusb_nfc / web_user_id を保存。
   - PunchResponse に method（card_idm / user_id）を追加する。
 - 受け入れ条件:
-  - NFC 打刻で source=desktop_nfc, method=card_idm が返る。
-  - user_id 打刻で source=desktop_user_id, method=user_id が返る。
+  - NFC 打刻で source=webusb_nfc, method=card_idm が返る。
+  - user_id 打刻で source=web_user_id, method=user_id が返る。
 
 ### BE-04: 監査ログ連携
 - 目的:
@@ -101,9 +84,9 @@
   - API 契約・DB 設計とのズレを排除する。
 - 実装範囲:
   - docs/api-contract.openapi.yaml と docs/database-design.md を基準に差分レビュー。
-  - Desktop クライアント向け仕様（入力とエラーコード）を確認。
+  - Frontend(WebUSB) 向け仕様（入力とエラーコード）を確認。
 - 受け入れ条件:
-  - API 実装が契約と整合し、フロント/デスクトップ連携のブロッカーがない。
+  - API 実装が契約と整合し、フロント連携のブロッカーがない。
 
 ## 2. 実装チケット分解（@database 向け）
 
@@ -118,12 +101,12 @@
 
 ### DB-02: attendances.source 列挙値拡張
 - 目的:
-  - カード忘れ打刻を区別して保存する。
+  - WebUSB 打刻と user_id 打刻を区別して保存する。
 - 実装範囲:
-  - CHECK 制約へ desktop_user_id を追加。
+  - CHECK 制約へ webusb_nfc / web_user_id を追加。
   - 既存行の整合性を確認し、制約更新時の失敗を防ぐ。
 - 受け入れ条件:
-  - desktop_nfc / desktop_user_id / admin_manual / self_service のみ保存可能。
+  - webusb_nfc / web_user_id / admin_manual / self_service のみ保存可能。
 
 ### DB-03: 変更履歴テーブル運用保証
 - 目的:
@@ -144,67 +127,48 @@
 - 受け入れ条件:
   - 新規環境と既存環境の両方で migration が成功する。
 
-## 3. 実装チケット分解（@nfc 向け）
+## 3. 実装チケット分解（@frontend 向け）
 
-### NFC-01: 打刻 UI 拡張（カード忘れ対応）
+### FE-00: WebUSB-FeliCa 技術検証
 - 目的:
-  - カード忘れ時に user_id 打刻へフォールバックできるようにする。
+  - ブラウザから PaSoRi を認識し、IDm を取得できることを確認する。
 - 実装範囲:
-  - 打刻画面に user_id 入力欄と reason 入力欄を追加。
-  - 通常時は NFC 読み取り導線を優先表示。
+  - WebUSB 対応ブラウザで接続処理を実装。
+  - 参照: https://github.com/marioninc/webusb-felica/blob/gh-pages/demo.html
 - 受け入れ条件:
-  - NFC が使えない状況でも user_id 打刻が実行できる。
+  - サポート対象ブラウザで PaSoRi 接続と IDm 読み取りが成功する。
+  - 非サポートブラウザでサポート外メッセージが表示される。
 
-### NFC-02: API クライアント送信形式更新
+### FE-01: 打刻画面（WebUSB NFC / user_id フォールバック）
 - 目的:
-  - API 契約（oneOf）に沿って打刻リクエストを送信する。
+  - Web アプリ内で打刻を完結できるようにする。
 - 実装範囲:
-  - 通常: card_idm + device_id + occurred_at
-  - カード忘れ: user_id + reason + device_id + occurred_at
-  - Idempotency-Key の再送制御を維持。
+  - WebUSB 接続ボタン、IDm 読み取り、打刻送信 UI を実装。
+  - WebUSB 非対応またはカード忘れ時の user_id + reason 入力導線を実装。
+  - 接続状態（未接続/接続中/読取成功/エラー）を表示。
 - 受け入れ条件:
-  - 2 方式の送信がともに成功し、レスポンス method を正しく処理できる。
+  - 通常打刻とフォールバック打刻の両方を UI で実行できる。
+  - 接続失敗時に復旧手順と代替導線が提示される。
 
-### NFC-03: エラー表示と操作ガード
+### FE-02: API クライアント更新
 - 目的:
-  - 現場運用での入力ミスと誤解を減らす。
+  - 追加された打刻契約に追従する。
 - 実装範囲:
-  - reason 未入力時の送信抑止。
-  - 404/409 応答時のメッセージ出し分け。
-- 受け入れ条件:
-  - 操作ミス時に UI 上で修正手順を案内できる。
-
-### NFC-04: デスクトップテスト更新
-- 目的:
-  - 新仕様の回帰を防止する。
-- 実装範囲:
-  - API クライアント単体テストに user_id 打刻ケースを追加。
-  - UI テストまたはイベントハンドラテストで必須入力を検証。
-- 受け入れ条件:
-  - user_id 打刻経路の主要ケースが自動テストで担保される。
-
-## 4. 実装チケット分解（@frontend 向け）
-
-### FE-01: 型定義と API クライアント更新
-- 目的:
-  - 追加された打刻契約に追従し、型安全に UI 実装できる状態を作る。
-- 実装範囲:
-  - UserProfile.full_name の型を反映。
-  - PunchRequest の oneOf 条件（card_idm または user_id+reason）を型で表現。
-  - PunchResponse.method と AttendanceRecord.source=desktop_user_id を反映。
+  - PunchRequest の oneOf 条件を型で表現。
+  - PunchResponse.method と AttendanceRecord.source=webusb_nfc/web_user_id を反映。
 - 受け入れ条件:
   - 型チェックで契約差分エラーが発生しない。
 
-### FE-02: 管理画面の勤怠表示更新
+### FE-03: 管理画面の勤怠表示更新
 - 目的:
   - 打刻方法の識別情報を管理画面で確認可能にする。
 - 実装範囲:
   - 勤怠一覧に打刻元 source を表示。
-  - desktop_user_id の場合は「カード忘れ（user_id）」とラベル表示。
+  - web_user_id の場合は「カード忘れ（user_id）」とラベル表示。
 - 受け入れ条件:
-  - 管理者がカード打刻と user_id 打刻を画面上で判別できる。
+  - 管理者が WebUSB 打刻と user_id 打刻を画面上で判別できる。
 
-### FE-03: 変更履歴画面の拡張
+### FE-04: 変更履歴画面の拡張
 - 目的:
   - 監査要件として変更履歴を確認できるようにする。
 - 実装範囲:
@@ -213,83 +177,79 @@
 - 受け入れ条件:
   - 対象勤怠に対して時系列の変更履歴を閲覧できる。
 
-### FE-04: フロントエンドテスト更新
+### FE-05: フロントエンドテスト更新
 - 目的:
   - 契約変更に伴う表示回帰を防止する。
 - 実装範囲:
   - full_name 表示テストを追加。
   - source 表示ラベル変換テストを追加。
+  - 打刻画面の WebUSB 成功/失敗分岐テストを追加。
   - 変更履歴表示コンポーネントのレンダリングテストを追加。
 - 受け入れ条件:
   - 主要 UI ケースが自動テストで担保される。
 
-## 5. 依存関係と着手順
+## 4. 依存関係と着手順
 
-### 5-1. 依存マトリクス
-- ENV-01/ENV-02 は全実装の前提タスクとして最優先で着手する。
-- ENV-03 は BE-07 の前に完了させる。
+### 4-1. 依存マトリクス
+- FE-00 は全体の前提タスクとして最優先で着手する。
 - BE-01 は DB-02 完了前でも実装開始可能（ただし結合試験は DB-02 後）。
 - BE-03 は DB-03 と同時進行可能だが、最終確認は DB-04 後。
-- NFC-02 は BE-01 と API 契約確定後に実装開始。
-- NFC-03 は BE-05 のエラーコード確定後に文言最終化。
-- FE-01 は BE-01 と API 契約確定後に着手可能。
-- FE-02 は BE-03（source 保存）完了後に結合確認。
-- FE-03 は BE-04（履歴保存）と /attendance/{attendance_id}/history 実装完了後に結合確認。
-- FE-04 は FE-01〜03 の完了後に実施。
+- FE-02 は BE-01 と API 契約確定後に着手可能。
+- FE-03 は BE-03（source 保存）完了後に結合確認。
+- FE-04 は BE-04（履歴保存）と /attendance/{attendance_id}/history 実装完了後に結合確認。
+- FE-05 は FE-01〜04 の完了後に実施。
 
-### 5-2. 推奨スケジュール（2 スプリント）
+### 4-2. 推奨スケジュール（2 スプリント）
 
 ```mermaid
 gantt
-  title カード忘れ打刻対応の実装計画
+  title WebUSB 打刻対応の実装計画
   dateFormat  YYYY-MM-DD
 
   section Sprint 1
-  ENV-01 Server 環境固定              :e1, 2026-04-06, 1d
-  ENV-02 Desktop 環境固定             :e2, 2026-04-06, 1d
-  DB-01 users.full_name 追加           :a1, 2026-04-06, 2d
+  FE-00 WebUSB 技術検証               :f0, 2026-04-07, 2d
+  DB-01 users.full_name 追加           :a1, 2026-04-07, 2d
   DB-02 attendances.source 拡張        :a2, after a1, 1d
   DB-03 変更履歴テーブル運用保証       :a3, after a2, 2d
-  BE-01 打刻 API 入力拡張              :b1, 2026-04-06, 3d
+  BE-01 打刻 API 入力拡張              :b1, 2026-04-07, 3d
   BE-02 利用者解決ロジック             :b2, after b1, 2d
-  BE-03 source/method 反映             :b3, after b2, 1d
+  FE-01 打刻画面 WebUSB 実装           :f1, after f0, 3d
+  FE-02 API クライアント更新           :f2, after b1, 2d
 
   section Sprint 2
-  DB-04 Alembic migration 検証         :a4, 2026-04-14, 2d
-  BE-04 監査ログ連携                   :b4, after a4, 2d
+  DB-04 Alembic migration 検証         :a4, 2026-04-15, 2d
+  BE-03 source/method 反映             :b3, after a4, 1d
+  BE-04 監査ログ連携                   :b4, after b3, 2d
   BE-05 エラーレスポンス統一           :b5, after b4, 1d
-  NFC-01 打刻 UI 拡張                  :c1, 2026-04-14, 2d
-  NFC-02 API クライアント更新          :c2, after c1, 2d
-  NFC-03 エラー表示と操作ガード        :c3, after b5, 1d
-  FE-01/FE-02/FE-03 実装              :f1, after b5, 3d
-  ENV-03 環境変数テンプレート分離      :e3, after f1, 1d
-  BE-06/NFC-04/FE-04 テスト            :t1, after f1, 2d
+  FE-03 勤怠表示更新                   :f3, after b3, 2d
+  FE-04 変更履歴画面                   :f4, after b4, 2d
+  BE-06/FE-05 テスト                   :t1, after f4, 2d
   BE-07 最終整合確認                   :r1, after t1, 1d
 ```
 
-## 6. 統合受け入れ条件（全チーム）
-- 通常打刻: NFC で打刻でき、source=desktop_nfc で保存される。
-- カード忘れ打刻: user_id + reason で打刻でき、source=desktop_user_id で保存される。
+## 5. 統合受け入れ条件（全チーム）
+- 通常打刻: WebUSB で IDm を読み取り打刻でき、source=webusb_nfc で保存される。
+- カード忘れ打刻: user_id + reason で打刻でき、source=web_user_id で保存される。
 - 修正監査: 勤怠修正時に履歴が欠落なく追記される。
 - 表示整合: 管理画面で full_name、打刻元、変更履歴が正しく表示される。
-- 契約整合: API 実装、Desktop、Frontend が docs/api-contract.openapi.yaml と一致する。
+- 契約整合: API 実装と Frontend が docs/api-contract.openapi.yaml と一致する。
 
-## 7. 起票用バックログ（このまま Issue 化可能）
+## 6. 起票用バックログ（このまま Issue 化可能）
 
-### P0-0: Python 実行環境分離の固定化
-- 担当: @backend, @nfc, @devops
+### P0-0: WebUSB 技術検証と対応ブラウザ確定
+- 担当: @frontend
 - 依存: なし
 - 完了条件:
-  - Server と Desktop の依存定義が分離される。
-  - Server はルート環境のみで起動し、Desktop は `desktop/` 環境のみで起動する。
-  - `.env.example` と `desktop/.env.example` が分離管理される。
+  - PaSoRi 接続と IDm 読み取りが再現できる。
+  - 対応ブラウザ・非対応ブラウザ時の挙動を定義できる。
+  - Windows 11 + Chrome / Edge で打刻動作確認が完了する。
 
 ### P0-1: DB マイグレーション実装（full_name と source 拡張）
 - 担当: @database
-- 依存: P0-0
+- 依存: なし
 - 完了条件:
   - users.full_name が追加される。
-  - attendances.source に desktop_user_id が追加される。
+  - attendances.source に webusb_nfc / web_user_id が追加される。
   - upgrade/downgrade の往復が成功する。
 
 ### P0-2: 打刻 API 拡張（card_idm / user_id oneOf）
@@ -300,100 +260,47 @@ gantt
   - reason 欠落時は 422 を返す。
   - 未登録 card_idm/user_id で 404 を返す。
 
-### P0-3: 打刻保存と監査ログ連動
+### P0-3: Web 打刻画面（WebUSB / user_id）実装
+- 担当: @frontend
+- 依存: P0-0, P0-2
+- 完了条件:
+  - 打刻画面で WebUSB 打刻と user_id 打刻の両方が可能。
+  - 404/409 のメッセージ表示が適切。
+
+### P1-1: 打刻保存と監査ログ連動
 - 担当: @backend
 - 依存: P0-2
 - 完了条件:
-  - source=desktop_nfc / source=desktop_user_id が正しく保存される。
+  - source=webusb_nfc / source=web_user_id が正しく保存される。
   - attendance_change_logs が打刻変更時に追記される。
-  - 本体更新と履歴保存が同一トランザクションで処理される。
 
-### P0-4: Desktop のカード忘れ打刻 UI と送信対応
-- 担当: @nfc
-- 依存: P0-2
-- 完了条件:
-  - 打刻画面で user_id と reason の入力打刻が可能。
-  - 通常打刻とカード忘れ打刻の送信を切替できる。
-  - 404/409 のメッセージ表示が適切。
-
-### P1-1: 管理画面の表示追従（full_name / source）
+### P1-2: 管理画面の表示追従と履歴画面
 - 担当: @frontend
-- 依存: P0-3
+- 依存: P1-1
 - 完了条件:
-  - full_name が表示される。
-  - desktop_user_id 打刻が識別可能なラベルで表示される。
-
-### P1-2: 変更履歴画面の実装
-- 担当: @frontend
-- 依存: P0-3
-- 完了条件:
-  - /attendance/{attendance_id}/history の結果を一覧表示できる。
-  - 変更前後、理由、実行者、実行日時を確認できる。
+  - source と履歴が UI で確認できる。
 
 ### P1-3: 結合テストと最終整合チェック
 - 担当: @reviewer（実装担当と共同）
 - 依存: P0-1〜P1-2
 - 完了条件:
-  - 契約・DB・Desktop・Frontend の整合が確認できる。
-  - 主要シナリオ（通常打刻、カード忘れ打刻、履歴表示）が通る。
+  - 契約・DB・Frontend の整合が確認できる。
+  - 主要シナリオ（WebUSB 打刻、カード忘れ打刻、履歴表示）が通る。
 
-## 8. 実行開始の指示文（各担当へ貼り付け用）
+## 7. 実行開始の指示文（各担当へ貼り付け用）
+
+### @frontend へ
+- まず P0-0 を実施し、WebUSB-FeliCa の接続性を確認してください。
+- 次に P0-3 を実装し、Web 打刻画面で WebUSB 打刻と user_id フォールバックを提供してください。
+- サポート外ブラウザ表示と接続状態表示を必須要件として実装してください。
+
+### @backend へ
+- docs/api-contract.openapi.yaml と docs/architecture.md の方針に従い、P0-2 と P1-1 を実装してください。
+- 特に POST /punches の oneOf 入力条件と監査ログ連動を厳守してください。
 
 ### @database へ
 - docs/database-design.md を基準に、P0-1 を実装してください。
 - Alembic は SQLite 前提で render_as_batch=True を考慮してください。
 
-### @backend へ
-- docs/api-contract.openapi.yaml と docs/architecture.md の設計方針に従い、まず P0-0（Server 環境固定）を実施し、その後 P0-2/P0-3 を実装してください。
-- 特に POST /punches の oneOf 入力条件と監査ログ連動を厳守してください。
-
-### @nfc へ
-- docs/api-contract.openapi.yaml の PunchRequest に合わせ、まず P0-0（Desktop 環境固定）を実施し、その後 P0-4 を実装してください。
-- user_id 打刻時は reason を必須にしてください。
-
-### @devops へ
-- P0-0 の一部として `.env.example`（Server）と `desktop/.env.example`（Desktop）を分離してください。
-- CI でも Server/Desktop の依存解決とテストを分離実行してください。
-
-### @frontend へ
-- P1-1/P1-2 を実装してください。
-- full_name、source 表示、履歴表示の 3 点を優先してください。
-
-## 9. P0-0 実施手順（着手用チェックリスト）
-
-### 9-1. @backend（ENV-01）
-- 実施項目:
-  - ルート `pyproject.toml` に Server 用依存のみを保持する。
-  - Desktop 専用依存（例: nfcpy, PySide6, pyinstaller）がルートに混在していないことを確認する。
-- 検証コマンド:
-  - `uv sync`
-  - `uv run uvicorn src.kint.main:app --reload --host 0.0.0.0 --port 8000`
-  - `uv run pytest tests/ -v`
-- 完了判定:
-  - ルート環境だけで Server の起動と Backend テストが通る。
-
-### 9-2. @nfc（ENV-02）
-- 実施項目:
-  - `desktop/pyproject.toml` に Desktop 用依存のみを保持する。
-  - Server 専用依存（例: FastAPI, Alembic）が Desktop 側へ不要混在していないことを確認する。
-- 検証コマンド:
-  - `cd desktop && uv sync`
-  - `cd desktop && uv run python -m kint_desktop.main`
-  - `cd desktop && uv run pytest tests/ -v`
-- 完了判定:
-  - Desktop 環境だけで打刻クライアント起動と Desktop テストが通る。
-
-### 9-3. @devops（ENV-03）
-- 実施項目:
-  - ルート `.env.example` と `desktop/.env.example` を分離し、変数説明を明記する。
-  - CI のジョブを Server/Frontend/Desktop で分離し、各環境で依存解決を分ける。
-- 検証項目:
-  - Server 用 CI: ルートで `uv sync` + Backend テストが成功。
-  - Desktop 用 CI: `desktop/` で `uv sync` + Desktop テストが成功。
-- 完了判定:
-  - どちらか片方の依存更新が他方の CI を壊さない。
-
-### 9-4. P0-0 完了ゲート（全体）
-- ゲート条件:
-  - ENV-01〜03 の完了判定を全て満たす。
-  - 実装着手チケット P0-1 以降が「環境分離済み」を前提に開始できる。
+### @reviewer へ
+- P1-3 で WebUSB 打刻導線を含む結合観点レビューを実施してください。

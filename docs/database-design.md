@@ -70,7 +70,7 @@
 | `work_date`                | DATE     | NOT NULL                                               | 勤務日（YYYY-MM-DD）                 |
 | `check_in`                 | DATETIME | NULL                                                   | 出勤日時                             |
 | `check_out`                | DATETIME | NULL                                                   | 退勤日時                             |
-| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('desktop_nfc','desktop_user_id','admin_manual','self_service')) | 打刻元 |
+| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service')) | 打刻元 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
 | `last_updated_at`          | DATETIME | NULL                                                   | 最終修正日時                         |
@@ -78,8 +78,8 @@
 | `updated_at`               | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | 更新日時                             |
 
 運用ルール:
-- 通常打刻: `source = 'desktop_nfc'`（`card_idm` 解決）
-- カード忘れ打刻: `source = 'desktop_user_id'`（`user_id` 直接指定、理由必須）
+- 通常打刻: `source = 'webusb_nfc'`（WebUSB で取得した `card_idm` を解決）
+- カード忘れ打刻: `source = 'web_user_id'`（`user_id` 直接指定、理由必須）
 
 制約:
 - `uq_attendances_user_work_date` — (user_id, work_date) UNIQUE（1日1レコード）
