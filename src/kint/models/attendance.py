@@ -7,8 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
 
-# DB-02: source の許容値。desktop_user_id を含む全4値
-_SOURCE_CHECK = "source IN ('desktop_nfc', 'desktop_user_id', 'admin_manual', 'self_service')"
+# source の許容値。Web アプリ対応で webusb_nfc / web_user_id に変更
+_SOURCE_CHECK = "source IN ('webusb_nfc', 'web_user_id', 'admin_manual', 'self_service')"
 
 
 class Attendance(Base):
