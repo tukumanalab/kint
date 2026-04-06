@@ -37,7 +37,7 @@
         {
             "label": "frontend: テスト実行",
             "type": "shell",
-            "command": "source ~/.nvm/nvm.sh && nvm use 20 && npm test",
+            "command": "npm test",
             "options": {
                 "cwd": "${workspaceFolder}/frontend"
             },
@@ -67,7 +67,7 @@
         {
             "label": "frontend: dev サーバー起動",
             "type": "shell",
-            "command": "source ~/.nvm/nvm.sh && nvm use 20 && npm run dev",
+            "command": "npm run dev",
             "options": {
                 "cwd": "${workspaceFolder}/frontend"
             },
