@@ -63,6 +63,9 @@ paths:
     post:
       tags: [User]
       summary: ユーザー登録（管理者）
+      description: >-
+        name, full_name, email, role, password を受け取りユーザーを作成します。
+        password は 8〜72 文字かつ英字・数字を各1文字以上含む必要があります。
       requestBody:
         required: true
         content:
@@ -76,6 +79,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: 入力バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: 権限不足
           content:
@@ -93,6 +102,9 @@ paths:
     patch:
       tags: [User]
       summary: ユーザー修正（管理者）
+      description: >-
+        name, full_name, email, role, is_active を部分更新します。
+        空の更新要求は受け付けません。最後の有効な admin を無効化する更新は拒否します。
       parameters:
         - in: path
           name: user_id
@@ -112,6 +124,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponse'
+        '409':
+          description: メールアドレス重複または最後の有効 admin の無効化
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（空更新要求を含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: 権限不足
           content:
@@ -127,6 +151,10 @@ paths:
     delete:
       tags: [User]
       summary: ユーザー削除（管理者、論理削除）
+      description: >-
+        物理削除は行わず is_active=false で論理削除します。
+        既に論理削除済みの場合は冪等に 204 を返します。
+        最後の有効な admin は削除できません。
       parameters:
         - in: path
           name: user_id
@@ -136,6 +164,12 @@ paths:
       responses:
         '204':
           description: ユーザー削除成功（is_active=false）
+        '409':
+          description: 最後の有効 admin の削除要求
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: 権限不足
           content:
@@ -389,8 +423,12 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 50
         full_name:
           type: string
+          minLength: 1
+          maxLength: 100
         email:
           type: string
           format: email
@@ -400,14 +438,21 @@ components:
         password:
           type: string
           minLength: 8
+          maxLength: 72
+          pattern: '^(?=.*[A-Za-z])(?=.*\d).+$'
 
     UserUpdateRequest:
       type: object
+      minProperties: 1
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 50
         full_name:
           type: string
+          minLength: 1
+          maxLength: 100
         email:
           type: string
           format: email

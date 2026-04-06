@@ -100,7 +100,29 @@
 - 403: 権限不足
 - 404: カード未登録 / ユーザー未登録 / 対象なし
 - 409: 二重打刻または不正遷移
+- 422: リクエストバリデーションエラー
 - 共通レスポンス形式: code / message / detail
+
+### 6-4. ユーザー管理 API バリデーション仕様
+- 共通ルール:
+  - email は RFC 準拠フォーマットかつ一意であること。
+  - name は 1〜50 文字、full_name は 1〜100 文字。
+  - role は admin / employee のみ。
+  - 文字列項目は前後空白を除去して評価する。
+- POST /api/v1/users:
+  - 必須: name, full_name, email, role, password。
+  - password は 8〜72 文字、英字と数字を各1文字以上含む。
+  - 既存メール重複は 409 を返す。
+  - 入力違反は 422 を返す。
+- PATCH /api/v1/users/{user_id}:
+  - 更新対象フィールドが 1 つ以上必要（空 body は 422）。
+  - email 更新時は重複チェックを行い、重複は 409。
+  - role 更新時は admin / employee 以外を拒否（422）。
+  - is_active=false へ更新する場合、最後の有効な admin を無効化してはならない（409）。
+- DELETE /api/v1/users/{user_id}:
+  - 論理削除（is_active=false）として扱う。
+  - 既に is_active=false のユーザーに対する削除は冪等に 204 を返す。
+  - 最後の有効な admin の削除要求は 409 を返す。
 
 詳細は docs/api-contract.openapi.yaml を正とする。
 
