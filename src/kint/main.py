@@ -9,7 +9,7 @@ from kint.exceptions import (
     KintNotFoundError,
     KintUnauthorizedError,
 )
-from kint.routers import attendance, punch
+from kint.routers import attendance, punch, user
 from kint.schemas.error import ErrorResponse
 
 app = FastAPI(
@@ -73,3 +73,4 @@ async def unauthorized_handler(request: Request, exc: KintUnauthorizedError) -> 
 
 app.include_router(punch.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
+app.include_router(user.router, prefix="/api/v1")

@@ -15,7 +15,7 @@ class AttendanceRecord(BaseModel):
     work_date: date
     check_in: datetime | None = None
     check_out: datetime | None = None
-    source: Literal["desktop_nfc", "desktop_user_id", "admin_manual", "self_service"]
+    source: Literal["webusb_nfc", "web_user_id", "admin_manual", "self_service"]
     updated_reason: str | None = None
     last_updated_at: datetime | None = None
     last_updated_by_user_id: str | None = None

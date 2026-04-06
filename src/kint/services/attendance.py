@@ -88,12 +88,12 @@ class PunchService:
         # BE-02: 利用者解決
         if request.card_idm is not None:
             user = await self._get_user_by_card_idm(request.card_idm)
-            source = "desktop_nfc"
+            source = "webusb_nfc"
             method = "card_idm"
         else:
             # user_id は model_validator で None でないことが保証される
             user = await self._get_user_by_user_id(request.user_id)  # type: ignore[arg-type]
-            source = "desktop_user_id"
+            source = "web_user_id"
             method = "user_id"
 
         work_date = request.occurred_at.date()
