@@ -8,6 +8,7 @@ servers:
   - url: /api/v1
 tags:
   - name: Auth
+  - name: User
   - name: Punch
   - name: Card
   - name: Attendance
@@ -53,6 +54,96 @@ paths:
                 $ref: '#/components/schemas/UserProfile'
         '401':
           description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users:
+    post:
+      tags: [User]
+      summary: ユーザー登録（管理者）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: ユーザー登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: メールアドレス重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{user_id}:
+    patch:
+      tags: [User]
+      summary: ユーザー修正（管理者）
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: ユーザー修正成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [User]
+      summary: ユーザー削除（管理者、論理削除）
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ユーザー削除成功（is_active=false）
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象ユーザーなし
           content:
             application/json:
               schema:
@@ -291,6 +382,59 @@ components:
         email:
           type: string
           format: email
+
+    UserCreateRequest:
+      type: object
+      required: [name, full_name, email, role, password]
+      properties:
+        name:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, employee]
+        password:
+          type: string
+          minLength: 8
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, employee]
+        is_active:
+          type: boolean
+
+    UserResponse:
+      type: object
+      required: [id, name, full_name, email, role, is_active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, employee]
+        is_active:
+          type: boolean
 
     PunchRequest:
       type: object
