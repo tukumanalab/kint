@@ -7,16 +7,29 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 _PASSWORD_RE = re.compile(r"(?=.*[a-zA-Z])(?=.*\d)")
+_ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 
 
 class UserCreateRequest(BaseModel):
     """ユーザー作成リクエスト。"""
 
+    id: str
     name: str
     full_name: str
     email: EmailStr
     role: Literal["admin", "employee"]
     password: str
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, v: str) -> str:
+        """アカウントIDを英数記号 3〜50 文字で検証する。"""
+        v = v.strip()
+        if not 3 <= len(v) <= 50:
+            raise ValueError("id は 3〜50 文字で入力してください")
+        if not _ACCOUNT_ID_RE.fullmatch(v):
+            raise ValueError("id は英数字と記号 _.@+- のみ使用できます")
+        return v
 
     @field_validator("name")
     @classmethod
@@ -107,3 +120,9 @@ class UserResponse(BaseModel):
     def coerce_int_to_bool(cls, v: int | bool) -> bool:
         """SQLite は is_active を INTEGER で保持するため bool に変換する。"""
         return bool(v)
+
+
+class UsersListResponse(BaseModel):
+    """ユーザー一覧レスポンス。"""
+
+    users: list[UserResponse]

@@ -1,15 +1,19 @@
 """FastAPI アプリケーションエントリーポイント。"""
 
+import bcrypt
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
+from kint.db import AsyncSessionLocal
 from kint.exceptions import (
     KintConflictError,
     KintForbiddenError,
     KintNotFoundError,
     KintUnauthorizedError,
 )
-from kint.routers import attendance, punch, user
+from kint.models.user import User
+from kint.routers import attendance, auth, punch, user
 from kint.schemas.error import ErrorResponse
 
 app = FastAPI(
@@ -17,6 +21,37 @@ app = FastAPI(
     version="1.0.0",
     description="Kint NFC勤怠管理システムの API",
 )
+
+_DEFAULT_ADMIN_ID = "manager"
+_DEFAULT_ADMIN_PASSWORD = "manager123"
+_DEFAULT_ADMIN_EMAIL = "manager+bootstrap@kint.local"
+
+
+def _hash_password(plain: str) -> str:
+    """bcrypt でパスワードをハッシュ化する。"""
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+@app.on_event("startup")
+async def ensure_default_admin_user() -> None:
+    """起動時に既定の管理者ユーザーを未作成時のみ作成する。"""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.id == _DEFAULT_ADMIN_ID))
+        admin_user = result.scalar_one_or_none()
+
+        if admin_user is None:
+            admin_user = User(
+                id=_DEFAULT_ADMIN_ID,
+                name="manager",
+                full_name="Manager",
+                email=_DEFAULT_ADMIN_EMAIL,
+                password_hash=_hash_password(_DEFAULT_ADMIN_PASSWORD),
+                role="admin",
+                is_active=1,
+            )
+            session.add(admin_user)
+
+        await session.commit()
 
 # ------------------------------------------------------------------
 # BE-05: エラーレスポンス統一ハンドラー
@@ -71,6 +106,7 @@ async def unauthorized_handler(request: Request, exc: KintUnauthorizedError) -> 
 # ルーター登録
 # ------------------------------------------------------------------
 
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(punch.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")

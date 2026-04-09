@@ -7,7 +7,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
-from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse
+from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse, UsersListResponse
 from kint.services.user import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -20,6 +20,17 @@ def _require_admin(current_user: User) -> None:
             code="FORBIDDEN",
             message="管理者権限が必要です",
         )
+
+
+@router.get("", response_model=UsersListResponse)
+async def list_users(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> UsersListResponse:
+    """ユーザー一覧を返す。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    return await service.list_users()
 
 
 @router.post("", response_model=UserResponse, status_code=201)

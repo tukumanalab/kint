@@ -1,14 +1,12 @@
 """ユーザー管理サービス。"""
 
-import uuid
-
 import bcrypt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.exceptions import KintConflictError, KintNotFoundError
 from kint.models.user import User
-from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse
+from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse, UsersListResponse
 
 _MIN_ACTIVE_ADMINS = 1
 
@@ -33,8 +31,22 @@ class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def list_users(self) -> UsersListResponse:
+        """ユーザー一覧を返す。"""
+        result = await self.session.execute(select(User).order_by(User.created_at))
+        users = result.scalars().all()
+        return UsersListResponse(users=[UserResponse.model_validate(u) for u in users])
+
     async def create_user(self, data: UserCreateRequest) -> UserResponse:
-        """ユーザーを新規作成する。メール重複時は KintConflictError。"""
+        """ユーザーを新規作成する。アカウントID・メール重複時は KintConflictError。"""
+        id_existing = await self.session.execute(select(User.id).where(User.id == data.id))
+        if id_existing.scalar_one_or_none() is not None:
+            raise KintConflictError(
+                code="ACCOUNT_ID_CONFLICT",
+                message=f"アカウントID '{data.id}' はすでに使用されています",
+                detail={"id": data.id},
+            )
+
         existing = await self.session.execute(select(User.id).where(User.email == data.email))
         if existing.scalar_one_or_none() is not None:
             raise KintConflictError(
@@ -44,7 +56,7 @@ class UserService:
             )
 
         user = User(
-            id=str(uuid.uuid4()),
+            id=data.id,
             name=data.name,
             full_name=data.full_name,
             email=data.email,
