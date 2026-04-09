@@ -16,6 +16,7 @@ flowchart LR
     Repo[Repository 層]
     DB[(SQLite)]
     Calendar[Google Calendar アダプター]
+    Mail[Gmail API アダプター]
     Auth[認証 Session/JWT]
     Audit[監査ログ]
   end
@@ -33,6 +34,7 @@ flowchart LR
 
   API --> Router --> Service --> Repo --> DB
   Service --> Calendar
+  Service --> Mail
   API --> Auth
   Service --> Audit
 ```
@@ -46,6 +48,8 @@ flowchart LR
   - データ永続化、トランザクションを伴うデータアクセス、勤怠変更履歴の追記保存。
 - Calendar Adapter
   - Google Calendar API との連携境界。
+- Mail Adapter
+  - Gmail API（OAuth 2.0 クライアント認証）を用いた確認メール送信の連携境界。
 - Frontend(WebUSB)
   - WebUSB 経由で PaSoRi から IDm を取得し、API に打刻要求を送信する。
   - WebUSB 非対応環境では user_id 入力による代替打刻導線を提供する。
@@ -102,12 +106,50 @@ erDiagram
 - 修正のたびに、変更前値、変更後値、実行者、実行日時、修正理由を履歴として追記保存する。
 - 履歴は上書きせず、監査証跡として不変のログとして扱う。
 
-## 7. ユーザー管理ポリシー
+## 7. マイページ（本人プロフィール編集）
+- ログイン済みユーザーはマイページで name, full_name, password を更新できる。
+- ログイン済みユーザーは email 変更要求を作成できるが、email 自体は承認リンク確認後に更新する。
+- Router は本人コンテキストのみを Service に渡し、他ユーザーID指定を受け付けない。
+- Service は email 重複チェック、確認トークン発行、Gmail API 送信、パスワード強度検証、current_password 検証を実施する。
+- Repository は users テーブル更新、verification request 記録、監査ログ記録をトランザクションで実行する。
+- email 変更確定時または password 更新時は認証セッションを無効化し、再ログインを強制する。
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant UI as My Page UI
+  participant Rt as User Router
+  participant Sv as User Service
+  participant Rp as User Repository
+  participant Db as SQLite
+  participant Gm as Gmail API
+  participant Au as Auth Session
+
+  U->>UI: 新メールアドレスを入力
+  UI->>Rt: POST /api/v1/me/email-change-requests
+  Rt->>Sv: 本人コンテキストで委譲
+  Sv->>Rp: email 重複確認 + token 保存
+  Rp->>Db: SELECT users / INSERT email_verification_requests
+  Db-->>Rp: 結果
+  Sv->>Gm: 確認メール送信
+  Gm-->>Sv: 送信結果
+  Rt-->>UI: 202 pending_confirmation
+
+  U->>UI: メール内リンクを開く
+  UI->>Rt: POST /api/v1/email-verifications/confirm
+  Rt->>Sv: token を委譲
+  Sv->>Rp: token 検証 + users 更新
+  Rp->>Db: UPDATE users + UPDATE email_verification_requests
+  Sv->>Au: email_change 完了時にセッション無効化
+  Rt-->>UI: 200 confirmed または 400 invalid_token
+```
+
+## 8. ユーザー管理ポリシー
 - 管理者はユーザーを登録/修正/削除できる。
 - ユーザー削除は論理削除（`is_active=false`）で実施し、勤怠・監査データは保持する。
 - 一般利用者はユーザー管理 API を実行できない。
 
-## 8. アーキテクチャ決定事項
+## 9. アーキテクチャ決定事項
 - ADR-001: 現段階ではモジュラモノリスを採用する。
   - 根拠: 開発速度を確保しつつ、運用複雑性を抑えられるため。
 - ADR-002: 打刻 UI と管理 UI は同一 Web アプリ内で機能分離する。
@@ -125,15 +167,24 @@ erDiagram
 - ADR-008: ユーザー削除は論理削除で運用する。
   - 根拠: 勤怠・監査履歴の参照整合性を維持するため。
 
-## 9. トレードオフ整理
+- ADR-009: 本人プロフィール編集は管理者向けユーザー管理 API と分離する。
+  - 根拠: 権限境界を明確化し、本人編集で role/is_active が変更される事故を防ぐため。
+
+- ADR-010: メールアドレス登録・変更は即時反映せず、Gmail API で送信する確認メール承認後に確定する。
+  - 根拠: 実在性確認と誤入力防止を両立し、なりすましや配送不能アドレス登録を減らすため。
+
+- ADR-011: Gmail API 送信は OAuth クライアント（OAuth 2.0）を採用する。
+  - 根拠: Google の標準的な認可方式に準拠し、トークンの失効・再認可を運用しやすくするため。
+
+## 10. トレードオフ整理
 - 現時点の推奨構成はモジュラモノリス。
 - 将来的に外部 API 負荷が増えた場合は、Calendar 同期を別ワーカーサービスへ分離する。
 - WebUSB は HTTPS と対応ブラウザが前提となるため、クライアント環境要件の明確化が必要になる。
 - 論理削除によりデータ保持量は増えるため、定期的なアーカイブ運用を検討する。
 
-## 10. 対応ブラウザ要件（確定）
+## 11. 対応ブラウザ要件（確定）
 
-### 9-1. サポート方針
+### 11-1. サポート方針
 - 公式サポート（本番運用対象）:
   - Windows 11 + Google Chrome 最新安定版
   - Windows 11 + Microsoft Edge 最新安定版
@@ -144,28 +195,28 @@ erDiagram
   - Safari（WebUSB 非対応）
   - モバイルブラウザ（USB 接続運用が前提外）
 
-### 9-2. ブラウザ機能要件
+### 11-2. ブラウザ機能要件
 - `navigator.usb` が利用可能であること。
 - 打刻ページは HTTPS で配信されること（開発時は `localhost` を許容）。
 - USB デバイス選択はユーザー操作（クリック）起点で実行すること。
 
-## 11. 運用要件（確定）
+## 12. 運用要件（確定）
 
-### 10-1. 現場運用要件
+### 12-1. 現場運用要件
 - 打刻端末は USB ポートを持つ Windows PC を使用すること。
 - PaSoRi は 1 ブラウザインスタンスのみが利用する（同時占有を禁止）。
 - 打刻画面に「接続状態（未接続/接続中/読取成功/エラー）」を常時表示する。
 - WebUSB 接続失敗時は `user_id + reason` 入力による代替打刻へ遷移できる。
 
-### 10-2. セキュリティ要件
+### 12-2. セキュリティ要件
 - 打刻用 URL は社内配布 URL のみに限定する。
 - ブラウザのデバイス権限は運用手順に従って管理し、不要時は解除する。
 - 打刻 API は既存認証・監査ログ要件を維持する。
 
-### 10-3. 障害時運用要件
+### 12-3. 障害時運用要件
 - WebUSB 非対応ブラウザを検出した場合は即時にサポート外メッセージを表示する。
 - PaSoRi 接続不可時は再接続手順（抜き差し、ブラウザ再起動）をガイド表示する。
 - 復旧不能時は代替打刻（user_id）導線へ遷移し、理由入力を必須にする。
 
-## 12. 実装計画
+## 13. 実装計画
 - 実装チケット、依存関係、スケジュール、起票用バックログは [docs/implementation-plan.md](docs/implementation-plan.md) を参照。

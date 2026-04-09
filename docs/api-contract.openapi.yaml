@@ -59,6 +59,134 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /me/profile:
+    patch:
+      tags: [User]
+      summary: マイページのプロフィールを更新（本人）
+      description: >-
+        ログイン中ユーザー本人のプロフィール（name, full_name）を更新します。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeProfileUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /me/email-change-requests:
+    post:
+      tags: [User]
+      summary: メールアドレス変更確認メールを送信（本人）
+      description: >-
+        ログイン中ユーザー本人の新しいメールアドレス宛に確認メールを送信します。
+        メールアドレス自体は承認リンクが開かれるまで更新しません。
+        メール送信は Gmail API（OAuth 2.0 クライアント認証）で実行します。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailChangeRequestCreate'
+      responses:
+        '202':
+          description: 確認メール送信受付
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailChangeRequestAcceptedResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: メールアドレス重複または未完了リクエスト競合
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Gmail API 送信失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /me/password:
+    patch:
+      tags: [User]
+      summary: マイページのパスワードを更新（本人）
+      description: >-
+        current_password と new_password を受け取り、本人のパスワードを変更します。
+        更新成功時は現在セッションを無効化して再認証を要求します。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+      responses:
+        '204':
+          description: 更新成功（セッション無効化済み）
+        '401':
+          description: 未認証または current_password 不一致
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（同一パスワードを含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /email-verifications/confirm:
+    post:
+      tags: [User]
+      security: []
+      summary: メール確認トークンを確定
+      description: >-
+        確認メール内の承認リンクから取得した token を使い、signup または email_change を確定します。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationConfirmRequest'
+      responses:
+        '200':
+          description: 確認完了
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailVerificationConfirmResponse'
+        '400':
+          description: token 無効、期限切れ、使用済み
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /users:
     post:
       tags: [User]
@@ -66,6 +194,7 @@ paths:
       description: >-
         name, full_name, email, role, password を受け取りユーザーを作成します。
         password は 8〜72 文字かつ英字・数字を各1文字以上含む必要があります。
+        作成時に Gmail API（OAuth 2.0 クライアント認証）経由で確認メールを送信し、承認完了までメール未確認状態とします。
       requestBody:
         required: true
         content:
@@ -74,7 +203,7 @@ paths:
               $ref: '#/components/schemas/UserCreateRequest'
       responses:
         '201':
-          description: ユーザー登録成功
+          description: Gmail API（OAuth クライアント）送信失敗
           content:
             application/json:
               schema:
@@ -416,6 +545,13 @@ components:
         email:
           type: string
           format: email
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        email_verification_status:
+          type: string
+          enum: [pending, verified]
 
     UserCreateRequest:
       type: object
@@ -462,9 +598,79 @@ components:
         is_active:
           type: boolean
 
+    MeProfileUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    EmailChangeRequestCreate:
+      type: object
+      required: [new_email]
+      properties:
+        new_email:
+          type: string
+          format: email
+
+    EmailChangeRequestAcceptedResponse:
+      type: object
+      required: [status, requested_email]
+      properties:
+        status:
+          type: string
+          enum: [pending_confirmation]
+        requested_email:
+          type: string
+          format: email
+        expires_at:
+          type: string
+          format: date-time
+
+    EmailVerificationConfirmRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+
+    EmailVerificationConfirmResponse:
+      type: object
+      required: [verification_type, email, status]
+      properties:
+        verification_type:
+          type: string
+          enum: [signup, email_change]
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [confirmed]
+
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          minLength: 8
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          pattern: '^(?=.*[A-Za-z])(?=.*\d).+$'
+
     UserResponse:
       type: object
-      required: [id, name, full_name, email, role, is_active]
+      required: [id, name, full_name, email, role, is_active, email_verification_status]
       properties:
         id:
           type: string
@@ -480,6 +686,13 @@ components:
           enum: [admin, employee]
         is_active:
           type: boolean
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        email_verification_status:
+          type: string
+          enum: [pending, verified]
 
     PunchRequest:
       type: object

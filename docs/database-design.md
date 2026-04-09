@@ -12,6 +12,8 @@
 | `cards`                     | NFC カード（FeliCa IDm）とユーザーの紐付け |
 | `attendances`               | 出退勤記録                               |
 | `attendance_change_logs`    | 勤怠修正の変更履歴（不変ログ）           |
+| `user_profile_change_logs`  | ユーザープロフィール変更の監査ログ（不変ログ） |
+| `email_verification_requests` | メール確認リクエスト（signup / email_change） |
 | `shifts`                    | Google Calendar から取得したシフト情報   |
 
 ---
@@ -29,6 +31,7 @@
 | `password_hash`     | TEXT          | NOT NULL                      | bcrypt ハッシュ              |
 | `role`              | TEXT          | NOT NULL, CHECK(role IN ('admin','employee')) | ロール |
 | `google_calendar_id`| TEXT          | NULL                          | Google Calendar ID           |
+| `email_verified_at` | DATETIME      | NULL                          | メール確認完了日時           |
 | `is_active`         | INTEGER       | NOT NULL, DEFAULT 1           | 有効フラグ（1=有効）         |
 | `created_at`        | DATETIME      | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 作成日時           |
 | `updated_at`        | DATETIME      | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 更新日時           |
@@ -39,6 +42,7 @@
 運用ルール:
 - ユーザー削除は物理削除ではなく `is_active=0` への更新（論理削除）で扱う。
 - 論理削除済みユーザーは新規打刻・ログインを禁止する。
+- `email_verified_at IS NULL` のユーザーはログインを禁止する。
 
 ---
 
@@ -121,7 +125,72 @@
 
 ---
 
-### 2-5. `shifts`
+### 2-5. `user_profile_change_logs`
+
+ユーザープロフィール変更（email, name, full_name, password）の監査ログ。
+不変ログテーブルです。レコードの INSERT のみ許可し、UPDATE・DELETE は行わない運用とします。
+
+| カラム名           | 型       | 制約                                              | 説明                           |
+|--------------------|----------|---------------------------------------------------|--------------------------------|
+| `id`               | TEXT     | PK                                                | UUID v4                        |
+| `user_id`          | TEXT     | NOT NULL, FK → users.id ON DELETE RESTRICT       | 対象ユーザー（変更されたプロフィール） |
+| `actor_user_id`    | TEXT     | NOT NULL, FK → users.id ON DELETE RESTRICT       | 実行者（通常は user_id と同じ） |
+| `actor_role`       | TEXT     | NOT NULL, CHECK(actor_role IN ('admin','employee')) | 実行時のロール |
+| `event_type`       | TEXT     | NOT NULL, CHECK(event_type IN ('profile','password','email_change_requested','email_change_confirmed')) | イベント種別 |
+| `before_email`     | TEXT     | NULL                                              | 変更前メール（profile のみ） |
+| `after_email`      | TEXT     | NULL                                              | 変更後メール（profile のみ） |
+| `before_name`      | TEXT     | NULL                                              | 変更前表示名（profile のみ） |
+| `after_name`       | TEXT     | NULL                                              | 変更後表示名（profile のみ） |
+| `before_full_name` | TEXT     | NULL                                              | 変更前氏名（profile のみ） |
+| `after_full_name`  | TEXT     | NULL                                              | 変更後氏名（profile のみ） |
+| `reason`           | TEXT     | NOT NULL                                          | 変更理由（"プロフィール編集" または "パスワード変更") |
+| `changed_at`       | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP               | 変更日時 |
+
+> profile イベント時は before/after の name, full_name を記録する。
+> email_change_requested / email_change_confirmed イベント時は before/after の email を記録する。
+> password イベント時は before/after は NULL（パスワード値そのものは保存しない）。
+
+インデックス:
+- `ix_user_profile_change_logs_user_id` — 通常インデックス（対象ユーザー別） 
+- `ix_user_profile_change_logs_actor_user_id` — 通常インデックス（実行者別監査）
+- `ix_user_profile_change_logs_changed_at` — 通常インデックス（時系列ソート）
+- `ix_user_profile_change_logs_event_type` — 通常インデックス（イベント種別別）
+
+---
+
+### 2-6. `email_verification_requests`
+
+signup と email_change の確認トークンを管理するテーブル。
+token は平文では保存せず、ハッシュ値のみ保持する。
+
+| カラム名             | 型       | 制約                                                         | 説明 |
+|----------------------|----------|--------------------------------------------------------------|------|
+| `id`                 | TEXT     | PK                                                           | UUID v4 |
+| `user_id`            | TEXT     | NOT NULL, FK → users.id ON DELETE CASCADE                   | 対象ユーザー |
+| `requested_email`    | TEXT     | NOT NULL                                                     | 確認対象メールアドレス |
+| `verification_type`  | TEXT     | NOT NULL, CHECK(verification_type IN ('signup','email_change')) | 確認種別 |
+| `token_hash`         | TEXT     | NOT NULL, UNIQUE                                             | 確認トークンのハッシュ |
+| `requested_by_user_id` | TEXT   | NULL, FK → users.id ON DELETE SET NULL                      | 要求者（admin 作成時は管理者、signup は作成者） |
+| `sent_via`           | TEXT     | NOT NULL, CHECK(sent_via IN ('gmail_api'))                   | 送信手段 |
+| `expires_at`         | DATETIME | NOT NULL                                                     | 期限日時 |
+| `consumed_at`        | DATETIME | NULL                                                         | 使用日時 |
+| `cancelled_at`       | DATETIME | NULL                                                         | 取消日時 |
+| `created_at`         | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          | 作成日時 |
+| `updated_at`         | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          | 更新日時 |
+
+運用ルール:
+- `consumed_at` / `cancelled_at` のいずれかが設定された request は再利用不可。
+- email_change は users.email を即時更新せず、本テーブルで保留管理する。
+- signup は確認完了時に users.email_verified_at を設定する。
+
+インデックス:
+- `ix_email_verification_requests_user_id` — 通常インデックス（ユーザー別確認状態）
+- `ix_email_verification_requests_requested_email` — 通常インデックス（メール別競合確認）
+- `ix_email_verification_requests_expires_at` — 通常インデックス（期限切れ掃除）
+
+---
+
+### 2-7. `shifts`
 
 | カラム名           | 型       | 制約                                              | 説明                           |
 |--------------------|----------|---------------------------------------------------|--------------------------------|
@@ -155,7 +224,23 @@ erDiagram
     TEXT password_hash
     TEXT role
     TEXT google_calendar_id
+    DATETIME email_verified_at
     INTEGER is_active
+    DATETIME created_at
+    DATETIME updated_at
+  }
+
+  email_verification_requests {
+    TEXT id PK
+    TEXT user_id FK
+    TEXT requested_email
+    TEXT verification_type
+    TEXT token_hash
+    TEXT requested_by_user_id FK
+    TEXT sent_via
+    DATETIME expires_at
+    DATETIME consumed_at
+    DATETIME cancelled_at
     DATETIME created_at
     DATETIME updated_at
   }
@@ -212,14 +297,124 @@ erDiagram
   users ||--o{ attendances : 記録
   users ||--o{ attendance_change_logs : 実行
   users ||--o{ shifts : 保有
+  users ||--o{ email_verification_requests : 対象
+  users ||--o{ email_verification_requests : 要求者
   cards ||--o{ attendances : 利用
   attendances ||--o{ attendance_change_logs : 変更履歴
+  users ||--o{ user_profile_change_logs : 対象
+  users ||--o{ user_profile_change_logs : 実行者
   shifts ||--o{ attendances : 照合
 ```
 
 ---
 
-## 4. 勤怠修正トランザクションの流れ
+## 4. プロフィール変更トランザクションの流れ
+
+### 4-1. プロフィール更新（表示名・氏名）
+
+```mermaid
+sequenceDiagram
+  participant UI as My Page UI
+  participant Rt as User Router
+  participant Sv as User Service
+  participant Rp as Repository
+  participant Db as SQLite
+
+  UI->>Rt: PATCH /api/v1/me/profile
+  Rt->>Sv: 本人コンテキストで委譲
+  Sv->>Rp: 変更前値取得
+  Rp->>Db: SELECT users WHERE id = user_id
+  Db-->>Rp: 現在のプロフィール
+  Rp->>Db: BEGIN TRANSACTION
+  Rp->>Db: INSERT user_profile_change_logs（event_type='profile', before/after）
+  Rp->>Db: UPDATE users SET name/full_name, updated_at
+  Rp->>Db: COMMIT
+  Rt-->>UI: 200
+```
+
+- フィールド更新前に変更前値をキャプチャ
+- 履歴 INSERT と本体 UPDATE を同一トランザクション内で実行
+
+### 4-2. メールアドレス変更要求と確認
+
+```mermaid
+sequenceDiagram
+  participant UI as My Page UI
+  participant Rt as User Router
+  participant Sv as User Service
+  participant Rp as Repository
+  participant Db as SQLite
+  participant Gm as Gmail API
+  participant Au as Auth Session
+
+  UI->>Rt: POST /api/v1/me/email-change-requests
+  Rt->>Sv: new_email を委譲
+  Sv->>Rp: users.email / request 競合確認
+  Rp->>Db: SELECT users, SELECT email_verification_requests
+  Db-->>Rp: 結果（重複あれば 409）
+  Sv->>Sv: token 生成 + hash 化
+  Rp->>Db: BEGIN TRANSACTION
+  Rp->>Db: INSERT email_verification_requests
+  Rp->>Db: INSERT user_profile_change_logs（email_change_requested）
+  Rp->>Db: COMMIT
+  Sv->>Gm: 承認リンク付きメール送信
+  Gm-->>Sv: 送信結果
+  Rt-->>UI: 202 pending_confirmation
+
+  UI->>Rt: POST /api/v1/email-verifications/confirm
+  Rt->>Sv: token を委譲
+  Sv->>Rp: token 検証
+  Rp->>Db: SELECT email_verification_requests by token_hash
+  Db-->>Rp: request
+  Rp->>Db: BEGIN TRANSACTION
+  Rp->>Db: UPDATE users SET email=requested_email, email_verified_at=NOW, updated_at
+  Rp->>Db: UPDATE email_verification_requests SET consumed_at=NOW
+  Rp->>Db: INSERT user_profile_change_logs（email_change_confirmed）
+  Rp->>Db: COMMIT
+  Sv->>Au: セッション無効化
+  Rt-->>UI: 200 confirmed
+```
+
+- email_change は確認完了まで users.email を更新しない
+- token はハッシュ化保存し、平文比較は行わない
+- users 更新、request 消費、監査ログ追記は同一トランザクションで実行
+
+### 4-3. パスワード変更
+
+
+
+```mermaid
+sequenceDiagram
+  participant UI as My Page UI
+  participant Rt as User Router
+  participant Sv as User Service
+  participant Rp as Repository
+  participant Db as SQLite
+  participant Au as Auth Session
+
+  UI->>Rt: PATCH /api/v1/me/password
+  Rt->>Sv: current_password, new_password を委譲
+  Sv->>Rp: current_password 検証（bcrypt compare）
+  Rp->>Db: SELECT password_hash FROM users WHERE id = user_id
+  Db-->>Rp: password_hash
+  Sv->>Sv: bcrypt.compare(current_password, hash) = true？（false なら 401）
+  Sv->>Sv: new_password == current_password？（true なら 422）
+  Sv->>Rp: パスワード更新
+  Rp->>Db: BEGIN TRANSACTION
+  Rp->>Db: INSERT user_profile_change_logs（event_type='password', before/after=NULL）
+  Rp->>Db: UPDATE users SET password_hash = bcrypt(new_password), updated_at
+  Rp->>Db: COMMIT
+  Sv->>Au: セッション無効化
+  Rt-->>UI: 204（セッション無効化済み、再ログイン誘導）
+```
+
+- current_password の検証（bcrypt compare）
+- パスワード値は監査ログに保存しない（イベントのみ）
+- パスワード変更後は認証セッション無効化 → 再ログイン強制
+
+---
+
+## 5. 勤怠修正トランザクションの流れ
 
 ```mermaid
 sequenceDiagram
@@ -242,7 +437,7 @@ sequenceDiagram
 
 ---
 
-## 5. @database への委譲事項
+## 6. @database への委譲事項
 
 - SQLAlchemy モデル（`src/kint/models/`）の実装
 - Alembic 初期マイグレーションの作成
