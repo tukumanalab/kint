@@ -21,7 +21,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     google_calendar_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -37,3 +39,12 @@ class User(Base):
         back_populates="actor", foreign_keys="AttendanceChangeLog.actor_user_id"
     )
     shifts: Mapped[list["Shift"]] = relationship(back_populates="user")  # noqa: F821
+    profile_change_logs: Mapped[list["UserProfileChangeLog"]] = relationship(  # noqa: F821
+        back_populates="user", foreign_keys="UserProfileChangeLog.user_id"
+    )
+    acted_profile_change_logs: Mapped[list["UserProfileChangeLog"]] = relationship(  # noqa: F821
+        back_populates="actor", foreign_keys="UserProfileChangeLog.actor_user_id"
+    )
+    email_verification_requests: Mapped[list["EmailVerificationRequest"]] = relationship(  # noqa: F821
+        back_populates="user", foreign_keys="EmailVerificationRequest.user_id"
+    )

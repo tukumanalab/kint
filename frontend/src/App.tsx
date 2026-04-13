@@ -3,13 +3,36 @@ import { useAuth } from './hooks/useAuth';
 import { PunchPage } from './components/Punch';
 import { LoginPage } from './components/Login';
 import { UserManagementPage } from './components/Users';
+import { MyProfilePage } from './components/MyProfile';
+import { EmailVerificationPage } from './components/EmailVerification';
 import './App.css';
 
-type Page = 'punch' | 'users';
+type Page = 'punch' | 'users' | 'myProfile';
+
+function getEmailVerificationToken(): string | null {
+  if (window.location.pathname === '/email-verifications/confirm') {
+    return new URLSearchParams(window.location.search).get('token');
+  }
+  return null;
+}
 
 function App() {
   const auth = useAuth();
   const [page, setPage] = useState<Page>('punch');
+  const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
+
+  // メール確認ページはログイン不要・認証状態問わず表示
+  if (window.location.pathname === '/email-verifications/confirm') {
+    return (
+      <EmailVerificationPage
+        token={emailVerifToken}
+        onGoLogin={() => {
+          window.history.pushState({}, '', '/');
+          window.location.reload();
+        }}
+      />
+    );
+  }
 
   // 認証情報ロード中
   if (auth.isLoading) {
@@ -46,7 +69,13 @@ function App() {
           )}
         </div>
         <div className="app-nav__user">
-          <span className="app-nav__user-name">{auth.user.name}</span>
+          <button
+            type="button"
+            className={`app-nav__link ${page === 'myProfile' ? 'app-nav__link--active' : ''}`}
+            onClick={() => setPage('myProfile')}
+          >
+            {auth.user.name}
+          </button>
           <button type="button" className="app-nav__logout" onClick={auth.logout}>
             ログアウト
           </button>
@@ -55,6 +84,7 @@ function App() {
 
       {page === 'punch' && <PunchPage />}
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
+      {page === 'myProfile' && <MyProfilePage auth={auth} />}
     </div>
   );
 }

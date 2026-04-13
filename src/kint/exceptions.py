@@ -25,3 +25,11 @@ class KintForbiddenError(KintError):
 
 class KintUnauthorizedError(KintError):
     """未認証の例外。HTTP 401 にマッピングされる。"""
+
+
+class KintBadRequestError(KintError):
+    """不正リクエストの例外。HTTP 400 にマッピングされる。"""
+
+
+class KintBadGatewayError(KintError):
+    """上位ゲートウェイ障害の例外。HTTP 502 にマッピングされる。"""

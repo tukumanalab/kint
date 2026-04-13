@@ -1,12 +1,36 @@
 """ユーザー管理サービス。"""
 
+import hashlib
+import secrets
+import uuid
+from datetime import UTC, datetime, timedelta
+
 import bcrypt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kint.exceptions import KintConflictError, KintNotFoundError
+from kint.config import settings
+from kint.exceptions import (
+    KintBadGatewayError,
+    KintBadRequestError,
+    KintConflictError,
+    KintNotFoundError,
+    KintUnauthorizedError,
+)
+from kint.models.email_verification import EmailVerificationRequest
 from kint.models.user import User
-from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse, UsersListResponse
+from kint.models.user_profile_change_log import UserProfileChangeLog
+from kint.schemas.user import (
+    EmailChangeAcceptedResponse,
+    EmailChangeRequestCreate,
+    EmailVerificationConfirmResponse,
+    MeProfileUpdateRequest,
+    UserCreateRequest,
+    UserPatchRequest,
+    UserResponse,
+    UsersListResponse,
+)
+from kint.services.gmail import GmailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
 
@@ -146,3 +170,223 @@ class UserService:
         user.is_active = 0
         await self.session.commit()
         return True
+
+    # ------------------------------------------------------------------
+    # BE-09: マイページ API (本人プロフィール編集)
+    # ------------------------------------------------------------------
+
+    async def update_my_profile(
+        self,
+        current_user: User,
+        data: MeProfileUpdateRequest,
+    ) -> User:
+        """本人の name / full_name を更新し、監査ログを保存する。"""
+        before_name = current_user.name
+        before_full_name = current_user.full_name
+
+        if data.name is not None:
+            current_user.name = data.name
+        if data.full_name is not None:
+            current_user.full_name = data.full_name
+
+        log = UserProfileChangeLog(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+            event_type="profile",
+            before_name=before_name,
+            after_name=current_user.name,
+            before_full_name=before_full_name,
+            after_full_name=current_user.full_name,
+            reason="本人によるプロフィール更新",
+        )
+        self.session.add(log)
+        await self.session.commit()
+        await self.session.refresh(current_user)
+        return current_user
+
+    async def request_email_change(
+        self,
+        current_user: User,
+        data: EmailChangeRequestCreate,
+        gmail: GmailAdapter,
+    ) -> EmailChangeAcceptedResponse:
+        """new_email 宛に確認メールを送信し、EmailVerificationRequest を作成する。
+        email 重複時は KintConflictError。Gmail 送信失敗時は KintBadGatewayError。
+        """
+        new_email = str(data.new_email)
+
+        # 重複チェック（自分自身のメールアドレスも含めて重複扱い）
+        dup = await self.session.execute(select(User.id).where(User.email == new_email))
+        if dup.scalar_one_or_none() is not None:
+            raise KintConflictError(
+                code="EMAIL_CONFLICT",
+                message=f"メールアドレス '{new_email}' はすでに使用されています",
+                detail={"email": new_email},
+            )
+
+        # 未完了リクエストをキャンセル
+        await self._cancel_pending_email_verification(current_user.id, "email_change")
+
+        # トークン生成・ハッシュ化
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.now(tz=UTC).replace(tzinfo=None) + timedelta(
+            hours=settings.email_verification_expire_hours
+        )
+
+        evr = EmailVerificationRequest(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            requested_email=new_email,
+            verification_type="email_change",
+            token_hash=token_hash,
+            requested_by_user_id=current_user.id,
+            sent_via="gmail_api",
+            expires_at=expires_at,
+        )
+        self.session.add(evr)
+
+        # 監査ログ
+        log = UserProfileChangeLog(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+            event_type="email_change_requested",
+            before_email=current_user.email,
+            after_email=new_email,
+            reason="本人によるメールアドレス変更リクエスト",
+        )
+        self.session.add(log)
+
+        # Gmail 送信（失敗時はロールバック）
+        try:
+            gmail.send_email_verification(new_email, raw_token, "email_change")
+        except KintBadGatewayError:
+            await self.session.rollback()
+            raise
+
+        await self.session.commit()
+        return EmailChangeAcceptedResponse(
+            status="pending_confirmation",
+            requested_email=new_email,
+            expires_at=expires_at,
+        )
+
+    async def confirm_email_verification(self, token: str) -> EmailVerificationConfirmResponse:
+        """トークンを検証してメールアドレスを確定する。
+        email_change の場合はユーザーの email を更新し token_version をインクリメントする。
+        """
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        result = await self.session.execute(
+            select(EmailVerificationRequest).where(
+                EmailVerificationRequest.token_hash == token_hash
+            )
+        )
+        evr = result.scalar_one_or_none()
+
+        if evr is None:
+            raise KintBadRequestError(
+                code="INVALID_TOKEN",
+                message="トークンが無効です",
+            )
+        now = datetime.now(tz=UTC).replace(tzinfo=None)
+        if evr.consumed_at is not None or evr.cancelled_at is not None:
+            raise KintBadRequestError(
+                code="TOKEN_ALREADY_USED",
+                message="このトークンはすでに使用済みです",
+            )
+        if evr.expires_at < now:
+            raise KintBadRequestError(
+                code="TOKEN_EXPIRED",
+                message="トークンの有効期限が切れています",
+            )
+
+        # ユーザー取得
+        user_result = await self.session.execute(select(User).where(User.id == evr.user_id))
+        user = user_result.scalar_one_or_none()
+        if user is None:
+            raise KintBadRequestError(
+                code="USER_NOT_FOUND",
+                message="対象ユーザーが見つかりません",
+            )
+
+        before_email = user.email
+        confirmed_email = evr.requested_email
+
+        # トークンを消費済みに更新
+        evr.consumed_at = now
+
+        if evr.verification_type == "email_change":
+            user.email = confirmed_email
+            user.email_verified_at = now
+            user.token_version = (user.token_version or 1) + 1
+
+            log = UserProfileChangeLog(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                actor_user_id=user.id,
+                actor_role=user.role,
+                event_type="email_change_confirmed",
+                before_email=before_email,
+                after_email=confirmed_email,
+                reason="メールアドレス変更確認完了",
+            )
+            self.session.add(log)
+        elif evr.verification_type == "signup":
+            user.email_verified_at = now
+
+        await self.session.commit()
+        return EmailVerificationConfirmResponse(
+            verification_type=evr.verification_type,  # type: ignore[arg-type]
+            email=confirmed_email,
+            status="confirmed",
+        )
+
+    async def change_password(
+        self,
+        current_user: User,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        """パスワードを変更する。current_password 不一致は KintUnauthorizedError。
+        変更成功時は token_version をインクリメントしてセッションを無効化する。
+        """
+        if not bcrypt.checkpw(current_password.encode(), current_user.password_hash.encode()):
+            raise KintUnauthorizedError(
+                code="INVALID_PASSWORD",
+                message="現在のパスワードが正しくありません",
+            )
+
+        current_user.password_hash = _hash_password(new_password)
+        current_user.token_version = (current_user.token_version or 1) + 1
+
+        log = UserProfileChangeLog(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+            event_type="password",
+            reason="本人によるパスワード変更",
+        )
+        self.session.add(log)
+        await self.session.commit()
+
+    async def _cancel_pending_email_verification(
+        self, user_id: str, verification_type: str
+    ) -> None:
+        """指定ユーザーの未消費・未キャンセルな確認リクエストをキャンセルする。"""
+        now = datetime.now(tz=UTC).replace(tzinfo=None)
+        result = await self.session.execute(
+            select(EmailVerificationRequest).where(
+                EmailVerificationRequest.user_id == user_id,
+                EmailVerificationRequest.verification_type == verification_type,
+                EmailVerificationRequest.consumed_at.is_(None),
+                EmailVerificationRequest.cancelled_at.is_(None),
+            )
+        )
+        for evr in result.scalars().all():
+            evr.cancelled_at = now

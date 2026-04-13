@@ -7,13 +7,15 @@ from sqlalchemy import select
 
 from kint.db import AsyncSessionLocal
 from kint.exceptions import (
+    KintBadGatewayError,
+    KintBadRequestError,
     KintConflictError,
     KintForbiddenError,
     KintNotFoundError,
     KintUnauthorizedError,
 )
 from kint.models.user import User
-from kint.routers import attendance, auth, punch, user
+from kint.routers import attendance, auth, email_verification, me, punch, user
 from kint.schemas.error import ErrorResponse
 
 app = FastAPI(
@@ -52,6 +54,7 @@ async def ensure_default_admin_user() -> None:
             session.add(admin_user)
 
         await session.commit()
+
 
 # ------------------------------------------------------------------
 # BE-05: エラーレスポンス統一ハンドラー
@@ -102,6 +105,28 @@ async def unauthorized_handler(request: Request, exc: KintUnauthorizedError) -> 
     )
 
 
+@app.exception_handler(KintBadRequestError)
+async def bad_request_handler(request: Request, exc: KintBadRequestError) -> JSONResponse:
+    """400 BadRequest を ErrorResponse 形式で返す。"""
+    return JSONResponse(
+        status_code=400,
+        content=ErrorResponse(code=exc.code, message=exc.message, detail=exc.detail).model_dump(
+            exclude_none=True
+        ),
+    )
+
+
+@app.exception_handler(KintBadGatewayError)
+async def bad_gateway_handler(request: Request, exc: KintBadGatewayError) -> JSONResponse:
+    """502 BadGateway を ErrorResponse 形式で返す。"""
+    return JSONResponse(
+        status_code=502,
+        content=ErrorResponse(code=exc.code, message=exc.message, detail=exc.detail).model_dump(
+            exclude_none=True
+        ),
+    )
+
+
 # ------------------------------------------------------------------
 # ルーター登録
 # ------------------------------------------------------------------
@@ -110,3 +135,5 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(punch.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
+app.include_router(me.router, prefix="/api/v1")
+app.include_router(email_verification.router, prefix="/api/v1")

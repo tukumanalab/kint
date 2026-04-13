@@ -25,6 +25,7 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[_ALGORITHM])
         user_id: str | None = payload.get("sub")
+        token_version: int | None = payload.get("tv")
         if user_id is None:
             raise KintUnauthorizedError(code="INVALID_TOKEN", message="トークンが無効です")
     except JWTError:
@@ -34,5 +35,12 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise KintUnauthorizedError(code="USER_NOT_FOUND", message="ユーザーが見つかりません")
+
+    # token_version が一致しない場合はトークンを無効とする（パスワード/メール変更後）
+    if token_version is not None and user.token_version != token_version:
+        raise KintUnauthorizedError(
+            code="TOKEN_INVALIDATED",
+            message="トークンが無効化されています。再ログインしてください",
+        )
 
     return user

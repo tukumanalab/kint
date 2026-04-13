@@ -21,10 +21,10 @@ _ALGORITHM = "HS256"
 _TOKEN_EXPIRE_HOURS = 8
 
 
-def _create_access_token(user_id: str) -> str:
-    """JWT アクセストークンを生成する。"""
+def _create_access_token(user_id: str, token_version: int) -> str:
+    """JWT アクセストークンを生成する。tv クレームでトークンバージョンを埋め込む。"""
     expire = datetime.now(tz=UTC) + timedelta(hours=_TOKEN_EXPIRE_HOURS)
-    payload = {"sub": user_id, "exp": expire}
+    payload = {"sub": user_id, "tv": token_version, "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 
@@ -45,7 +45,7 @@ async def login(
             message="アカウントIDまたはパスワードが正しくありません",
         )
 
-    token = _create_access_token(user.id)
+    token = _create_access_token(user.id, user.token_version or 1)
     return LoginResponse(
         access_token=token,
         token_type="bearer",
