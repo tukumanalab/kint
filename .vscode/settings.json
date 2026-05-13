@@ -19,5 +19,5 @@
 
     // Vitest (Frontend)
     "vitest.rootConfig": "${workspaceFolder}/frontend/vitest.config.ts",
-    "vitest.workspaceConfig": "${workspaceFolder}/frontend/vitest.config.ts"
+    "liveServer.settings.port": 5501
 }
