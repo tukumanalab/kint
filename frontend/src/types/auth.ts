@@ -6,11 +6,6 @@ export interface UserProfile {
   email: string;
 }
 
-export interface LoginRequest {
-  account_id: string;
-  password: string;
-}
-
 export interface LoginResponse {
   access_token: string;
   token_type: 'bearer';

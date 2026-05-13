@@ -84,7 +84,7 @@ class UserService:
             name=data.name,
             full_name=data.full_name,
             email=data.email,
-            password_hash=_hash_password(data.password),
+            password_hash=None,
             role=data.role,
             is_active=1,
         )

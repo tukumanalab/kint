@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     gmail_sender_email: str = "noreply@kint.local"
     app_base_url: str = "http://localhost:8000"
     email_verification_expire_hours: int = 24
+    google_client_id: str = ""  # GSI Client ID (Google Cloud Console で発行)
+    admin_password: str = ""  # 管理者ロールで自動登録を許可するパスワード
 
 
 settings = Settings()

@@ -52,7 +52,10 @@ function makeAuth(overrides: Partial<UseAuth> = {}): UseAuth {
     },
     isLoading: false,
     error: null,
-    login: vi.fn(),
+    pendingIdToken: null,
+    loginWithGoogle: vi.fn(),
+    register: vi.fn(),
+    cancelRegister: vi.fn(),
     logout: vi.fn(),
     ...overrides,
   };
@@ -113,7 +116,6 @@ describe('UserManagementPage', () => {
     fireEvent.change(screen.getByLabelText(/表示名/), { target: { value: 'new' } });
     fireEvent.change(screen.getByLabelText(/氏名/), { target: { value: '新規 ユーザー' } });
     fireEvent.change(screen.getByLabelText(/メールアドレス/), { target: { value: 'new@example.com' } });
-    fireEvent.change(screen.getByLabelText(/パスワード/), { target: { value: 'Password1' } });
 
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
@@ -124,7 +126,6 @@ describe('UserManagementPage', () => {
         full_name: '新規 ユーザー',
         email: 'new@example.com',
         role: 'employee',
-        password: 'Password1',
       });
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(screen.getByText('新規 ユーザー')).toBeInTheDocument();

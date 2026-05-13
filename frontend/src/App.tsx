@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { PunchPage } from './components/Punch';
 import { LoginPage } from './components/Login';
+import { RegisterPage } from './components/Register';
 import { UserManagementPage } from './components/Users';
 import { MyProfilePage } from './components/MyProfile';
 import { EmailVerificationPage } from './components/EmailVerification';
@@ -39,8 +40,11 @@ function App() {
     return <div className="app-loading">読み込み中...</div>;
   }
 
-  // 未ログイン → ログイン画面
+  // 未ログイン → 登録画面 or ログイン画面
   if (!auth.token || !auth.user) {
+    if (auth.pendingIdToken) {
+      return <RegisterPage auth={auth} />;
+    }
     return <LoginPage auth={auth} />;
   }
 

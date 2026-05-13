@@ -44,7 +44,6 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
   const [email, setEmail] = useState(editing?.email ?? '');
   const [role, setRole] = useState<'admin' | 'employee'>(editing?.role ?? 'employee');
   const [isActive, setIsActive] = useState(editing?.is_active ?? true);
-  const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +60,6 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
           full_name: fullName.trim(),
           email: email.trim(),
           role,
-          password,
         };
         saved = await createUser(token, payload);
       } else if (mode?.kind === 'edit' && editing) {
@@ -173,24 +171,6 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
               <option value="admin">管理者</option>
             </select>
           </div>
-          {mode?.kind === 'create' && (
-            <div className="form-field">
-              <label htmlFor="password" className="form-label">パスワード <span className="required">*</span></label>
-              <input
-                id="password"
-                type="password"
-                className="form-input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                maxLength={72}
-                required
-                disabled={submitting}
-                autoComplete="new-password"
-              />
-              <p className="form-hint">8〜72文字、英字と数字をそれぞれ1文字以上含む</p>
-            </div>
-          )}
           {mode?.kind === 'edit' && (
             <div className="form-field">
               <label className="form-label form-label--checkbox">
@@ -219,7 +199,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={submitting || !accountId.trim() || !name.trim() || !fullName.trim() || !email.trim() || (mode?.kind === 'create' && !password)}
+              disabled={submitting || !accountId.trim() || !name.trim() || !fullName.trim() || !email.trim()}
             >
               {submitting ? '保存中...' : '保存'}
             </button>

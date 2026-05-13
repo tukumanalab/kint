@@ -65,6 +65,19 @@ class UserProfile(BaseModel):
         return super().model_validate(obj, **kwargs)
 
 
+class GoogleLoginRequest(BaseModel):
+    """Google ID Token ログインリクエスト。"""
+
+    id_token: str
+
+
+class RegisterRequest(BaseModel):
+    """新規ユーザー登録リクエスト。"""
+
+    id_token: str
+    admin_password: str | None = None
+
+
 class LoginResponse(BaseModel):
     """ログインレスポンス。"""
 

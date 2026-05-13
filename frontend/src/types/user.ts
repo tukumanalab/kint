@@ -19,7 +19,6 @@ export interface UserCreateRequest {
   full_name: string;
   email: string;
   role: 'admin' | 'employee';
-  password: string;
 }
 
 export interface UserPatchRequest {

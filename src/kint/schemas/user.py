@@ -18,7 +18,6 @@ class UserCreateRequest(BaseModel):
     full_name: str
     email: EmailStr
     role: Literal["admin", "employee"]
-    password: str
 
     @field_validator("id")
     @classmethod
@@ -47,16 +46,6 @@ class UserCreateRequest(BaseModel):
         v = v.strip()
         if not 1 <= len(v) <= 100:
             raise ValueError("full_name は 1〜100 文字で入力してください")
-        return v
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        """8〜72 文字かつ英字・数字を各 1 文字以上含むことを検証する。"""
-        if not 8 <= len(v) <= 72:
-            raise ValueError("password は 8〜72 文字で入力してください")
-        if not _PASSWORD_RE.search(v):
-            raise ValueError("password は英字と数字をそれぞれ 1 文字以上含める必要があります")
         return v
 
 

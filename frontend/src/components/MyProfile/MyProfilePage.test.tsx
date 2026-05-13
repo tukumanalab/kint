@@ -19,7 +19,10 @@ function makeAuth(overrides: Partial<UseAuth> = {}): UseAuth {
     user: mockProfile,
     isLoading: false,
     error: null,
-    login: vi.fn(),
+    pendingIdToken: null,
+    loginWithGoogle: vi.fn(),
+    register: vi.fn(),
+    cancelRegister: vi.fn(),
     logout: vi.fn(),
     ...overrides,
   };
@@ -134,46 +137,4 @@ describe('MyProfilePage', () => {
     });
   });
 
-  it('パスワード変更で現在パスワード不一致時に 401 エラーを表示する', async () => {
-    vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
-    const { ApiError } = await import('../../types/error');
-    vi.spyOn(meApi, 'changePassword').mockRejectedValue(
-      new ApiError(401, { code: 'INVALID_CREDENTIALS', message: 'wrong password' }),
-    );
-
-    render(<MyProfilePage auth={makeAuth()} />);
-
-    await waitFor(() => screen.getByLabelText(/現在のパスワード/));
-
-    fireEvent.change(screen.getByLabelText(/現在のパスワード/), { target: { value: 'OldPass1' } });
-    fireEvent.change(screen.getByLabelText(/新しいパスワード/, { selector: '#new-password' }), { target: { value: 'NewPass1' } });
-    fireEvent.change(screen.getByLabelText(/新しいパスワード（確認）/), { target: { value: 'NewPass1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'パスワードを変更' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('現在のパスワードが正しくありません');
-    });
-  });
-
-  it('パスワード変更成功後に logout が呼ばれる', async () => {
-    vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
-    vi.spyOn(meApi, 'changePassword').mockResolvedValue(undefined);
-
-    const logoutMock = vi.fn();
-    render(<MyProfilePage auth={makeAuth({ logout: logoutMock })} />);
-
-    await waitFor(() => screen.getByLabelText(/現在のパスワード/));
-
-    fireEvent.change(screen.getByLabelText(/現在のパスワード/), { target: { value: 'OldPass1' } });
-    fireEvent.change(screen.getByLabelText(/新しいパスワード/, { selector: '#new-password' }), { target: { value: 'NewPass2' } });
-    fireEvent.change(screen.getByLabelText(/新しいパスワード（確認）/), { target: { value: 'NewPass2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'パスワードを変更' }));
-
-    await waitFor(
-      () => {
-        expect(logoutMock).toHaveBeenCalled();
-      },
-      { timeout: 3000 },
-    );
-  });
 });

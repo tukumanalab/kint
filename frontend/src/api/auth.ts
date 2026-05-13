@@ -1,4 +1,4 @@
-import type { LoginRequest, LoginResponse, UserProfile } from '../types/auth';
+import type { LoginResponse, UserProfile } from '../types/auth';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
 
@@ -20,10 +20,23 @@ async function request<T>(path: string, init: RequestInit, token?: string): Prom
   return res.json() as Promise<T>;
 }
 
-export async function postLogin(payload: LoginRequest): Promise<LoginResponse> {
-  return request<LoginResponse>('/auth/login', {
+export async function postGoogleLogin(idToken: string): Promise<LoginResponse> {
+  return request<LoginResponse>('/auth/google', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ id_token: idToken }),
+  });
+}
+
+export async function postRegister(
+  idToken: string,
+  adminPassword?: string,
+): Promise<LoginResponse> {
+  return request<LoginResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      id_token: idToken,
+      ...(adminPassword ? { admin_password: adminPassword } : {}),
+    }),
   });
 }
 

@@ -1,6 +1,6 @@
 ---
 description: "Use when designing system architecture, API contracts, component structure, or making technology decisions. Handles high-level design, sequence diagrams, and technical specs for the NFC attendance system."
-tools: [read, edit, search, web]
+tools: [read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/readNotebookCellOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, web/fetch, web/githubRepo, web/githubTextSearch, todo]
 ---
 
 あなたはNFC勤怠管理システム「Kint」のシステムアーキテクトです。
