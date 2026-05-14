@@ -1,8 +1,15 @@
 """FastAPI アプリケーションエントリーポイント。"""
 
+import json
+from pathlib import Path
+from typing import Any
+
+import aiofiles
 import bcrypt
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.exceptions import HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from kint.db import AsyncSessionLocal
@@ -137,3 +144,62 @@ app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(me.router, prefix="/api/v1")
 app.include_router(email_verification.router, prefix="/api/v1")
+
+
+# ------------------------------------------------------------------
+# ヘルスチェック
+# ------------------------------------------------------------------
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Docker ヘルスチェック用エンドポイント。"""
+    return {"status": "ok"}
+
+
+# ------------------------------------------------------------------
+# Google OAuth2 redirect モード コールバック（本番用）
+# Google Identity Services が form_post で credential を POST してくる。
+# credential を sessionStorage に保存して SPA ルートへリダイレクトする。
+# ------------------------------------------------------------------
+
+
+@app.post("/")
+async def google_oauth_callback(credential: str = Form(...)) -> HTMLResponse:
+    """Google OAuth2 redirect モードのコールバック。form_post で受け取った credential を
+    sessionStorage に保存して SPA ルートへリダイレクトする。
+    """
+    safe_credential = json.dumps(credential)
+    html = (
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><script>\n"
+        f"sessionStorage.setItem('google_credential',{safe_credential});\n"
+        "window.location.href='/';\n"
+        "<\\/script></head><body>Redirecting...</body></html>"
+    )
+    return HTMLResponse(content=html)
+
+
+# ------------------------------------------------------------------
+# フロントエンド SPA 静的配信（本番のみ）
+# ビルド成果物が存在する場合のみマウントする。
+# 開発環境では Vite dev サーバーが代わりに配信するため不要。
+# ------------------------------------------------------------------
+
+_STATIC_DIR = Path(__file__).parent / "static"
+
+
+class _SPAStaticFiles(StaticFiles):
+    """SPA 用 StaticFiles。404 時に index.html へフォールバックする。"""
+
+    async def get_response(self, path: str, scope: Any) -> Any:
+        """パスに対応するファイルが存在しない場合は index.html を返す。"""
+        try:
+            return await super().get_response(path, scope)
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+if _STATIC_DIR.is_dir():
+    app.mount("/", _SPAStaticFiles(directory=_STATIC_DIR, html=True), name="spa")

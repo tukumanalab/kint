@@ -85,6 +85,86 @@ uv run alembic upgrade head
 
 ---
 
+## 本番デプロイ (Docker)
+
+### 前提
+
+- Docker Engine / Docker Compose V2 がインストール済みであること。
+- Google Cloud Console でアプリの **公開 URL** を承認済みリダイレクト URI に追加していること。
+  例: `https://your-domain.com/`
+
+### 1. 環境変数を設定する
+
+`.env.example` をコピーして `.env` を作成する。
+
+```bash
+cp .env.example .env
+```
+
+最低限以下の値を変更する:
+
+| 変数 | 説明 |
+|------|------|
+| `SECRET_KEY` | JWT 署名用シークレット（長い乱数文字列）|
+| `GOOGLE_CLIENT_ID` | バックエンド用 Google Client ID |
+| `VITE_GOOGLE_CLIENT_ID` | フロントエンドビルド用 Google Client ID（同じ値）|
+| `APP_BASE_URL` | 公開 URL（例: `https://your-domain.com`）|
+| `DATABASE_URL` | コンテナ内 SQLite パス（既定: `sqlite+aiosqlite:////data/kint.db`）|
+
+```bash
+# SECRET_KEY の生成例
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 2. ビルド & 起動
+
+```bash
+# イメージをビルドしてコンテナを起動
+docker compose up -d --build
+
+# ログ確認
+docker compose logs -f api
+
+# ヘルスチェック確認
+curl http://localhost:8000/health
+```
+
+起動時に `alembic upgrade head` が自動実行されるため、初回起動時のマイグレーションは不要。
+
+### 3. 停止 / 再起動
+
+```bash
+# 停止
+docker compose down
+
+# データを保持したまま停止 (volume は残る)
+docker compose down --volumes
+
+# イメージごと削除
+docker compose down --rmi all
+```
+
+### 4. DB バックアップ
+
+SQLite ファイルは `kint_data` Docker volume 内の `/data/kint.db` に格納される。
+
+```bash
+# バックアップ
+docker run --rm -v kint_kint_data:/data -v "$(pwd)":/backup alpine \
+  cp /data/kint.db /backup/kint.$(date +%Y%m%d).db
+```
+
+### 5. フロントエンドの Google Client ID
+
+`VITE_GOOGLE_CLIENT_ID` は `npm run build` 時に HTML/JS に埋め込まれる。
+ビルド後に変更するにはイメージの再ビルドが必要。
+
+```bash
+docker compose build --build-arg VITE_GOOGLE_CLIENT_ID=<新しいID>
+```
+
+---
+
 ## テスト
 
 ### テストエクスプローラー (GUI)

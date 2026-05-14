@@ -22,7 +22,7 @@ export function LoginPage({ auth }: Props) {
             onError={() => {
               // エラーは useAuth 側で管理するため、ここでは何もしない
             }}
-            useOneTap
+            ux_mode="redirect"
           />
         </div>
         {auth.isLoading && <p className="login-loading">ログイン中...</p>}

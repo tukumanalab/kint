@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      args:
+        # フロントエンドビルド時に埋め込む Google Client ID
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=sqlite+aiosqlite:////data/kint.db
+      - DEBUG=false
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8000}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - EMAIL_VERIFICATION_EXPIRE_HOURS=${EMAIL_VERIFICATION_EXPIRE_HOURS:-24}
+      - GMAIL_USER=${GMAIL_USER:-}
+      - GMAIL_CLIENT_ID=${GMAIL_CLIENT_ID:-}
+      - GMAIL_CLIENT_SECRET=${GMAIL_CLIENT_SECRET:-}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN:-}
+    volumes:
+      - kint_data:/data
+    restart: unless-stopped
+
+volumes:
+  kint_data:

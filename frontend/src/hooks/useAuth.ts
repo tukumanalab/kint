@@ -51,6 +51,14 @@ export function useAuth(): UseAuth {
       });
   }, []);
 
+  // Google redirect モード: sessionStorage に保存された credential を自動ログイン処理する
+  useEffect(() => {
+    const credential = sessionStorage.getItem('google_credential');
+    if (!credential) return;
+    sessionStorage.removeItem('google_credential');
+    loginWithGoogle(credential).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loginWithGoogle = useCallback(async (idToken: string): Promise<void> => {
     setState((s) => ({ ...s, isLoading: true, error: null }));
     try {

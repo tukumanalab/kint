@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+
+# Desktop アプリ（サーバーには不要）
+desktop/
+
+# DB / 実行時データ
+kint.db
+*.db-shm
+*.db-wal
+gmail_token.json
+
+# 開発用設定
+.env
+.env.local
+.vscode/
+.idea/
+
+# テスト / ドキュメント
+tests/
+docs/
+
+# Git
+.git/
+.github/
+
+# その他
+*.log

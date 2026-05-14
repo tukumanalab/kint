@@ -176,15 +176,75 @@ sequenceDiagram
 - ADR-011: Gmail API 送信は OAuth クライアント（OAuth 2.0）を採用する。
   - 根拠: Google の標準的な認可方式に準拠し、トークンの失効・再認可を運用しやすくするため。
 
-## 10. トレードオフ整理
+## 10. 本番デプロイ構成
+
+### 10-1. コンテナ構成
+
+```
+[Linux サーバー]
+┌──────────────────────────────────────────┐
+│  docker compose up -d                    │
+│                                          │
+│  ┌──────────────────────────────────┐   │
+│  │  api コンテナ (port 8000)         │   │
+│  │  ├── uvicorn / FastAPI           │   │
+│  │  ├── src/kint/static/  ← Vue SPA │   │
+│  │  └── /data/kint.db  ← volume     │   │
+│  └──────────────────────────────────┘   │
+└──────────────────────────────────────────┘
+```
+
+- **シングルコンテナ**: FastAPI が REST API と SPA 静的配信を両方担う。
+- **Volume**: `/data` を `kint_data` Docker volume にマウントし、SQLite ファイルを永続化する。
+- **ポート**: ホスト側で `8000:8000` を公開し、必要に応じてリバースプロキシ (nginx/Caddy) を前段に置く。
+
+### 10-2. マルチステージビルド
+
+```
+Stage 1 (node:20-slim)
+  COPY frontend/ → npm ci → npm run build → dist/
+        ↓
+Stage 2 (python:3.12-slim)
+  uv sync --frozen --no-dev
+  COPY src/ alembic/ alembic.ini
+  COPY --from=stage1 dist/ → src/kint/static/
+  CMD: alembic upgrade head && uvicorn
+```
+
+フロントエンドの `dist/` を `src/kint/static/` に配置することで、FastAPI の
+`_SPAStaticFiles` マウントが本番ビルドを配信する。
+
+### 10-3. Google OAuth2 本番フロー
+
+```
+ブラウザ
+  → Google ログイン (redirect モード)
+  → Google が POST / に credential を form_post
+  → FastAPI POST / が credential を sessionStorage にセットして GET / にリダイレクト
+  → React useEffect が sessionStorage から credential を取得
+  → POST /api/v1/auth/google で JWT 発行
+  → ログイン完了
+```
+
+開発環境では Vite ミドルウェアが `POST /` をインターセプトする。
+本番では FastAPI の `POST /` エンドポイントが同等の処理を行う。
+
+### 10-4. ADR-012: 本番では FastAPI が SPA を統合配信する
+- **根拠**: 別途 nginx を立てなくてもシングルコンテナで完結し、運用複雑性を最小化できるため。
+- **制約**: SPA のすべてのルートで `404 → index.html` にフォールバックする `_SPAStaticFiles` が必要。
+  `POST /` コールバックは静的マウントより前に登録すること。
+
+---
+
+## 11. トレードオフ整理
 - 現時点の推奨構成はモジュラモノリス。
 - 将来的に外部 API 負荷が増えた場合は、Calendar 同期を別ワーカーサービスへ分離する。
 - WebUSB は HTTPS と対応ブラウザが前提となるため、クライアント環境要件の明確化が必要になる。
 - 論理削除によりデータ保持量は増えるため、定期的なアーカイブ運用を検討する。
 
-## 11. 対応ブラウザ要件（確定）
+## 12. 対応ブラウザ要件（確定）
 
-### 11-1. サポート方針
+### 12-1. サポート方針
 - 公式サポート（本番運用対象）:
   - Windows 11 + Google Chrome 最新安定版
   - Windows 11 + Microsoft Edge 最新安定版
@@ -195,7 +255,7 @@ sequenceDiagram
   - Safari（WebUSB 非対応）
   - モバイルブラウザ（USB 接続運用が前提外）
 
-### 11-2. ブラウザ機能要件
+### 12-2. ブラウザ機能要件
 - `navigator.usb` が利用可能であること。
 - 打刻ページは HTTPS で配信されること（開発時は `localhost` を許容）。
 - USB デバイス選択はユーザー操作（クリック）起点で実行すること。
