@@ -189,3 +189,273 @@
 .required {
   color: #ef4444;
 }
+
+/* ===== セクションヘッダー（タイトル + ボタン横並び） ===== */
+.myprofile-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* セクションタイトル: ヘッダー内に入る場合は border/margin を除去 */
+.myprofile-section__header .myprofile-section__title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.myprofile-section__desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ===== 小ボタン ===== */
+.btn--sm {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+/* ===== ダイアログ ===== */
+.myprofile-dialog {
+  border: none;
+  border-radius: 10px;
+  padding: 0;
+  width: min(520px, 92vw);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.myprofile-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.myprofile-dialog__inner {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.myprofile-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.myprofile-dialog__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.myprofile-dialog__close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.myprofile-dialog__close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.myprofile-dialog__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.myprofile-dialog__actions--right {
+  margin-top: 0.5rem;
+}
+
+/* ===== NFCカードダイアログ ===== */
+.nfc-card-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nfc-card-dialog__hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.nfc-status {
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.nfc-status--idle    { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+.nfc-status--connecting { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+.nfc-status--connected  { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+.nfc-status--reading    { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.nfc-status--success    { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+.nfc-status--error      { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+.nfc-card-dialog__idm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+}
+
+.nfc-card-dialog__idm-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.nfc-card-dialog__idm-value {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  letter-spacing: 0.05em;
+  word-break: break-all;
+}
+
+.nfc-card-dialog__buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ===== 登録カード一覧 ===== */
+
+.myprofile-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.myprofile-card-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.875rem;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.myprofile-card-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.myprofile-card-item__name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.myprofile-card-item__idm {
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: #374151;
+  letter-spacing: 0.05em;
+  word-break: break-all;
+}
+
+.myprofile-card-item__status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15em 0.55em;
+  border-radius: 4px;
+  background: #d1fae5;
+  color: #065f46;
+  white-space: nowrap;
+}
+
+.myprofile-card-item__status--inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.myprofile-card-item__date {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.myprofile-card-item__delete {
+  margin-left: auto;
+}
+
+.myprofile-card-item__rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.myprofile-card-item__rename-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.form-input--sm {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* ===== 危険ボタン ===== */
+
+.btn--danger {
+  background: #fff;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.btn--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

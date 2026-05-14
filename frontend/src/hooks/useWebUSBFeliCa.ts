@@ -286,21 +286,19 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
       return null;
     }
     setStatus('reading', { errorMessage: null });
-    const timeoutId = setTimeout(() => {
-      setStatus('error', { errorMessage: 'カードの読み取りがタイムアウトしました' });
-    }, NFC_TIMEOUT_MS);
+    const deadline = Date.now() + NFC_TIMEOUT_MS;
     try {
-      const idm = await pollFeliCa(ctx);
-      clearTimeout(timeoutId);
-      if (idm) {
-        setStatus('success', { idm, errorMessage: null });
-        return idm;
-      } else {
-        setStatus('error', { errorMessage: 'カードを検出できませんでした。カードをかざしてください。' });
-        return null;
+      while (Date.now() < deadline) {
+        const idm = await pollFeliCa(ctx);
+        if (idm) {
+          setStatus('success', { idm, errorMessage: null });
+          return idm;
+        }
+        await sleep(300);
       }
+      setStatus('error', { errorMessage: 'タイムアウトしました。カードをかざしてから再試行してください。' });
+      return null;
     } catch (err) {
-      clearTimeout(timeoutId);
       const msg = err instanceof Error ? err.message : String(err);
       setStatus('error', { errorMessage: `読み取りに失敗しました: ${msg}` });
       return null;

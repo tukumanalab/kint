@@ -17,6 +17,7 @@ from kint.exceptions import (
     KintNotFoundError,
     KintUnauthorizedError,
 )
+from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
 from kint.models.user import User
 from kint.models.user_profile_change_log import UserProfileChangeLog
@@ -24,6 +25,10 @@ from kint.schemas.user import (
     EmailChangeAcceptedResponse,
     EmailChangeRequestCreate,
     EmailVerificationConfirmResponse,
+    MeCardListItem,
+    MeCardPatchRequest,
+    MeCardRegistrationRequest,
+    MeCardRegistrationResponse,
     MeProfileUpdateRequest,
     UserCreateRequest,
     UserPatchRequest,
@@ -205,6 +210,104 @@ class UserService:
         await self.session.commit()
         await self.session.refresh(current_user)
         return current_user
+
+    async def get_my_cards(
+        self,
+        current_user: User,
+    ) -> list[MeCardListItem]:
+        """本人に紐付く NFC カード一覧を返す。"""
+        result = await self.session.execute(
+            select(Card).where(Card.user_id == current_user.id).order_by(Card.created_at)
+        )
+        cards = result.scalars().all()
+        return [
+            MeCardListItem(
+                card_id=card.id,
+                card_idm=card.card_idm,
+                name=card.name,
+                is_active=bool(card.is_active),
+                created_at=card.created_at,
+            )
+            for card in cards
+        ]
+
+    async def rename_my_card(
+        self,
+        current_user: User,
+        card_id: str,
+        data: MeCardPatchRequest,
+    ) -> MeCardListItem:
+        """カード名を変更する。他ユーザーまたは存在しない場合は KintNotFoundError。"""
+        result = await self.session.execute(
+            select(Card).where(Card.id == card_id, Card.user_id == current_user.id)
+        )
+        card = result.scalar_one_or_none()
+        if card is None:
+            raise KintNotFoundError(
+                code="CARD_NOT_FOUND",
+                message=f"カード '{card_id}' が見つかりません",
+            )
+        card.name = data.name
+        await self.session.commit()
+        await self.session.refresh(card)
+        return MeCardListItem(
+            card_id=card.id,
+            card_idm=card.card_idm,
+            name=card.name,
+            is_active=bool(card.is_active),
+            created_at=card.created_at,
+        )
+
+    async def delete_my_card(
+        self,
+        current_user: User,
+        card_id: str,
+    ) -> None:
+        """本人の NFC カードを削除する。他ユーザーのカードまたは存在しない場合は KintNotFoundError。"""
+        result = await self.session.execute(
+            select(Card).where(Card.id == card_id, Card.user_id == current_user.id)
+        )
+        card = result.scalar_one_or_none()
+        if card is None:
+            raise KintNotFoundError(
+                code="CARD_NOT_FOUND",
+                message=f"カード '{card_id}' が見つかりません",
+            )
+        await self.session.delete(card)
+        await self.session.commit()
+
+    async def register_my_card(
+        self,
+        current_user: User,
+        data: MeCardRegistrationRequest,
+    ) -> MeCardRegistrationResponse:
+        """本人の NFC カード (card_idm) を登録する。IDm 重複時は KintConflictError。"""
+        dup = await self.session.execute(
+            select(Card).where(Card.card_idm == data.card_idm)
+        )
+        if dup.scalar_one_or_none() is not None:
+            raise KintConflictError(
+                code="CARD_IDM_CONFLICT",
+                message=f"カード IDm '{data.card_idm}' はすでに登録されています",
+                detail={"card_idm": data.card_idm},
+            )
+
+        card = Card(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            card_idm=data.card_idm,
+            name=data.name,
+            is_active=1,
+        )
+        self.session.add(card)
+        await self.session.commit()
+        await self.session.refresh(card)
+        return MeCardRegistrationResponse(
+            card_id=card.id,
+            card_idm=card.card_idm,
+            name=card.name,
+            is_active=bool(card.is_active),
+        )
 
     async def request_email_change(
         self,

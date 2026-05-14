@@ -4,6 +4,18 @@ import { MyProfilePage } from './MyProfilePage';
 import * as meApi from '../../api/me';
 import type { UseAuth } from '../../hooks/useAuth';
 import type { UserProfile } from '../../types/auth';
+import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
+
+vi.mock('../../hooks/useWebUSBFeliCa', () => ({ useWebUSBFeliCa: vi.fn() }));
+vi.mock('../../utils/browser', () => ({ isWebUSBSupported: vi.fn(() => true) }));
+
+// jsdom は HTMLDialogElement.showModal を実装していないためモックする
+HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+  this.setAttribute('open', '');
+});
+HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+  this.removeAttribute('open');
+});
 
 const mockProfile: UserProfile = {
   id: 'taro',
@@ -28,13 +40,31 @@ function makeAuth(overrides: Partial<UseAuth> = {}): UseAuth {
   };
 }
 
+async function openProfileDialog() {
+  const editBtn = screen.getByRole('button', { name: '編集' });
+  fireEvent.click(editBtn);
+}
+
 describe('MyProfilePage', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.mocked(HTMLDialogElement.prototype.showModal).mockReset();
+    vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([]);
+    vi.mocked(useWebUSBFeliCa).mockReturnValue({
+      status: 'idle',
+      idm: null,
+      errorMessage: null,
+      connect: vi.fn(),
+      readIdm: vi.fn(),
+      disconnect: vi.fn(),
+      reset: vi.fn(),
+    });
   });
 
   it('プロフィール情報を表示する', async () => {
     vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([]);
 
     render(<MyProfilePage auth={makeAuth()} />);
 
@@ -43,6 +73,17 @@ describe('MyProfilePage', () => {
     await waitFor(() => {
       expect(screen.getByText('従業員')).toBeInTheDocument();
       expect(screen.getByText(/tar\*\*\*\*@example\.com/)).toBeInTheDocument();
+    });
+  });
+
+  it('プロフィールに表示名・氏名が表示される', async () => {
+    vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('taro')).toBeInTheDocument();
+      expect(screen.getByText('山田 太郎')).toBeInTheDocument();
     });
   });
 
@@ -56,12 +97,13 @@ describe('MyProfilePage', () => {
     });
   });
 
-  it('プロフィール編集フォームの初期値がプロフィール情報と一致する', async () => {
+  it('編集ボタンでダイアログが開く', async () => {
     vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
 
     render(<MyProfilePage auth={makeAuth()} />);
 
-    await waitFor(() => screen.getByLabelText(/表示名/));
+    await waitFor(() => screen.getByRole('button', { name: '編集' }));
+    await openProfileDialog();
 
     expect(screen.getByLabelText<HTMLInputElement>(/表示名/).value).toBe('taro');
     expect(screen.getByLabelText<HTMLInputElement>(/氏名/).value).toBe('山田 太郎');
@@ -72,7 +114,8 @@ describe('MyProfilePage', () => {
 
     render(<MyProfilePage auth={makeAuth()} />);
 
-    await waitFor(() => screen.getByLabelText(/表示名/));
+    await waitFor(() => screen.getByRole('button', { name: '編集' }));
+    await openProfileDialog();
 
     const submitBtn = screen.getByRole('button', { name: '更新' });
     expect(submitBtn).toBeDisabled();
@@ -84,7 +127,8 @@ describe('MyProfilePage', () => {
 
     render(<MyProfilePage auth={makeAuth()} />);
 
-    await waitFor(() => screen.getByLabelText(/表示名/));
+    await waitFor(() => screen.getByRole('button', { name: '編集' }));
+    await openProfileDialog();
 
     fireEvent.change(screen.getByLabelText(/表示名/), { target: { value: 'taro2' } });
 
@@ -97,7 +141,7 @@ describe('MyProfilePage', () => {
     });
   });
 
-  it('updateMyProfile 409 でエラーメッセージを表示する', async () => {
+  it('updateMyProfile 失敗時にエラーメッセージを表示する', async () => {
     vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
     const { ApiError } = await import('../../types/error');
     vi.spyOn(meApi, 'updateMyProfile').mockRejectedValue(
@@ -106,7 +150,8 @@ describe('MyProfilePage', () => {
 
     render(<MyProfilePage auth={makeAuth()} />);
 
-    await waitFor(() => screen.getByLabelText(/表示名/));
+    await waitFor(() => screen.getByRole('button', { name: '編集' }));
+    await openProfileDialog();
 
     fireEvent.change(screen.getByLabelText(/表示名/), { target: { value: 'newname' } });
     fireEvent.click(screen.getByRole('button', { name: '更新' }));
@@ -137,4 +182,101 @@ describe('MyProfilePage', () => {
     });
   });
 
+  it('「カードを登録」ボタンでNFCダイアログが開く', async () => {
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => screen.getByRole('button', { name: 'カードを登録' }));
+    fireEvent.click(screen.getByRole('button', { name: 'カードを登録' }));
+
+    expect(screen.getByText('NFCカード登録')).toBeInTheDocument();
+  });
+
+  it('登録済みカードのIDmが一覧表示される', async () => {
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([
+      { card_id: 'c1', card_idm: '0123456789ABCDEF', name: null, is_active: true, created_at: '2026-01-15T00:00:00Z' },
+    ]);
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('0123456789ABCDEF')).toBeInTheDocument();
+      expect(screen.getByText('有効')).toBeInTheDocument();
+    });
+  });
+
+  it('削除ボタンで確認後カードが一覧から消える', async () => {
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([
+      { card_id: 'c1', card_idm: '0123456789ABCDEF', name: null, is_active: true, created_at: '2026-01-15T00:00:00Z' },
+    ]);
+    vi.spyOn(meApi, 'deleteMyCard').mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => screen.getByRole('button', { name: /カード 0123456789ABCDEF を削除/ }));
+    fireEvent.click(screen.getByRole('button', { name: /カード 0123456789ABCDEF を削除/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('0123456789ABCDEF')).not.toBeInTheDocument();
+    });
+  });
+
+  it('削除確認をキャンセルするとカードが残る', async () => {
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([
+      { card_id: 'c1', card_idm: '0123456789ABCDEF', name: null, is_active: true, created_at: '2026-01-15T00:00:00Z' },
+    ]);
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => screen.getByRole('button', { name: /カード 0123456789ABCDEF を削除/ }));
+    fireEvent.click(screen.getByRole('button', { name: /カード 0123456789ABCDEF を削除/ }));
+
+    expect(screen.getByText('0123456789ABCDEF')).toBeInTheDocument();
+  });
+
+  it('名前変更ボタンで入力欄が現れ保存できる', async () => {
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([
+      { card_id: 'c1', card_idm: '0123456789ABCDEF', name: null, is_active: true, created_at: '2026-01-15T00:00:00Z' },
+    ]);
+    vi.spyOn(meApi, 'renameMyCard').mockResolvedValue({
+      card_id: 'c1', card_idm: '0123456789ABCDEF', name: '通勤定期', is_active: true, created_at: '2026-01-15T00:00:00Z',
+    });
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => screen.getByRole('button', { name: /名前を変更/ }));
+    fireEvent.click(screen.getByRole('button', { name: /名前を変更/ }));
+
+    const input = screen.getByPlaceholderText('カード名（空欄で削除）');
+    fireEvent.change(input, { target: { value: '通勤定期' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('通勤定期')).toBeInTheDocument();
+    });
+  });
+
+  it('読み取ったカードがすでに登録済みの場合に登録済みメッセージが表示される', async () => {
+    vi.spyOn(meApi, 'fetchMyCards').mockResolvedValue([
+      { card_id: 'c1', card_idm: '0123456789ABCDEF', name: '通勤定期', is_active: true, created_at: '2026-01-15T00:00:00Z' },
+    ]);
+    vi.mocked(useWebUSBFeliCa).mockReturnValue({
+      status: 'success',
+      idm: '0123456789ABCDEF',
+      errorMessage: null,
+      connect: vi.fn(),
+      readIdm: vi.fn(),
+      disconnect: vi.fn(),
+      reset: vi.fn(),
+    });
+
+    render(<MyProfilePage auth={makeAuth()} />);
+
+    await waitFor(() => screen.getByRole('button', { name: 'カードを登録' }));
+    fireEvent.click(screen.getByRole('button', { name: 'カードを登録' }));
+
+    expect(screen.getByText(/「通勤定期」としてすでに登録されています/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'このカードを登録' })).not.toBeInTheDocument();
+  });
 });

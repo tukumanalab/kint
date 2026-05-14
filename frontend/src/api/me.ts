@@ -2,6 +2,10 @@ import type { UserProfile } from '../types/auth';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
 import type {
+  MeCardListItem,
+  MeCardPatchRequest,
+  MeCardRegistrationRequest,
+  MeCardRegistrationResponse,
   MeProfileUpdateRequest,
   EmailChangeRequestCreate,
   EmailChangeRequestAcceptedResponse,
@@ -74,5 +78,36 @@ export async function confirmEmailVerification(
   return request<EmailVerificationConfirmResponse>(
     '/email-verifications/confirm',
     { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function fetchMyCards(token: string): Promise<MeCardListItem[]> {
+  return request<MeCardListItem[]>('/me/cards', { method: 'GET' }, token);
+}
+
+export async function renameMyCard(
+  token: string,
+  cardId: string,
+  payload: MeCardPatchRequest,
+): Promise<MeCardListItem> {
+  return request<MeCardListItem>(
+    `/me/cards/${encodeURIComponent(cardId)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    token,
+  );
+}
+
+export async function deleteMyCard(token: string, cardId: string): Promise<void> {
+  return request<void>(`/me/cards/${encodeURIComponent(cardId)}`, { method: 'DELETE' }, token);
+}
+
+export async function registerMyCard(
+  token: string,
+  payload: MeCardRegistrationRequest,
+): Promise<MeCardRegistrationResponse> {
+  return request<MeCardRegistrationResponse>(
+    '/me/cards',
+    { method: 'POST', body: JSON.stringify(payload) },
+    token,
   );
 }

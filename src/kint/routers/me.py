@@ -10,6 +10,10 @@ from kint.schemas.auth import UserProfile
 from kint.schemas.user import (
     EmailChangeAcceptedResponse,
     EmailChangeRequestCreate,
+    MeCardListItem,
+    MeCardPatchRequest,
+    MeCardRegistrationRequest,
+    MeCardRegistrationResponse,
     MeProfileUpdateRequest,
     PasswordChangeRequest,
 )
@@ -59,3 +63,48 @@ async def change_password(
     service = UserService(session)
     await service.change_password(current_user, body.current_password, body.new_password)
     return Response(status_code=204)
+
+
+@router.get("/cards", response_model=list[MeCardListItem])
+async def get_my_cards(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[MeCardListItem]:
+    """本人に紐付く NFC カード一覧を返す。"""
+    service = UserService(session)
+    return await service.get_my_cards(current_user)
+
+
+@router.patch("/cards/{card_id}", response_model=MeCardListItem)
+async def rename_my_card(
+    card_id: str,
+    body: MeCardPatchRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MeCardListItem:
+    """本人の NFC カード名を変更する。"""
+    service = UserService(session)
+    return await service.rename_my_card(current_user, card_id, body)
+
+
+@router.delete("/cards/{card_id}", status_code=204)
+async def delete_my_card(
+    card_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """本人の NFC カードを削除する。"""
+    service = UserService(session)
+    await service.delete_my_card(current_user, card_id)
+    return Response(status_code=204)
+
+
+@router.post("/cards", response_model=MeCardRegistrationResponse, status_code=201)
+async def register_my_card(
+    body: MeCardRegistrationRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MeCardRegistrationResponse:
+    """本人の NFC カード (card_idm) を登録する。"""
+    service = UserService(session)
+    return await service.register_my_card(current_user, body)

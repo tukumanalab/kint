@@ -6,6 +6,42 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
+
+class MeCardRegistrationRequest(BaseModel):
+    """本人NFCカード登録リクエスト。"""
+
+    card_idm: str
+    name: str | None = None
+
+
+class MeCardRegistrationResponse(BaseModel):
+    """本人NFCカード登録レスポンス。"""
+
+    card_id: str
+    card_idm: str
+    name: str | None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class MeCardListItem(BaseModel):
+    """本人NFCカード一覧アイテム。"""
+
+    card_id: str
+    card_idm: str
+    name: str | None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MeCardPatchRequest(BaseModel):
+    """本人NFCカード名変更リクエスト。"""
+
+    name: str | None = None
+
 _PASSWORD_RE = re.compile(r"(?=.*[a-zA-Z])(?=.*\d)")
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 
