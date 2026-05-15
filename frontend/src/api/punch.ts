@@ -1,4 +1,8 @@
-import type { PunchRequest, PunchResponse } from '../types/punch';
+import type {
+  PunchRequest,
+  PunchResponse,
+  PunchUserCandidateListResponse,
+} from '../types/punch';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
 
@@ -23,5 +27,12 @@ export async function postPunch(payload: PunchRequest): Promise<PunchResponse> {
   return request<PunchResponse>('/punches', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function searchPunchUsers(query: string): Promise<PunchUserCandidateListResponse> {
+  const params = new URLSearchParams({ q: query });
+  return request<PunchUserCandidateListResponse>(`/punches/users?${params.toString()}`, {
+    method: 'GET',
   });
 }

@@ -36,3 +36,19 @@ class PunchResponse(BaseModel):
     occurred_at: datetime
     method: Literal["card_idm", "user_id"]
     message: str
+
+
+class PunchUserCandidate(BaseModel):
+    """カード忘れ打刻用の公開ユーザー候補。"""
+
+    id: str
+    name: str
+    full_name: str
+
+    model_config = {"from_attributes": True}
+
+
+class PunchUserCandidateListResponse(BaseModel):
+    """カード忘れ打刻用の公開ユーザー候補一覧。"""
+
+    users: list[PunchUserCandidate]

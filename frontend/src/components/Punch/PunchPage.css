@@ -182,6 +182,54 @@
   border-color: #1976d2;
   box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
 }
+.form-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #666;
+}
+.form-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #c62828;
+}
+.selected-user {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #1565c0;
+  font-weight: 600;
+}
+.user-candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.user-candidate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d6e4f5;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: #1a1a2e;
+  cursor: pointer;
+  text-align: left;
+}
+.user-candidate:hover {
+  border-color: #1976d2;
+  background: #eef6ff;
+}
+.user-candidate__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.user-candidate__meta {
+  font-size: 0.8rem;
+  color: #516074;
+}
 
 /* ---- 結果 / エラー ---- */
 .punch-result {

@@ -23,3 +23,13 @@ export interface PunchResponse {
   method?: 'card_idm' | 'user_id';
   message: string;
 }
+
+export interface PunchUserCandidate {
+  id: string;
+  name: string;
+  full_name: string;
+}
+
+export interface PunchUserCandidateListResponse {
+  users: PunchUserCandidate[];
+}

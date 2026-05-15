@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.config import settings
@@ -35,6 +35,7 @@ from kint.schemas.user import (
     UserResponse,
     UsersListResponse,
 )
+from kint.schemas.punch import PunchUserCandidate, PunchUserCandidateListResponse
 from kint.services.gmail import GmailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
@@ -65,6 +66,31 @@ class UserService:
         result = await self.session.execute(select(User).order_by(User.created_at))
         users = result.scalars().all()
         return UsersListResponse(users=[UserResponse.model_validate(u) for u in users])
+
+    async def search_punch_candidates(self, query: str, limit: int = 10) -> PunchUserCandidateListResponse:
+        """カード忘れ打刻で使う公開ユーザー候補を返す。"""
+        normalized = query.strip()
+        if not normalized:
+            return PunchUserCandidateListResponse(users=[])
+
+        pattern = f"%{normalized}%"
+        result = await self.session.execute(
+            select(User)
+            .where(
+                User.is_active == 1,
+                or_(
+                    User.id.ilike(pattern),
+                    User.name.ilike(pattern),
+                    User.full_name.ilike(pattern),
+                ),
+            )
+            .order_by(User.full_name, User.name, User.id)
+            .limit(limit)
+        )
+        users = result.scalars().all()
+        return PunchUserCandidateListResponse(
+            users=[PunchUserCandidate.model_validate(user) for user in users]
+        )
 
     async def create_user(self, data: UserCreateRequest) -> UserResponse:
         """ユーザーを新規作成する。アカウントID・メール重複時は KintConflictError。"""

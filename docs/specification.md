@@ -8,7 +8,7 @@
 - 対象システム: NFC 勤怠管理システム Kint
 - 対象機能:
   - Web アプリでの打刻（WebUSB + PaSoRi）
-  - カード忘れ時の user_id フォールバック打刻
+  - カード忘れ時のユーザー検索フォールバック打刻
   - 勤怠一覧・勤怠修正・変更履歴表示
   - Google Calendar シフト連携
 - 対象外:
@@ -47,7 +47,7 @@
 - 通常打刻:
   - WebUSB で PaSoRi を接続し、カードの IDm を取得して打刻する。
 - フォールバック打刻:
-  - カード忘れ・読取不能時は user_id + reason で打刻する。
+  - カード忘れ・読取不能時は表示名/氏名の一部でユーザー候補を検索し、選択した user_id + reason で打刻する。
 - 打刻判定:
   - 当日レコード未作成なら check_in。
   - 当日 check_in のみ存在なら check_out。
@@ -107,6 +107,7 @@
 - PATCH /api/v1/me/profile
 - PATCH /api/v1/me/password
 - POST /api/v1/punches
+- GET /api/v1/punches/users
 - POST /api/v1/cards/registrations
 - GET /api/v1/attendance
 - PATCH /api/v1/attendance/{attendance_id}
@@ -117,6 +118,9 @@
 - oneOf 条件:
   - card_idm + device_id + occurred_at
   - user_id + reason + device_id + occurred_at
+- カード忘れ打刻の候補検索:
+  - GET /api/v1/punches/users?q=<表示名/氏名/ユーザーIDの一部>
+  - 返却対象はアクティブユーザーのみとし、候補から選択した user_id を打刻に利用する。
 
 ### 6-3. エラー仕様
 - 401: 認証失敗
@@ -209,20 +213,20 @@ attendances.source は以下のみ許容:
 
 ## 9. 障害時仕様
 - WebUSB 非対応環境検出時:
-  - サポート外メッセージを表示し user_id 打刻へ誘導
+  - サポート外メッセージを表示しユーザー検索によるカード忘れ打刻へ誘導
 - PaSoRi 接続失敗時:
   - 再接続ガイドを表示
-  - 代替打刻（user_id + reason）を許可
+  - 代替打刻（ユーザー候補選択 + reason）を許可
 
 ## 10. 受け入れ条件（システム）
 - Web アプリのトップページに「打刻」「ログイン」ボタンが表示される。
-- ログインなしで打刻ページを開き、NFC 打刻および代替打刻（user_id + reason）ができる。
+- ログインなしで打刻ページを開き、NFC 打刻および代替打刻（ユーザー候補選択 + reason）ができる。
 - 管理者がユーザーを登録/修正/削除（論理削除）できる。
 - ログイン済みユーザーがマイページで自分のメールアドレス、パスワード、表示名、氏名を更新できる。
 - マイページ経由では role / is_active / 他ユーザー情報を更新できない。
 - メールアドレスまたはパスワード変更後に再ログインが要求される。
 - WebUSB で IDm を取得して打刻できる。
-- user_id + reason で代替打刻できる。
+- 表示名/氏名の一部で検索した候補を選択し、reason とともに代替打刻できる。
 - source が webusb_nfc / web_user_id で正しく保存される。
 - 勤怠修正時に履歴が欠落なく追加される。
 - 管理画面で source と履歴が確認できる。

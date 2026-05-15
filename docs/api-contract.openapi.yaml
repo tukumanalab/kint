@@ -312,12 +312,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /punches/users:
+    get:
+      tags: [Punch]
+      summary: カード忘れ打刻向けユーザー候補検索
+      description: >-
+        表示名・氏名・ユーザーIDの一部で、カード忘れ打刻用の候補ユーザーを検索します。
+        返却対象は有効ユーザーのみです。
+        このエンドポイントは認証不要です（ログインなしで候補検索できます）。
+      security: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          description: 検索キーワード（表示名/氏名/ユーザーIDの部分一致）
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        '200':
+          description: 検索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PunchUserCandidateListResponse'
+        '422':
+          description: クエリ不備
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /punches:
     post:
       tags: [Punch]
       summary: Web アプリから打刻を登録（WebUSB NFC または user_id）
       description: >-
-        通常は WebUSB 経由で取得した card_idm で打刻します。カード忘れ時は user_id での打刻を許可します。
+        通常は WebUSB 経由で取得した card_idm で打刻します。カード忘れ時は候補検索で選択した user_id での打刻を許可します。
         user_id 打刻時は reason を必須とします。
         このエンドポイントは認証不要です（ログインなしで打刻できます）。
       security: []
@@ -739,6 +771,29 @@ components:
           description: 打刻に使用した識別方法
         message:
           type: string
+
+    PunchUserCandidate:
+      type: object
+      required: [id, name, full_name]
+      properties:
+        id:
+          type: string
+          description: ユーザーID
+        name:
+          type: string
+          description: 表示名
+        full_name:
+          type: string
+          description: 氏名
+
+    PunchUserCandidateListResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/PunchUserCandidate'
 
     CardRegistrationRequest:
       type: object

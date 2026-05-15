@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { isWebUSBSupported } from '../../utils/browser';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
-import { postPunch } from '../../api/punch';
+import { postPunch, searchPunchUsers } from '../../api/punch';
 import { ApiError } from '../../types/error';
-import type { PunchResponse } from '../../types/punch';
+import type { PunchResponse, PunchUserCandidate } from '../../types/punch';
 import './PunchPage.css';
 
 const DEVICE_ID = 'web-browser';
@@ -11,7 +11,8 @@ const DEVICE_ID = 'web-browser';
 type PunchMode = 'nfc' | 'fallback';
 
 interface FallbackFormState {
-  userId: string;
+  userQuery: string;
+  selectedUser: PunchUserCandidate | null;
   reason: string;
 }
 
@@ -60,10 +61,18 @@ export function PunchPage() {
   const [punchResult, setPunchResult] = useState<PunchResponse | null>(null);
   const [punchError, setPunchError] = useState<string | null>(null);
   const [isPunching, setIsPunching] = useState(false);
-  const [fallback, setFallback] = useState<FallbackFormState>({ userId: '', reason: '' });
+  const [fallback, setFallback] = useState<FallbackFormState>({
+    userQuery: '',
+    selectedUser: null,
+    reason: '',
+  });
+  const [userCandidates, setUserCandidates] = useState<PunchUserCandidate[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [userSearchError, setUserSearchError] = useState<string | null>(null);
 
   const nfc = useWebUSBFeliCa();
   const pollingRef = useRef(false);
+  const searchRequestRef = useRef(0);
 
   const statusInfo = statusLabel(nfc.status);
 
@@ -111,22 +120,82 @@ export function PunchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nfc.status]);
 
+  useEffect(() => {
+    const query = fallback.userQuery.trim();
+
+    if (!query) {
+      setUserCandidates([]);
+      setUserSearchError(null);
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
+    setIsSearchingUsers(true);
+    setUserSearchError(null);
+
+    const timerId = window.setTimeout(() => {
+      searchPunchUsers(query)
+        .then((response) => {
+          if (searchRequestRef.current !== requestId) return;
+          setUserCandidates(response.users);
+        })
+        .catch(() => {
+          if (searchRequestRef.current !== requestId) return;
+          setUserCandidates([]);
+          setUserSearchError('ユーザー候補の検索に失敗しました。');
+        })
+        .finally(() => {
+          if (searchRequestRef.current === requestId) {
+            setIsSearchingUsers(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [fallback.userQuery]);
+
+  function handleUserQueryChange(value: string) {
+    setFallback((current) => ({
+      ...current,
+      userQuery: value,
+      selectedUser:
+        current.selectedUser && formatUserLabel(current.selectedUser) === value
+          ? current.selectedUser
+          : null,
+    }));
+  }
+
+  function handleSelectUser(user: PunchUserCandidate) {
+    setFallback((current) => ({
+      ...current,
+      userQuery: formatUserLabel(user),
+      selectedUser: user,
+    }));
+    setUserCandidates([]);
+    setUserSearchError(null);
+  }
+
   /** user_id フォールバック打刻 */
   async function handleFallbackPunch(e: React.FormEvent) {
     e.preventDefault();
     setPunchResult(null);
     setPunchError(null);
-    if (!fallback.userId.trim() || !fallback.reason.trim()) return;
+    if (!fallback.selectedUser || !fallback.reason.trim()) return;
     setIsPunching(true);
     try {
       const resp = await postPunch({
-        user_id: fallback.userId.trim(),
+        user_id: fallback.selectedUser.id,
         reason: fallback.reason.trim(),
         device_id: DEVICE_ID,
         occurred_at: new Date().toISOString(),
       });
       setPunchResult(resp);
-      setFallback({ userId: '', reason: '' });
+      setFallback({ userQuery: '', selectedUser: null, reason: '' });
+      setUserCandidates([]);
     } catch (err) {
       if (err instanceof ApiError) {
         setPunchError(apiErrorMessage(err));
@@ -225,24 +294,58 @@ export function PunchPage() {
         <section className="punch-section" aria-label="カード忘れ打刻">
           {webUSBSupported && (
             <p className="fallback-description">
-              NFC カードをお忘れの場合は、ユーザー ID と理由を入力して打刻できます。
+              NFC カードをお忘れの場合は、表示名または氏名でユーザーを検索し、理由を入力して打刻できます。
             </p>
           )}
           <form className="fallback-form" onSubmit={handleFallbackPunch}>
             <div className="form-field">
-              <label htmlFor="userId" className="form-label">
-                ユーザー ID <span className="form-required">*</span>
+              <label htmlFor="userSearch" className="form-label">
+                ユーザー検索 <span className="form-required">*</span>
               </label>
               <input
-                id="userId"
+                id="userSearch"
                 type="text"
                 className="form-input"
-                value={fallback.userId}
-                onChange={(e) => setFallback((f) => ({ ...f, userId: e.target.value }))}
-                placeholder="例: user-001"
+                value={fallback.userQuery}
+                onChange={(e) => handleUserQueryChange(e.target.value)}
+                placeholder="表示名または氏名を入力"
                 required
                 autoComplete="off"
+                aria-describedby="userSearchHint"
               />
+              <p id="userSearchHint" className="form-hint">
+                表示名・氏名・ユーザー ID の一部で検索できます。
+              </p>
+              {fallback.selectedUser && (
+                <p className="selected-user" role="status">
+                  選択中: {formatUserLabel(fallback.selectedUser)}
+                </p>
+              )}
+              {isSearchingUsers && <p className="form-hint">候補を検索中...</p>}
+              {userSearchError && (
+                <p className="form-error" role="alert">
+                  {userSearchError}
+                </p>
+              )}
+              {!isSearchingUsers && !userSearchError && fallback.userQuery.trim() && !fallback.selectedUser && (
+                <div className="user-candidate-list" role="listbox" aria-label="ユーザー候補">
+                  {userCandidates.length > 0 ? (
+                    userCandidates.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className="user-candidate"
+                        onClick={() => handleSelectUser(user)}
+                      >
+                        <span className="user-candidate__name">{user.full_name}</span>
+                        <span className="user-candidate__meta">{user.name} / {user.id}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="form-hint">候補が見つかりません。</p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="form-field">
               <label htmlFor="reason" className="form-label">
@@ -262,7 +365,7 @@ export function PunchPage() {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={isPunching || !fallback.userId.trim() || !fallback.reason.trim()}
+              disabled={isPunching || !fallback.selectedUser || !fallback.reason.trim()}
             >
               {isPunching ? '打刻中...' : '打刻'}
             </button>
@@ -286,4 +389,8 @@ export function PunchPage() {
       )}
     </main>
   );
+}
+
+function formatUserLabel(user: PunchUserCandidate): string {
+  return `${user.full_name} (${user.name} / ${user.id})`;
 }

@@ -1,13 +1,24 @@
-"""打刻ルーター。POST /api/v1/punches を提供する。"""
+"""打刻ルーター。打刻登録とカード忘れ打刻向け公開ユーザー検索を提供する。"""
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.db import get_db
-from kint.schemas.punch import PunchRequest, PunchResponse
+from kint.schemas.punch import PunchRequest, PunchResponse, PunchUserCandidateListResponse
 from kint.services.attendance import PunchService
+from kint.services.user import UserService
 
 router = APIRouter(prefix="/punches", tags=["Punch"])
+
+
+@router.get("/users", response_model=PunchUserCandidateListResponse)
+async def search_punch_users(
+    q: str = Query(..., min_length=1, max_length=100),
+    session: AsyncSession = Depends(get_db),
+) -> PunchUserCandidateListResponse:
+    """カード忘れ打刻向けに公開ユーザー候補を返す。"""
+    service = UserService(session)
+    return await service.search_punch_candidates(q)
 
 
 @router.post("", response_model=PunchResponse, status_code=200)
