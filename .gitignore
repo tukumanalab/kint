@@ -79,3 +79,6 @@ service-account*.json
 # ===== ログ =====
 *.log
 logs/
+
+# ===== Playwright =====
+.playwright-*/*
