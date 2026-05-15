@@ -132,6 +132,7 @@ class PunchService:
         return PunchResponse(
             attendance_id=attendance.id,
             user_id=user.id,
+            user_name=user.name,
             action=action,  # type: ignore[arg-type]
             occurred_at=request.occurred_at,
             method=method,  # type: ignore[arg-type]

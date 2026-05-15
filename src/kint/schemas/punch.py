@@ -32,6 +32,7 @@ class PunchResponse(BaseModel):
 
     attendance_id: str
     user_id: str
+    user_name: str
     action: Literal["check_in", "check_out"]
     occurred_at: datetime
     method: Literal["card_idm", "user_id"]

@@ -377,6 +377,8 @@ export function PunchPage() {
       {punchResult && (
         <div className="punch-result" role="status" aria-live="polite">
           <p className="punch-result__action">{actionLabel(punchResult.action)}しました</p>
+          <p className="punch-result__name">{punchResult.user_name}</p>
+          <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
           <p className="punch-result__message">{punchResult.message}</p>
         </div>
       )}
@@ -393,4 +395,16 @@ export function PunchPage() {
 
 function formatUserLabel(user: PunchUserCandidate): string {
   return `${user.full_name} (${user.name} / ${user.id})`;
+}
+
+function formatDateTime(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }

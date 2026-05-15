@@ -18,6 +18,7 @@ export type PunchRequest = PunchRequestByCard | PunchRequestByUserId;
 export interface PunchResponse {
   attendance_id: string;
   user_id: string;
+  user_name: string;
   action: 'check_in' | 'check_out';
   occurred_at: string;
   method?: 'card_idm' | 'user_id';
