@@ -319,6 +319,8 @@ paths:
       description: >-
         通常は WebUSB 経由で取得した card_idm で打刻します。カード忘れ時は user_id での打刻を許可します。
         user_id 打刻時は reason を必須とします。
+        このエンドポイントは認証不要です（ログインなしで打刻できます）。
+      security: []
       parameters:
         - in: header
           name: Idempotency-Key

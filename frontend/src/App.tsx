@@ -9,6 +9,7 @@ import { EmailVerificationPage } from './components/EmailVerification';
 import './App.css';
 
 type Page = 'punch' | 'users' | 'myProfile';
+type GuestPage = 'home' | 'punch' | 'login';
 
 function getEmailVerificationToken(): string | null {
   if (window.location.pathname === '/email-verifications/confirm') {
@@ -20,6 +21,7 @@ function getEmailVerificationToken(): string | null {
 function App() {
   const auth = useAuth();
   const [page, setPage] = useState<Page>('punch');
+  const [guestPage, setGuestPage] = useState<GuestPage>('home');
   const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
 
   // メール確認ページはログイン不要・認証状態問わず表示
@@ -40,12 +42,69 @@ function App() {
     return <div className="app-loading">読み込み中...</div>;
   }
 
-  // 未ログイン → 登録画面 or ログイン画面
+  // 未ログイン → 打刻ページ（ログイン不要）・ログイン画面・トップページ
   if (!auth.token || !auth.user) {
-    if (auth.pendingIdToken) {
-      return <RegisterPage auth={auth} />;
+    if (guestPage === 'punch') {
+      return (
+        <div className="app">
+          <nav className="app-nav">
+            <span className="app-nav__brand">Kint</span>
+            <div className="app-nav__links">
+              <button
+                type="button"
+                className="app-nav__link"
+                onClick={() => setGuestPage('home')}
+              >
+                ← ホーム
+              </button>
+            </div>
+            <div className="app-nav__user">
+              <button
+                type="button"
+                className="app-nav__link"
+                onClick={() => setGuestPage('login')}
+              >
+                ログイン
+              </button>
+            </div>
+          </nav>
+          <PunchPage />
+        </div>
+      );
     }
-    return <LoginPage auth={auth} />;
+
+    if (guestPage === 'login') {
+      if (auth.pendingIdToken) {
+        return <RegisterPage auth={auth} />;
+      }
+      return <LoginPage auth={auth} />;
+    }
+
+    // トップページ
+    return (
+      <div className="top-page">
+        <div className="top-page__content">
+          <h1 className="top-page__title">Kint</h1>
+          <p className="top-page__subtitle">NFC 勤怠管理システム</p>
+          <div className="top-page__buttons">
+            <button
+              type="button"
+              className="top-page__btn top-page__btn--primary"
+              onClick={() => setGuestPage('punch')}
+            >
+              打刻
+            </button>
+            <button
+              type="button"
+              className="top-page__btn top-page__btn--secondary"
+              onClick={() => setGuestPage('login')}
+            >
+              ログイン
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const isAdmin = auth.user.role === 'admin';
