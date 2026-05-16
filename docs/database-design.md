@@ -14,7 +14,7 @@
 | `attendance_change_logs`    | 勤怠修正の変更履歴（不変ログ）           |
 | `user_profile_change_logs`  | ユーザープロフィール変更の監査ログ（不変ログ） |
 | `email_verification_requests` | メール確認リクエスト（signup / email_change） |
-| `shifts`                    | Google Calendar から取得したシフト情報   |
+| `shifts`                    | iCal から取得したシフト情報   |
 
 ---
 
@@ -30,7 +30,7 @@
 | `email`             | TEXT          | NOT NULL, UNIQUE              | ログイン用メールアドレス     |
 | `password_hash`     | TEXT          | NOT NULL                      | bcrypt ハッシュ              |
 | `role`              | TEXT          | NOT NULL, CHECK(role IN ('admin','employee')) | ロール |
-| `google_calendar_id`| TEXT          | NULL                          | Google Calendar ID           |
+| `google_calendar_id`| TEXT          | NULL                          | 外部カレンダー ID           |
 | `email_verified_at` | DATETIME      | NULL                          | メール確認完了日時           |
 | `is_active`         | INTEGER       | NOT NULL, DEFAULT 1           | 有効フラグ（1=有効）         |
 | `created_at`        | DATETIME      | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 作成日時           |
@@ -199,7 +199,7 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 | `shift_date`       | DATE     | NOT NULL                                          | シフト日（YYYY-MM-DD）         |
 | `start_time`       | DATETIME | NOT NULL                                          | シフト開始日時                 |
 | `end_time`         | DATETIME | NOT NULL                                          | シフト終了日時                 |
-| `google_event_id`  | TEXT     | NOT NULL, UNIQUE                                  | Google Calendar イベント ID    |
+| `google_event_id`  | TEXT     | NOT NULL, UNIQUE                                  | iCal イベント ID（互換のため既存カラム名を維持） |
 | `created_at`       | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP               | 作成日時                       |
 | `updated_at`       | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP               | 更新日時                       |
 

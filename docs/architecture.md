@@ -15,7 +15,7 @@ flowchart LR
     Service[Service 層]
     Repo[Repository 層]
     DB[(SQLite)]
-    Calendar[Google Calendar アダプター]
+    Calendar[iCal アダプター]
     Mail[Gmail API アダプター]
     Auth[認証 Session/JWT]
     Audit[監査ログ]
@@ -47,7 +47,7 @@ flowchart LR
 - Repository
   - データ永続化、トランザクションを伴うデータアクセス、勤怠変更履歴の追記保存。
 - Calendar Adapter
-  - Google Calendar API との連携境界。
+  - iCal フィードの取得・パース境界。
 - Mail Adapter
   - Gmail API（OAuth 2.0 クライアント認証）を用いた確認メール送信の連携境界。
 - Frontend(WebUSB)

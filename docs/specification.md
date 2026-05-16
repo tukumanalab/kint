@@ -10,7 +10,7 @@
   - Web アプリでの打刻（WebUSB + PaSoRi）
   - カード忘れ時のユーザー検索フォールバック打刻
   - 勤怠一覧・勤怠修正・変更履歴表示
-  - Google Calendar シフト連携
+  - iCal シフト連携
 - 対象外:
   - 旧 Desktop 打刻アプリの新規機能追加
 
@@ -69,7 +69,7 @@
 - 履歴には before/after、reason、actor、changed_at を含む。
 
 ### 5-5. シフト連携
-- Google Calendar API からシフトを取得し DB に保存。
+- iCal URL からシフトを取得し DB に保存。
 - 同期 API は非同期受理 (202) とする。
 
 ### 5-6. ユーザー管理機能（管理者専用）
