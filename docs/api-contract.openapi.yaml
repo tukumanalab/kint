@@ -351,6 +351,8 @@ paths:
       description: >-
         通常は WebUSB 経由で取得した card_idm で打刻します。カード忘れ時は候補検索で選択した user_id での打刻を許可します。
         user_id 打刻時は reason を必須とします。
+        出勤判定時にシフト外の場合は、即時確定せず `status=requires_confirmation` を返します。
+        その場合は `confirm=true` を付与して再送することで出勤を確定できます。
         このエンドポイントは認証不要です（ログインなしで打刻できます）。
       security: []
       parameters:
@@ -367,7 +369,7 @@ paths:
               $ref: '#/components/schemas/PunchRequest'
       responses:
         '200':
-          description: 打刻成功
+          description: 打刻成功または確認要求
           content:
             application/json:
               schema:
@@ -379,7 +381,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 競合（二重打刻または不正な状態遷移）
+          description: 競合（クールダウン中の連続打刻など）
           content:
             application/json:
               schema:
@@ -750,18 +752,30 @@ components:
         occurred_at:
           type: string
           format: date-time
+        confirm:
+          type: boolean
+          default: false
+          description: シフト外打刻をユーザー確認済みとして確定するフラグ
 
     PunchResponse:
       type: object
-      required: [attendance_id, user_id, action, occurred_at, message]
+      required: [status, user_id, user_name, occurred_at, method, message]
       properties:
+        status:
+          type: string
+          enum: [completed, requires_confirmation]
+          description: 打刻確定済みか、ユーザー確認待ちかを表す
         attendance_id:
           type: string
+          nullable: true
         user_id:
+          type: string
+        user_name:
           type: string
         action:
           type: string
           enum: [check_in, check_out]
+          nullable: true
         occurred_at:
           type: string
           format: date-time

@@ -3,7 +3,7 @@ import { isWebUSBSupported } from '../../utils/browser';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { postPunch, searchPunchUsers } from '../../api/punch';
 import { ApiError } from '../../types/error';
-import type { PunchResponse, PunchUserCandidate } from '../../types/punch';
+import type { PunchRequest, PunchResponse, PunchUserCandidate } from '../../types/punch';
 import './PunchPage.css';
 
 const DEVICE_ID = 'web-browser';
@@ -47,7 +47,10 @@ function apiErrorMessage(err: ApiError): string {
     return 'カードまたはユーザーが登録されていません。管理者にお問い合わせください。';
   }
   if (err.status === 409) {
-    return '既に打刻済みです（二重打刻または不正な状態）。';
+    if (err.body.code === 'PUNCH_COOLDOWN_ACTIVE') {
+      return err.body.message;
+    }
+    return '既に打刻済みです。';
   }
   if (err.status === 422) {
     return '入力内容に不備があります。理由を入力してください。';
@@ -76,6 +79,20 @@ export function PunchPage() {
 
   const statusInfo = statusLabel(nfc.status);
 
+  async function submitPunchWithConfirmation(payload: PunchRequest): Promise<PunchResponse | null> {
+    const response = await postPunch(payload);
+    if (response.status !== 'requires_confirmation') {
+      return response;
+    }
+
+    const confirmed = window.confirm(response.message);
+    if (!confirmed) {
+      return null;
+    }
+
+    return postPunch({ ...payload, confirm: true });
+  }
+
   // 接続済みになったら自動でカード読み取り → 打刻 → リセット を繰り返す
   useEffect(() => {
     if (mode !== 'nfc' || !webUSBSupported) return;
@@ -92,14 +109,16 @@ export function PunchPage() {
           setIsPunching(true);
           setPunchError(null);
           try {
-            const resp = await postPunch({
+            const resp = await submitPunchWithConfirmation({
               card_idm: idm,
               device_id: DEVICE_ID,
               occurred_at: new Date().toISOString(),
             });
-            setPunchResult(resp);
-            await new Promise((r) => setTimeout(r, 3000));
-            setPunchResult(null);
+            if (resp) {
+              setPunchResult(resp);
+              await new Promise((r) => setTimeout(r, 3000));
+              setPunchResult(null);
+            }
           } catch (err) {
             if (err instanceof ApiError) {
               setPunchError(apiErrorMessage(err));
@@ -187,15 +206,17 @@ export function PunchPage() {
     if (!fallback.selectedUser || !fallback.reason.trim()) return;
     setIsPunching(true);
     try {
-      const resp = await postPunch({
+      const resp = await submitPunchWithConfirmation({
         user_id: fallback.selectedUser.id,
         reason: fallback.reason.trim(),
         device_id: DEVICE_ID,
         occurred_at: new Date().toISOString(),
       });
-      setPunchResult(resp);
-      setFallback({ userQuery: '', selectedUser: null, reason: '' });
-      setUserCandidates([]);
+      if (resp) {
+        setPunchResult(resp);
+        setFallback({ userQuery: '', selectedUser: null, reason: '' });
+        setUserCandidates([]);
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setPunchError(apiErrorMessage(err));
@@ -374,7 +395,7 @@ export function PunchPage() {
       )}
 
       {/* ===== 打刻結果 ===== */}
-      {punchResult && (
+      {punchResult?.status === 'completed' && punchResult.action && (
         <div className="punch-result" role="status" aria-live="polite">
           <p className="punch-result__action">{actionLabel(punchResult.action)}しました</p>
           <p className="punch-result__name">{punchResult.user_name}</p>

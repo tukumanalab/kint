@@ -1,14 +1,16 @@
 """打刻・勤怠サービス。BE-01〜BE-04 のビジネスロジックを実装する。"""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kint.config import settings
 from kint.exceptions import KintConflictError, KintNotFoundError
 from kint.models.attendance import Attendance, AttendanceChangeLog
 from kint.models.card import Card
+from kint.models.shift import Shift
 from kint.models.user import User
 from kint.schemas.attendance import (
     AttendanceHistoryEntry,
@@ -70,14 +72,99 @@ class PunchService:
         return user
 
     async def _get_attendance_for_date(self, user_id: str, work_date: date) -> Attendance | None:
-        """指定日の勤怠レコードを返す。存在しない場合は None。"""
+        """指定日の最新勤怠レコードを返す。存在しない場合は None。"""
         result = await self.session.execute(
-            select(Attendance).where(
+            select(Attendance)
+            .where(
                 Attendance.user_id == user_id,
                 Attendance.work_date == work_date,
             )
+            .order_by(Attendance.check_in.desc(), Attendance.created_at.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def _get_open_attendance(self, user_id: str) -> Attendance | None:
+        """未退勤の最新勤怠レコードを返す。存在しない場合は None。"""
+        result = await self.session.execute(
+            select(Attendance)
+            .where(Attendance.user_id == user_id, Attendance.check_out.is_(None))
+            .order_by(Attendance.check_in.desc(), Attendance.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_latest_attendance(self, user_id: str) -> Attendance | None:
+        """ユーザーの最新打刻を持つ勤怠レコードを返す。"""
+        result = await self.session.execute(
+            select(Attendance)
+            .where(Attendance.user_id == user_id)
+            .order_by(
+                func.coalesce(Attendance.check_out, Attendance.check_in).desc(),
+                Attendance.created_at.desc(),
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _as_utc(dt: datetime) -> datetime:
+        """日時を UTC 基準に正規化して返す。"""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
+
+    async def _validate_cooldown(self, user_id: str, occurred_at: datetime) -> None:
+        """直近打刻からクールダウン秒数以内の連続打刻を拒否する。"""
+        latest = await self._get_latest_attendance(user_id)
+        if latest is None:
+            return
+
+        latest_punched_at = latest.check_out or latest.check_in
+        if latest_punched_at is None:
+            return
+
+        diff_seconds = (self._as_utc(occurred_at) - self._as_utc(latest_punched_at)).total_seconds()
+        cooldown_seconds = settings.punch_cooldown_seconds
+        if diff_seconds >= cooldown_seconds:
+            return
+
+        remaining_seconds = max(1, int(cooldown_seconds - diff_seconds))
+        raise KintConflictError(
+            code="PUNCH_COOLDOWN_ACTIVE",
+            message=(
+                "直前に打刻したばかりです。"
+                f"あと {remaining_seconds} 秒ほど待ってから再度打刻してください。"
+            ),
+            detail={
+                "user_id": user_id,
+                "cooldown_seconds": cooldown_seconds,
+                "remaining_seconds": remaining_seconds,
+            },
+        )
+
+    async def _has_shift_for_check_in(self, user_id: str, occurred_at: datetime) -> bool:
+        """時刻がシフト範囲（開始前許容を含む）に入るかを判定する。"""
+        occurred_date = occurred_at.date()
+        result = await self.session.execute(
+            select(Shift)
+            .where(
+                Shift.user_id == user_id,
+                Shift.shift_date >= occurred_date - timedelta(days=1),
+                Shift.shift_date <= occurred_date + timedelta(days=1),
+            )
+            .order_by(Shift.start_time.asc())
+        )
+        shifts = result.scalars().all()
+
+        early_window = timedelta(minutes=settings.shift_checkin_early_minutes)
+        occurred_utc = self._as_utc(occurred_at)
+        for shift in shifts:
+            start = self._as_utc(shift.start_time) - early_window
+            end = self._as_utc(shift.end_time)
+            if start <= occurred_utc <= end:
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # BE-01 / BE-02 / BE-03 / BE-04: 打刻コア処理
@@ -96,10 +183,42 @@ class PunchService:
             source = "web_user_id"
             method = "user_id"
 
-        work_date = request.occurred_at.date()
-        attendance = await self._get_attendance_for_date(user.id, work_date)
+        await self._validate_cooldown(user.id, request.occurred_at)
+        attendance = await self._get_open_attendance(user.id)
 
-        if attendance is None:
+        if attendance is not None:
+            await self._do_check_out(
+                attendance=attendance,
+                occurred_at=request.occurred_at,
+                method=method,
+                reason=request.reason,
+                actor_user=user,
+            )
+            action = "check_out"
+        else:
+            has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
+            if not has_shift and not request.confirm:
+                sync_hint = (
+                    "シフト同期設定あり"
+                    if settings.shift_ical_url
+                    else "SHIFT_ICAL_URL 未設定"
+                )
+                return PunchResponse(
+                    status="requires_confirmation",
+                    attendance_id=None,
+                    user_id=user.id,
+                    user_name=user.name,
+                    action=None,
+                    occurred_at=request.occurred_at,
+                    method=method,  # type: ignore[arg-type]
+                    message=(
+                        "現在シフトが入っていません。"
+                        f"（{sync_hint}）"
+                        "出勤として打刻する場合は確認してください。"
+                    ),
+                )
+
+            work_date = request.occurred_at.date()
             attendance = await self._do_check_in(
                 user=user,
                 work_date=work_date,
@@ -110,26 +229,12 @@ class PunchService:
                 reason=request.reason,
             )
             action = "check_in"
-        elif attendance.check_out is None:
-            await self._do_check_out(
-                attendance=attendance,
-                occurred_at=request.occurred_at,
-                method=method,
-                reason=request.reason,
-                actor_user=user,
-            )
-            action = "check_out"
-        else:
-            raise KintConflictError(
-                code="ALREADY_CHECKED_OUT",
-                message="本日の出退勤はすでに完了しています",
-                detail={"user_id": user.id, "work_date": str(work_date)},
-            )
 
         await self.session.commit()
 
         action_label = "出勤" if action == "check_in" else "退勤"
         return PunchResponse(
+            status="completed",
             attendance_id=attendance.id,
             user_id=user.id,
             user_name=user.name,

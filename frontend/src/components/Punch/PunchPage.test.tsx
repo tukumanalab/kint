@@ -28,8 +28,10 @@ describe('PunchPage', () => {
       ],
     });
     vi.spyOn(punchApi, 'postPunch').mockResolvedValue({
+      status: 'completed',
       attendance_id: 'att-1',
       user_id: 'user-001',
+      user_name: 'taro',
       action: 'check_in',
       occurred_at: '2026-05-15T00:00:00Z',
       method: 'user_id',

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
@@ -16,7 +16,6 @@ class Attendance(Base):
 
     __tablename__ = "attendances"
     __table_args__ = (
-        UniqueConstraint("user_id", "work_date", name="uq_attendances_user_work_date"),
         CheckConstraint(_SOURCE_CHECK, name="ck_attendances_source"),
         CheckConstraint(
             "check_out IS NULL OR check_out > check_in",

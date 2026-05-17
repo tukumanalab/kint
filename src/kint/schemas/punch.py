@@ -11,6 +11,7 @@ class PunchRequest(BaseModel):
 
     device_id: str
     occurred_at: datetime
+    confirm: bool = False
     card_idm: str | None = None
     user_id: str | None = None
     reason: str | None = None
@@ -30,10 +31,11 @@ class PunchRequest(BaseModel):
 class PunchResponse(BaseModel):
     """打刻レスポンス。"""
 
-    attendance_id: str
+    status: Literal["completed", "requires_confirmation"] = "completed"
+    attendance_id: str | None = None
     user_id: str
     user_name: str
-    action: Literal["check_in", "check_out"]
+    action: Literal["check_in", "check_out"] | None = None
     occurred_at: datetime
     method: Literal["card_idm", "user_id"]
     message: str

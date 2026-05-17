@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     debug: bool = False
     google_calendar_credentials_file: str | None = None
+    shift_ical_url: str | None = None
     # Gmail API 認証 — リフレッシュトークン方式（推奨）
     gmail_user: str | None = None
     gmail_client_id: str | None = None
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     email_verification_expire_hours: int = 24
     google_client_id: str = ""  # GSI Client ID (Google Cloud Console で発行)
     admin_password: str = ""  # 管理者ロールで自動登録を許可するパスワード
+    # 打刻判定ルール設定
+    punch_cooldown_seconds: int = 60
+    shift_checkin_early_minutes: int = 15
 
 
 settings = Settings()

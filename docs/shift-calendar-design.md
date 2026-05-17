@@ -4,8 +4,13 @@
 指定されたiCal（iCalendar）形式のURLからシフトデータを取得し、データベースの `shifts` テーブルと同期する機能の設計です。Google Calendar APIの直接連携ではなく、iCalデータのURLからの取り込みを行います。
 
 ## 2. データソース
-- **URL**: `https://tukumana.si.aoyama.ac.jp/shift2/api/ical/all?token=...` (例)
+- **URL**: 環境変数 `SHIFT_ICAL_URL` で指定する iCal 配信 URL
+  - 例: `https://tukumana.si.aoyama.ac.jp/shift2/api/ical/all?token=...`
 - **フォーマット**: iCalendar (`.ics`)
+
+### 設定ポリシー
+- iCal の参照先 URL はコードへ直書きせず、必ず `SHIFT_ICAL_URL` から取得する。
+- `SHIFT_ICAL_URL` が未設定の場合は同期処理を開始せず、設定不足として扱う。
 
 ## 3. データのマッピング仕様
 iCal 内の `VEVENT`（イベント情報）をDBの `Shift` モデルへマッピングします。

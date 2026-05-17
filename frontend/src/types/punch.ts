@@ -3,6 +3,7 @@ export interface PunchRequestByCard {
   card_idm: string;
   device_id: string;
   occurred_at: string;
+  confirm?: boolean;
 }
 
 /** user_id（カード忘れ）による打刻リクエスト */
@@ -11,17 +12,19 @@ export interface PunchRequestByUserId {
   reason: string;
   device_id: string;
   occurred_at: string;
+  confirm?: boolean;
 }
 
 export type PunchRequest = PunchRequestByCard | PunchRequestByUserId;
 
 export interface PunchResponse {
-  attendance_id: string;
+  status: 'completed' | 'requires_confirmation';
+  attendance_id: string | null;
   user_id: string;
   user_name: string;
-  action: 'check_in' | 'check_out';
+  action: 'check_in' | 'check_out' | null;
   occurred_at: string;
-  method?: 'card_idm' | 'user_id';
+  method: 'card_idm' | 'user_id';
   message: string;
 }
 
