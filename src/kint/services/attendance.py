@@ -6,7 +6,6 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kint.config import settings
 from kint.exceptions import KintConflictError, KintNotFoundError
 from kint.models.attendance import Attendance, AttendanceChangeLog
 from kint.models.card import Card
@@ -21,6 +20,7 @@ from kint.schemas.attendance import (
     AttendanceRecord,
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
+from kint.services.settings import SettingsService
 
 
 class PunchService:
@@ -125,7 +125,8 @@ class PunchService:
             return
 
         diff_seconds = (self._as_utc(occurred_at) - self._as_utc(latest_punched_at)).total_seconds()
-        cooldown_seconds = settings.punch_cooldown_seconds
+        svc = SettingsService(self.session)
+        cooldown_seconds = await svc.get_int("punch_cooldown_seconds")
         if diff_seconds >= cooldown_seconds:
             return
 
@@ -157,7 +158,8 @@ class PunchService:
         )
         shifts = result.scalars().all()
 
-        early_window = timedelta(minutes=settings.shift_checkin_early_minutes)
+        svc = SettingsService(self.session)
+        early_window = timedelta(minutes=await svc.get_int("shift_checkin_early_minutes"))
         occurred_utc = self._as_utc(occurred_at)
         for shift in shifts:
             start = self._as_utc(shift.start_time) - early_window
@@ -198,11 +200,9 @@ class PunchService:
         else:
             has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
             if not has_shift and not request.confirm:
-                sync_hint = (
-                    "シフト同期設定あり"
-                    if settings.shift_ical_url
-                    else "SHIFT_ICAL_URL 未設定"
-                )
+                settings_svc = SettingsService(self.session)
+                ical_url = await settings_svc.get_str("shift_ical_url")
+                sync_hint = "シフト同期設定あり" if ical_url else "SHIFT_ICAL_URL 未設定"
                 return PunchResponse(
                     status="requires_confirmation",
                     attendance_id=None,

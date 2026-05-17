@@ -21,6 +21,7 @@ from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
 from kint.models.user import User
 from kint.models.user_profile_change_log import UserProfileChangeLog
+from kint.schemas.punch import PunchUserCandidate, PunchUserCandidateListResponse
 from kint.schemas.user import (
     EmailChangeAcceptedResponse,
     EmailChangeRequestCreate,
@@ -35,7 +36,6 @@ from kint.schemas.user import (
     UserResponse,
     UsersListResponse,
 )
-from kint.schemas.punch import PunchUserCandidate, PunchUserCandidateListResponse
 from kint.services.gmail import GmailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
@@ -67,7 +67,9 @@ class UserService:
         users = result.scalars().all()
         return UsersListResponse(users=[UserResponse.model_validate(u) for u in users])
 
-    async def search_punch_candidates(self, query: str, limit: int = 10) -> PunchUserCandidateListResponse:
+    async def search_punch_candidates(
+        self, query: str, limit: int = 10
+    ) -> PunchUserCandidateListResponse:
         """カード忘れ打刻で使う公開ユーザー候補を返す。"""
         normalized = query.strip()
         if not normalized:
@@ -289,7 +291,8 @@ class UserService:
         current_user: User,
         card_id: str,
     ) -> None:
-        """本人の NFC カードを削除する。他ユーザーのカードまたは存在しない場合は KintNotFoundError。"""
+        """本人の NFC カードを削除する。他ユーザーのカードまたは存在しない場合は
+        KintNotFoundError。"""
         result = await self.session.execute(
             select(Card).where(Card.id == card_id, Card.user_id == current_user.id)
         )
@@ -308,9 +311,7 @@ class UserService:
         data: MeCardRegistrationRequest,
     ) -> MeCardRegistrationResponse:
         """本人の NFC カード (card_idm) を登録する。IDm 重複時は KintConflictError。"""
-        dup = await self.session.execute(
-            select(Card).where(Card.card_idm == data.card_idm)
-        )
+        dup = await self.session.execute(select(Card).where(Card.card_idm == data.card_idm))
         if dup.scalar_one_or_none() is not None:
             raise KintConflictError(
                 code="CARD_IDM_CONFLICT",

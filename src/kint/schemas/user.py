@@ -42,6 +42,7 @@ class MeCardPatchRequest(BaseModel):
 
     name: str | None = None
 
+
 _PASSWORD_RE = re.compile(r"(?=.*[a-zA-Z])(?=.*\d)")
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 

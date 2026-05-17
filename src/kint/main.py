@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import aiofiles
 import bcrypt
 from fastapi import FastAPI, Form, Request
 from fastapi.exceptions import HTTPException
@@ -22,7 +21,7 @@ from kint.exceptions import (
     KintUnauthorizedError,
 )
 from kint.models.user import User
-from kint.routers import attendance, auth, email_verification, me, punch, user
+from kint.routers import attendance, auth, email_verification, me, punch, settings, user
 from kint.schemas.error import ErrorResponse
 
 app = FastAPI(
@@ -144,6 +143,7 @@ app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(me.router, prefix="/api/v1")
 app.include_router(email_verification.router, prefix="/api/v1")
+app.include_router(settings.router, prefix="/api/v1")
 
 
 # ------------------------------------------------------------------
@@ -171,7 +171,7 @@ async def google_oauth_callback(credential: str = Form(...)) -> HTMLResponse:
     """
     safe_credential = json.dumps(credential)
     html = (
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><script>\n"
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><script>\n'
         f"sessionStorage.setItem('google_credential',{safe_credential});\n"
         "window.location.href='/';\n"
         "<\\/script></head><body>Redirecting...</body></html>"

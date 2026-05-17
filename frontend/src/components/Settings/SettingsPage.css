@@ -1,0 +1,274 @@
+.settings-page {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.settings-page__title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin: 0 0 1.5rem;
+}
+
+.settings-loading,
+.settings-error {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.settings-loading {
+  color: #6b7280;
+}
+
+.settings-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  margin-bottom: 1rem;
+}
+
+.settings-success {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #16a34a;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+/* セクション */
+.settings-section {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.settings-section__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 1rem;
+}
+
+/* フィールド */
+.settings-field {
+  margin-bottom: 1rem;
+}
+
+.settings-field:last-child {
+  margin-bottom: 0;
+}
+
+.settings-field__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.375rem;
+}
+
+.settings-field__input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-field__input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  width: 7rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.settings-field__input--wide {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-field__input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.settings-field__unit {
+  font-size: 0.875rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.settings-field__hint {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  margin: 0.25rem 0 0;
+}
+
+/* 保存ボタン */
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+/* バックアップ */
+.settings-backup-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* 汎用ボタン */
+.settings-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.15s;
+}
+
+.settings-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-btn--primary {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.settings-btn--primary:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.settings-btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.settings-btn--secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+/* モーダルオーバーレイ */
+.settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.5rem;
+  width: min(520px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.settings-modal__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 1rem;
+}
+
+.settings-modal__warnings {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.settings-modal__warning-item {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
+.settings-modal__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.settings-modal__meta dt {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.settings-modal__meta dd {
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.settings-modal__section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.5rem;
+}
+
+.settings-modal__no-change {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 1rem;
+}
+
+.settings-modal__changes {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.settings-modal__changes li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.settings-modal__change-key {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.settings-modal__change-before {
+  color: #dc2626;
+  text-decoration: line-through;
+}
+
+.settings-modal__change-after {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.settings-modal__ignored {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  margin: 0 0 1rem;
+}
+
+.settings-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
