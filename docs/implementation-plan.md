@@ -217,6 +217,16 @@
   - 期限切れ・使用済みトークンを判定できる。
   - users.email_verified_at が確認完了時に更新される。
 
+### DB-08: system_settings テーブル実装
+- 目的:
+  - 管理画面から変更可能なシステム設定値を DB に永続化する。
+- 実装範囲:
+  - `system_settings` テーブルを SQLAlchemy モデルとして実装。
+  - Alembic マイグレーションを作成（upgrade/downgrade 両実装）。
+- 受け入れ条件:
+  - `system_settings` テーブルが作成される。
+  - upgrade/downgrade の往復が成功する。
+
 ## 3. 実装チケット分解（@frontend 向け）
 
 ### FE-00: WebUSB-FeliCa 技術検証
@@ -335,6 +345,23 @@
 - 受け入れ条件:
   - token 成功時と失敗時の両画面が実装される。
 
+### FE-09: システム設定画面実装（管理者専用）
+- 目的:
+  - 管理者がブラウザ上から打刻規則・シフト設定を変更できるようにする。
+- 実装範囲:
+  - `frontend/src/types/settings.ts` — `SystemSettings`・`SettingsPatchRequest` 型を実装。
+  - `frontend/src/api/settings.ts` — `getSettings` / `patchSettings` API クライアントを実装。
+  - `frontend/src/components/Settings/SettingsPage.tsx` — 設定画面コンポーネントを実装。
+    - 打刻規則セクション（`punch_cooldown_seconds`・`shift_checkin_early_minutes`）。
+    - シフトカレンダーセクション（`shift_ical_url`）。
+    - 保存ボタン（成功トースト／エラーメッセージ）。
+  - `App.tsx` に `page=settings` ルートと admin 専用ナビゲーション項目を追加。
+- 受け入れ条件:
+  - 管理者が設定画面を開くと現在の設定値がフォームに表示される。
+  - 値を変更して「保存」すると `PATCH /api/v1/settings` が呼ばれ、成功メッセージが表示される。
+  - admin 以外のユーザーにはナビゲーション項目が表示されない。
+  - クライアントバリデーション（範囲外の値）でフォームがエラー表示される。
+
 ## 4. 依存関係と着手順
 
 ### 4-1. 依存マトリクス
@@ -351,6 +378,7 @@
 - FE-06 は BE-08 実装後に結合確認。
 - FE-07 は BE-09 完了後に着手し、マイページ UI を実装。
 - FE-08 は BE-09 完了後に着手し、確認リンクの結果表示を実装。
+- FE-09 は DB-08 → BE（SET-BE-01/02）完了後に着手し、設定画面を実装。
 - FE-05 は FE-01〜04 完了後に、FE-07 を含むテストに着手。
 
 ### 4-2. 推奨スケジュール（3 スプリント）
@@ -405,6 +433,7 @@ gantt
 - パスワード監査: パスワード変更がイベントのみ（値なし）で user_profile_change_logs に記録される。
 - セッション管理: email 変更確定時またはパスワード変更時に認証セッションが無効化され、再ログインが要求される。
 - 契約整合: API 実装と Frontend が docs/api-contract.openapi.yaml と一致する。
+- システム設定: 管理者が UI から打刻クールダウン・シフト早着時間・iCal URL を変更でき、再起動なしで即時反映される。
 
 ## 6. 起票用バックログ（このまま Issue 化可能）
 

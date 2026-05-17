@@ -13,6 +13,7 @@ tags:
   - name: Card
   - name: Attendance
   - name: Shift
+  - name: Settings
 security:
   - bearerAuth: []
 paths:
@@ -534,6 +535,149 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShiftSyncAcceptedResponse'
 
+  /settings:
+    get:
+      tags: [Settings]
+      summary: システム設定を取得（管理者）
+      description: >
+        現在の全システム設定値を返す。DB 未設定のキーは環境変数またはコードのデフォルト値を返す。
+      responses:
+        '200':
+          description: 設定値取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin 以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Settings]
+      summary: システム設定を更新（管理者）
+      description: >
+        指定したキーの設定値を upsert する。更新後の全設定値を返す。
+        少なくとも 1 フィールドを指定すること（空 body は 422）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsPatchRequest'
+      responses:
+        '200':
+          description: 更新成功。更新後の全設定値を返す。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin 以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: バリデーションエラー（空 body、範囲外の値を含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /settings/export:
+    get:
+      tags: [Settings]
+      summary: 設定を JSON ファイルとしてエクスポート（管理者）
+      description: >
+        現在の全設定値をメタデータ付き JSON ファイルとして返す。
+        `Content-Disposition: attachment; filename="kint-settings-YYYYMMDD.json"` を返す。
+      responses:
+        '200':
+          description: エクスポート成功
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="kint-settings-20260517.json"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsExportFile'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin 以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /settings/import:
+    post:
+      tags: [Settings]
+      summary: 設定を JSON ファイルからインポート（管理者）
+      description: >
+        エクスポートファイル形式の JSON を受け取り、設定値を一括適用する。
+        `dry_run=true` で差分プレビューのみ返す（DB 書き込みなし）。
+        不明なキーは ignored_keys に追記してスキップする。
+      parameters:
+        - in: query
+          name: dry_run
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: true のとき DB への書き込みを行わずプレビューを返す
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsImportRequest'
+      responses:
+        '200':
+          description: インポート成功（dry_run 時はプレビュー結果）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsImportResult'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin 以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: JSON 形式不正、設定値の範囲違反
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -957,6 +1101,133 @@ components:
         status:
           type: string
           enum: [accepted]
+
+    SettingsResponse:
+      type: object
+      required: [punch_cooldown_seconds, shift_checkin_early_minutes]
+      properties:
+        punch_cooldown_seconds:
+          type: integer
+          description: 連続打刻防止クールダウン（秒）
+          example: 60
+        shift_checkin_early_minutes:
+          type: integer
+          description: シフト開始前チェックイン許容時間（分）
+          example: 15
+        shift_ical_url:
+          type: string
+          nullable: true
+          description: シフト iCal 同期 URL（未設定時は null）
+          example: "https://example.com/calendar.ics"
+
+    SettingsPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        punch_cooldown_seconds:
+          type: integer
+          minimum: 0
+          maximum: 3600
+          description: 連続打刻防止クールダウン（秒）
+        shift_checkin_early_minutes:
+          type: integer
+          minimum: 0
+          maximum: 120
+          description: シフト開始前チェックイン許容時間（分）
+        shift_ical_url:
+          type: string
+          nullable: true
+          description: シフト iCal 同期 URL。null または空文字列で未設定にする。
+
+    SettingsExportFile:
+      type: object
+      required: [version, exported_at, exported_by, settings]
+      properties:
+        version:
+          type: string
+          description: ファイルフォーマットバージョン
+          example: "1"
+        exported_at:
+          type: string
+          format: date-time
+          description: エクスポート日時 (ISO 8601)
+        exported_by:
+          type: string
+          format: email
+          description: エクスポート実行者のメールアドレス
+        settings:
+          $ref: '#/components/schemas/SettingsResponse'
+
+    SettingsImportRequest:
+      type: object
+      required: [version, settings]
+      properties:
+        version:
+          type: string
+          description: ファイルフォーマットバージョン（未知のバージョンは warnings に追記し続行）
+          example: "1"
+        exported_at:
+          type: string
+          format: date-time
+          description: エクスポート日時（履歴表示用、任意）
+        exported_by:
+          type: string
+          description: エクスポート者（履歴表示用、任意）
+        settings:
+          type: object
+          description: インポートする設定値マップ。不明なキーは ignored_keys に追記されスキップ。
+          additionalProperties:
+            type: string
+          example:
+            punch_cooldown_seconds: "120"
+            shift_checkin_early_minutes: "15"
+            shift_ical_url: "https://example.com/calendar.ics"
+
+    SettingsImportChange:
+      type: object
+      required: [key, before, after]
+      properties:
+        key:
+          type: string
+          description: 設定キー
+        before:
+          oneOf:
+            - type: integer
+            - type: string
+            - type: 'null'
+          description: 変更前の値
+        after:
+          oneOf:
+            - type: integer
+            - type: string
+            - type: 'null'
+          description: 変更後の値
+
+    SettingsImportResult:
+      type: object
+      required: [dry_run, changes, ignored_keys, warnings]
+      properties:
+        dry_run:
+          type: boolean
+          description: true のときは DB 書き込みなし
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettingsImportChange'
+          description: 実際に変更される（された）項目の一覧
+        ignored_keys:
+          type: array
+          items:
+            type: string
+          description: 不明なキーまたは値が変化しなかったキー
+        warnings:
+          type: array
+          items:
+            type: string
+          description: バージョン不一致など注意事項
+        applied:
+          $ref: '#/components/schemas/SettingsResponse'
+          description: dry_run=false のときのみ包含。適用後の全設定値。
 
     ErrorResponse:
       type: object

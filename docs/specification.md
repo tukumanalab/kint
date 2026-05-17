@@ -37,6 +37,7 @@
   - カード登録
   - シフト同期実行
   - 全従業員の変更履歴閲覧
+  - システム設定の参照・変更
 
 ## 5. 機能仕様
 
@@ -81,6 +82,15 @@
   - 監査整合性のため論理削除（`is_active=false`）とする。
   - 既存の勤怠・履歴データは保持する。
 
+### 5-8. システム設定機能（管理者専用）
+- 管理者はシステム設定画面から以下の設定値を変更できる。
+  - 連続打刻クールダウン秒数（`punch_cooldown_seconds`）: 0〜3600 秒
+  - シフト開始前チェックイン許容時間（`shift_checkin_early_minutes`）: 0〜120 分
+  - シフト iCal 同期 URL（`shift_ical_url`）
+- 設定値は DB に永続化し、サーバー再起動後も保持される。
+- DB に値がない場合は環境変数のデフォルト値にフォールバックする。
+- 変更は即時反映される（サーバー再起動不要）。
+
 ### 5-7. マイページ機能（本人専用）
 - ログイン済みユーザーはマイページで以下を自分で編集できる。
   - メールアドレス
@@ -113,6 +123,8 @@
 - PATCH /api/v1/attendance/{attendance_id}
 - GET /api/v1/attendance/{attendance_id}/history
 - POST /api/v1/shifts/sync
+- GET /api/v1/settings
+- PATCH /api/v1/settings
 
 ### 6-2. 打刻リクエスト
 - oneOf 条件:
@@ -167,6 +179,17 @@
   - new_password は 8〜72 文字、英字と数字を各1文字以上含む。
   - current_password と同一の new_password は 422。
   - 更新成功時は現在セッションを無効化し、再ログインを要求する。
+
+### 6-6. システム設定 API バリデーション仕様
+- GET /api/v1/settings:
+  - admin ロールのみアクセス可能。
+  - DB 未設定のキーは環境変数またはデフォルト値を返す。
+- PATCH /api/v1/settings:
+  - admin ロールのみアクセス可能。
+  - 更新対象フィールドが 1 つ以上必要（空 body は 422）。
+  - `punch_cooldown_seconds` は 0 以上 3600 以下の整数（422 で拒否）。
+  - `shift_checkin_early_minutes` は 0 以上 120 以下の整数（422 で拒否）。
+  - `shift_ical_url` は文字列 (URI 形式) または null / 空文字列（未設定として扱う）。
 
 詳細は docs/api-contract.openapi.yaml を正とする。
 

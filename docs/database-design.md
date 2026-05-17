@@ -14,7 +14,8 @@
 | `attendance_change_logs`    | 勤怠修正の変更履歴（不変ログ）           |
 | `user_profile_change_logs`  | ユーザープロフィール変更の監査ログ（不変ログ） |
 | `email_verification_requests` | メール確認リクエスト（signup / email_change） |
-| `shifts`                    | iCal から取得したシフト情報   |
+| `shifts`                    | iCal から取得したシフト情報              |
+| `system_settings`           | 管理画面から変更可能なシステム設定値     |
 
 ---
 
@@ -212,6 +213,38 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 
 ---
 
+### 2-8. `system_settings`
+
+管理画面から変更可能なシステム設定値を保持するテーブル。  
+サービス層は DB 値 → 環境変数 → コードデフォルトの優先順位で値を解決する。
+
+| カラム名 | 型 | 制約 | 説明 |
+|---|---|---|---|
+| `id` | INTEGER | PK, AUTOINCREMENT | — |
+| `key` | TEXT | NOT NULL, UNIQUE | 設定キー |
+| `value` | TEXT | NOT NULL | 設定値（文字列として格納） |
+| `description` | TEXT | NULL | 設定の説明（任意）|
+| `updated_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 最終更新日時 |
+| `updated_by_user_id` | TEXT | NOT NULL, FK → users.id ON DELETE RESTRICT | 最終更新者 |
+
+許容キー一覧:
+
+| key | 格納型 | デフォルト | 説明 |
+|---|---|---|---|
+| `punch_cooldown_seconds` | integer (文字列) | 60 | 連続打刻防止クールダウン（秒） |
+| `shift_checkin_early_minutes` | integer (文字列) | 15 | シフト開始前チェックイン許容（分） |
+| `shift_ical_url` | string (文字列) | null | シフト iCal 同期 URL |
+
+運用ルール:
+- `key` は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url"}` のみ許容する。
+- `value` はすべて文字列として格納し、サービス層で型変換する。
+- `shift_ical_url` の空文字列 `""` は null（未設定）として扱う。
+
+インデックス:
+- `ix_system_settings_key` — UNIQUE インデックス（キー検索）
+
+---
+
 ## 3. ERD（物理モデル）
 
 ```mermaid
@@ -303,6 +336,7 @@ erDiagram
   attendances ||--o{ attendance_change_logs : 変更履歴
   users ||--o{ user_profile_change_logs : 対象
   users ||--o{ user_profile_change_logs : 実行者
+  users ||--o{ system_settings : 最終更新者
   shifts ||--o{ attendances : 照合
 ```
 
