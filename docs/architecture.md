@@ -19,11 +19,14 @@ flowchart LR
     Mail[Gmail API アダプター]
     Auth[認証 Session/JWT]
     Audit[監査ログ]
+    Logger[ログ出力 JSON Lines]
+    LogFile[(logs/kint.log)]
   end
 
   subgraph Browser[Web ブラウザ]
     PunchUI[打刻 UI]
     AdminUI[管理 UI]
+    LogUI[ログビューア UI]
     USB[WebUSB-FeliCa アダプター]
     Reader[PaSoRi USB 接続]
   end
@@ -31,12 +34,14 @@ flowchart LR
   PunchUI --> USB --> Reader
   PunchUI -->|HTTPS| API
   AdminUI -->|HTTPS| API
+  LogUI -->|HTTPS GET /api/v1/logs| API
 
   API --> Router --> Service --> Repo --> DB
   Service --> Calendar
   Service --> Mail
   API --> Auth
   Service --> Audit
+  API --> Logger --> LogFile
 ```
 
 ## 3. 各レイヤーの責務
@@ -50,6 +55,9 @@ flowchart LR
   - iCal フィードの取得・パース境界。
 - Mail Adapter
   - Gmail API（OAuth 2.0 クライアント認証）を用いた確認メール送信の連携境界。
+- Logger
+  - Python `logging` モジュール + `RotatingFileHandler` で `logs/kint.log` に JSON Lines 形式で出力する。
+  - `GET /api/v1/logs` エンドポイント（管理者専用）でフロントエンドから参照可能。
 - Frontend(WebUSB)
   - WebUSB 経由で PaSoRi から IDm を取得し、API に打刻要求を送信する。
   - WebUSB 非対応環境では user_id 入力による代替打刻導線を提供する。
@@ -176,6 +184,11 @@ sequenceDiagram
 - ADR-011: Gmail API 送信は OAuth クライアント（OAuth 2.0）を採用する。
   - 根拠: Google の標準的な認可方式に準拠し、トークンの失効・再認可を運用しやすくするため。
 
+- ADR-013: バックエンドログは JSON Lines 形式で `logs/kint.log` にファイル保存し、管理者向け Web UI から参照可能にする。
+  - 根拠: uvicorn の stdout だけでは運用中のログを遡れないため、ファイルに永続化する。JSON Lines にすることで API 側でのパースを単純化し、ローテーションで無制限の肥大化を防ぐ。
+  - ログレベルは `DEBUG=true` 環境変数で切り替え可能。本番デフォルトは `INFO`。
+  - `GET /api/v1/logs` (管理者専用) で `level` / `keyword` / `limit` によるフィルタリングが可能。
+
 ## 10. 本番デプロイ構成
 
 ### 10-1. コンテナ構成
@@ -189,7 +202,8 @@ sequenceDiagram
 │  │  api コンテナ (port 8000)         │   │
 │  │  ├── uvicorn / FastAPI           │   │
 │  │  ├── src/kint/static/  ← Vue SPA │   │
-│  │  └── /data/kint.db  ← volume     │   │
+  │  ├── /data/kint.db  ← volume     │   │
+  │  └── logs/kint.log  ← volume     │   │
 │  └──────────────────────────────────┘   │
 └──────────────────────────────────────────┘
 ```

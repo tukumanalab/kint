@@ -177,6 +177,48 @@ docker compose build --build-arg VITE_GOOGLE_CLIENT_ID=<新しいID>
 
 ---
 
+## ログ確認
+
+### ログファイル
+
+バックエンドは起動時に `logs/kint.log` へ JSON Lines 形式でログを出力します
+（5 MB ローテーション、最大 5 世代保持）。
+
+```bash
+# リアルタイム追尾（整形表示）
+tail -f logs/kint.log | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        d = json.loads(line)
+        print(f\"{d['timestamp']}  {d['level']:<8}  {d['logger']}  {d['message']}\")
+    except Exception:
+        print(line)
+"
+
+# Docker 本番環境でのログ確認
+docker compose logs -f api
+```
+
+ログレベルは環境変数 `DEBUG=true` で DEBUG に、それ以外は INFO になります。
+
+### Web UI ログビューア
+
+管理者でログインすると、ナビバーに **「ログ」** が表示されます。
+
+| 機能 | 説明 |
+|------|------|
+| レベルフィルタ | DEBUG / INFO / WARNING / ERROR / CRITICAL で絞り込み |
+| キーワード検索 | メッセージ・ロガー名を部分一致で検索 |
+| 最大件数 | 50 / 100 / 200 / 500 / 1000 件から選択 |
+| 自動更新 | 10 秒ごとに最新ログを取得 |
+
+API: `GET /api/v1/logs?level=ERROR&keyword=同期&limit=100`（管理者 JWT 必須）
+
+---
+
 ## テスト
 
 ### テストエクスプローラー (GUI)

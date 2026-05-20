@@ -6,10 +6,11 @@ import { RegisterPage } from './components/Register';
 import { UserManagementPage } from './components/Users';
 import { MyProfilePage } from './components/MyProfile';
 import { EmailVerificationPage } from './components/EmailVerification';
+import { LogsPage } from './components/Logs';
 import { SettingsPage } from './components/Settings';
 import './App.css';
 
-type Page = 'punch' | 'users' | 'myProfile' | 'settings';
+type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs';
 type GuestPage = 'home' | 'punch' | 'login';
 
 function getEmailVerificationToken(): string | null {
@@ -140,6 +141,15 @@ function App() {
               設定
             </button>
           )}
+          {isAdmin && (
+            <button
+              type="button"
+              className={`app-nav__link ${page === 'logs' ? 'app-nav__link--active' : ''}`}
+              onClick={() => setPage('logs')}
+            >
+              ログ
+            </button>
+          )}
         </div>
         <div className="app-nav__user">
           <button
@@ -159,6 +169,7 @@ function App() {
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
       {page === 'myProfile' && <MyProfilePage auth={auth} />}
       {page === 'settings' && isAdmin && <SettingsPage auth={auth} />}
+      {page === 'logs' && isAdmin && <LogsPage auth={auth} />}
     </div>
   );
 }

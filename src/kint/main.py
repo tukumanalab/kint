@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
+from kint.config import settings as _app_settings
 from kint.db import AsyncSessionLocal
 from kint.exceptions import (
     KintBadGatewayError,
@@ -20,10 +21,13 @@ from kint.exceptions import (
     KintNotFoundError,
     KintUnauthorizedError,
 )
+from kint.logging_setup import setup_logging
 from kint.models.user import User
-from kint.routers import attendance, auth, email_verification, me, punch, settings, shifts, user
+from kint.routers import attendance, auth, email_verification, logs, me, punch, settings, shifts, user
 from kint.schemas.error import ErrorResponse
 from kint.scheduler import init_scheduler, scheduler
+
+setup_logging(log_level="DEBUG" if _app_settings.debug else "INFO")
 
 app = FastAPI(
     title="Kint Attendance API",
@@ -159,6 +163,7 @@ app.include_router(me.router, prefix="/api/v1")
 app.include_router(email_verification.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
 app.include_router(shifts.router, prefix="/api/v1")
+app.include_router(logs.router, prefix="/api/v1")
 
 
 # ------------------------------------------------------------------
