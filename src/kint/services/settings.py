@@ -16,7 +16,7 @@ from kint.schemas.settings import (
     SettingsResponse,
 )
 
-ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url"}
+ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time"}
 
 _KNOWN_VERSION = "1"
 
@@ -38,6 +38,7 @@ class SettingsService:
         cooldown_raw = db_map.get("punch_cooldown_seconds")
         early_raw = db_map.get("shift_checkin_early_minutes")
         ical_raw = db_map.get("shift_ical_url")
+        sync_time_raw = db_map.get("shift_sync_time")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -49,11 +50,13 @@ class SettingsService:
         # 空文字列は null 扱い
         if ical == "":
             ical = None
+        sync_time = sync_time_raw if sync_time_raw else None
 
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
             shift_ical_url=ical,
+            shift_sync_time=sync_time,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -93,6 +96,10 @@ class SettingsService:
         elif "shift_ical_url" in updates.model_fields_set:
             # 明示的に null が送られた場合
             fields["shift_ical_url"] = ""
+        if updates.shift_sync_time is not None:
+            fields["shift_sync_time"] = updates.shift_sync_time
+        elif "shift_sync_time" in updates.model_fields_set:
+            fields["shift_sync_time"] = ""
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -113,7 +120,12 @@ class SettingsService:
                 row.updated_at = now
 
         await self.session.commit()
-        return await self.get_all()
+        result_settings = await self.get_all()
+        if "shift_sync_time" in fields:
+            from kint.scheduler import reschedule_calendar_sync
+
+            reschedule_calendar_sync(result_settings.shift_sync_time)
+        return result_settings
 
     async def export(self, actor_email: str) -> SettingsExportFile:
         """メタデータ付きエクスポートオブジェクトを返す。"""
@@ -153,6 +165,7 @@ class SettingsService:
             "punch_cooldown_seconds": current.punch_cooldown_seconds,
             "shift_checkin_early_minutes": current.shift_checkin_early_minutes,
             "shift_ical_url": current.shift_ical_url,
+            "shift_sync_time": current.shift_sync_time,
         }
 
         changes: list[SettingsImportChange] = []
@@ -165,7 +178,7 @@ class SettingsService:
                 continue
 
             # 値の正規化
-            if key == "shift_ical_url":
+            if key in {"shift_ical_url", "shift_sync_time"}:
                 new_value: int | str | None = raw_value if raw_value else None
             else:
                 new_value = int(raw_value)

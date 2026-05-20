@@ -1119,6 +1119,11 @@ components:
           nullable: true
           description: シフト iCal 同期 URL（未設定時は null）
           example: "https://example.com/calendar.ics"
+        shift_sync_time:
+          type: string
+          nullable: true
+          description: iCal 自動同期の実行時刻（HH:MM 形式、24時間表記）。null / 未設定で自動同期 OFF
+          example: "03:00"
 
     SettingsPatchRequest:
       type: object
@@ -1138,6 +1143,14 @@ components:
           type: string
           nullable: true
           description: シフト iCal 同期 URL。null または空文字列で未設定にする。
+        shift_sync_time:
+          type: string
+          nullable: true
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: >-
+            iCal 自動同期の実行時刻（HH:MM、24時間表記）。
+            null または空文字列で自動同期 OFF。形式不正は 422。
+          example: "03:00"
 
     SettingsExportFile:
       type: object

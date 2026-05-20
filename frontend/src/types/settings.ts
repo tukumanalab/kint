@@ -2,12 +2,14 @@ export interface SystemSettings {
   punch_cooldown_seconds: number;
   shift_checkin_early_minutes: number;
   shift_ical_url: string | null;
+  shift_sync_time: string | null;
 }
 
 export interface SettingsPatchRequest {
   punch_cooldown_seconds?: number;
   shift_checkin_early_minutes?: number;
   shift_ical_url?: string | null;
+  shift_sync_time?: string | null;
 }
 
 export interface SettingsExportFile {

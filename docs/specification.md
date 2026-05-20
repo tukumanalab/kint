@@ -71,7 +71,9 @@
 
 ### 5-5. シフト連携
 - iCal URL からシフトを取得し DB に保存。
-- 同期 API は非同期受理 (202) とする。
+- 定時自動同期: `shift_sync_time` 設定に指定した時刻に、APScheduler が毎日 1 回自動で同期を実行する。
+- 手動同期: `POST /api/v1/shifts/sync` で即時実行可能。同期 API は非同期受理 (202) とする。
+- `shift_sync_time` が未設定（null / 空文字）の場合は自動同期を実行しない。
 
 ### 5-6. ユーザー管理機能（管理者専用）
 - ユーザー登録:
@@ -87,9 +89,11 @@
   - 連続打刻クールダウン秒数（`punch_cooldown_seconds`）: 0〜3600 秒
   - シフト開始前チェックイン許容時間（`shift_checkin_early_minutes`）: 0〜120 分
   - シフト iCal 同期 URL（`shift_ical_url`）
+  - iCal 自動同期時刻（`shift_sync_time`）: HH:MM 形式。未設定で自動同期 OFF
 - 設定値は DB に永続化し、サーバー再起動後も保持される。
 - DB に値がない場合は環境変数のデフォルト値にフォールバックする。
 - 変更は即時反映される（サーバー再起動不要）。
+- `shift_sync_time` 変更時はスケジューラーのジョブが即時リスケジュールされる。
 
 ### 5-7. マイページ機能（本人専用）
 - ログイン済みユーザーはマイページで以下を自分で編集できる。
@@ -190,6 +194,7 @@
   - `punch_cooldown_seconds` は 0 以上 3600 以下の整数（422 で拒否）。
   - `shift_checkin_early_minutes` は 0 以上 120 以下の整数（422 で拒否）。
   - `shift_ical_url` は文字列 (URI 形式) または null / 空文字列（未設定として扱う）。
+  - `shift_sync_time` は `HH:MM` 形式（24時間表記）または null / 空文字列（自動同期 OFF）。形式不正時は 422。
 
 詳細は docs/api-contract.openapi.yaml を正とする。
 

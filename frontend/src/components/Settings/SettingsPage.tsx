@@ -117,6 +117,7 @@ export function SettingsPage({ auth }: Props) {
   const [cooldown, setCooldown] = useState('');
   const [earlyMinutes, setEarlyMinutes] = useState('');
   const [icalUrl, setIcalUrl] = useState('');
+  const [syncTime, setSyncTime] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -139,6 +140,7 @@ export function SettingsPage({ auth }: Props) {
         setCooldown(String(s.punch_cooldown_seconds));
         setEarlyMinutes(String(s.shift_checkin_early_minutes));
         setIcalUrl(s.shift_ical_url ?? '');
+        setSyncTime(s.shift_sync_time ?? '');
       })
       .catch((err: unknown) => {
         const msg =
@@ -161,6 +163,9 @@ export function SettingsPage({ auth }: Props) {
     if (icalUrl !== '' && !/^https?:\/\//.test(icalUrl)) {
       return 'iCal URL は http:// または https:// で始まる URL を入力してください';
     }
+    if (syncTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(syncTime)) {
+      return '自動同期時刻は HH:MM 形式（例: 03:00）で入力してください';
+    }
     return null;
   }
 
@@ -180,10 +185,11 @@ export function SettingsPage({ auth }: Props) {
         punch_cooldown_seconds: Number(cooldown),
         shift_checkin_early_minutes: Number(earlyMinutes),
         shift_ical_url: icalUrl || null,
+        shift_sync_time: syncTime || null,
       });
       setCurrent(updated);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '保存に失敗しました';
       setSaveError(msg);
@@ -246,6 +252,7 @@ export function SettingsPage({ auth }: Props) {
         setCooldown(String(result.applied.punch_cooldown_seconds));
         setEarlyMinutes(String(result.applied.shift_checkin_early_minutes));
         setIcalUrl(result.applied.shift_ical_url ?? '');
+        setSyncTime(result.applied.shift_sync_time ?? '');
       }
       setImportFile(null);
       setImportPreview(null);
@@ -341,6 +348,24 @@ export function SettingsPage({ auth }: Props) {
               onChange={(e) => setIcalUrl(e.target.value)}
             />
             <p className="settings-field__hint">未入力で「未設定」扱い</p>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="syncTime" className="settings-field__label">
+              自動同期時刻
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="syncTime"
+                type="text"
+                className="settings-field__input"
+                placeholder="03:00"
+                value={syncTime}
+                onChange={(e) => setSyncTime(e.target.value)}
+              />
+              <span className="settings-field__unit">HH:MM（未入力で自動同期 OFF）</span>
+            </div>
+            <p className="settings-field__hint">毎日この時刻に iCal からシフトを自動取り込みします</p>
           </div>
         </section>
 

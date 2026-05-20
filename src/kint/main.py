@@ -21,8 +21,9 @@ from kint.exceptions import (
     KintUnauthorizedError,
 )
 from kint.models.user import User
-from kint.routers import attendance, auth, email_verification, me, punch, settings, user
+from kint.routers import attendance, auth, email_verification, me, punch, settings, shifts, user
 from kint.schemas.error import ErrorResponse
+from kint.scheduler import init_scheduler, scheduler
 
 app = FastAPI(
     title="Kint Attendance API",
@@ -38,6 +39,19 @@ _DEFAULT_ADMIN_EMAIL = "manager+bootstrap@kint.local"
 def _hash_password(plain: str) -> str:
     """bcrypt でパスワードをハッシュ化する。"""
     return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+@app.on_event("startup")
+async def start_scheduler() -> None:
+    """起動時にスケジューラを初期化する。"""
+    await init_scheduler()
+
+
+@app.on_event("shutdown")
+async def stop_scheduler() -> None:
+    """停止時にスケジューラをシャットダウンする。"""
+    if scheduler.running:
+        scheduler.shutdown()
 
 
 @app.on_event("startup")
@@ -144,6 +158,7 @@ app.include_router(user.router, prefix="/api/v1")
 app.include_router(me.router, prefix="/api/v1")
 app.include_router(email_verification.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
+app.include_router(shifts.router, prefix="/api/v1")
 
 
 # ------------------------------------------------------------------

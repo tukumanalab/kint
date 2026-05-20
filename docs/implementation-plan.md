@@ -138,6 +138,30 @@
   - OAuth トークン期限切れ時に再取得が動作する。
   - Gmail API 障害時に API が適切なエラーを返す。
 
+### BE-11: 定期自動同期スケジューラ実装
+- 目的:
+  - iCal シフトを毎日指定時刻に自動同期する。
+- 実装範囲:
+  - `uv add apscheduler` でライブラリを追加。
+  - `src/kint/scheduler.py` を新規作成。
+    - `AsyncIOScheduler` シングルトンを保持する。
+    - `reschedule_calendar_sync(time_str: str | None)` を実装する。
+      - 既存ジョブ（`calendar_sync_daily`）を削除後、`time_str` が有効なら `CronTrigger` で再登録。
+      - `time_str` が None / 空文字の場合はジョブ削除のみ（自動同期 OFF）。
+  - `src/kint/main.py` の lifespan に startup / shutdown フックを追加。
+    - startup: DB から `shift_sync_time` を取得 → `reschedule_calendar_sync` でジョブ登録 → `scheduler.start()`。
+    - shutdown: `scheduler.shutdown()`。
+  - `src/kint/services/settings.py` の `upsert` 内で、`shift_sync_time` が更新対象に含まれる場合に `reschedule_calendar_sync` を呼ぶ。
+- バリデーション:
+  - `shift_sync_time` は `HH:MM`（24 時間表記）の正規表現 `^([01]\d|2[0-3]):[0-5]\d$` を満たすこと。null / 空文字は自動同期 OFF として許容。
+  - 不正形式は 422 を返す。
+- 受け入れ条件:
+  - `shift_sync_time = "03:00"` の場合、毎日 3:00 に `CalendarSyncService.run_sync` が実行される。
+  - `PATCH /api/v1/settings` で `shift_sync_time` を更新するとスケジューラが即時リスケジュールされる。
+  - `shift_sync_time` を null / 空文字に更新すると自動同期ジョブが停止する。
+  - `shift_ical_url` が未設定の場合、スケジュールは登録するが実行時に警告ログを出してスキップする。
+  - サーバー再起動後も DB から `shift_sync_time` を読み込んでスケジューラが復元される。
+
 ## 2. 実装チケット分解（@database 向け）
 
 ### DB-01: users への full_name 追加
@@ -349,18 +373,22 @@
 - 目的:
   - 管理者がブラウザ上から打刻規則・シフト設定を変更できるようにする。
 - 実装範囲:
-  - `frontend/src/types/settings.ts` — `SystemSettings`・`SettingsPatchRequest` 型を実装。
+  - `frontend/src/types/settings.ts` — `SystemSettings`・`SettingsPatchRequest` 型を実装（`shift_sync_time: string | null` を含む）。
   - `frontend/src/api/settings.ts` — `getSettings` / `patchSettings` API クライアントを実装。
   - `frontend/src/components/Settings/SettingsPage.tsx` — 設定画面コンポーネントを実装。
     - 打刻規則セクション（`punch_cooldown_seconds`・`shift_checkin_early_minutes`）。
-    - シフトカレンダーセクション（`shift_ical_url`）。
+    - シフトカレンダーセクション（`shift_ical_url`・`shift_sync_time`）。
+      - `shift_sync_time` は `HH:MM` 形式のテキスト入力。未入力で自動同期 OFF。
+      - クライアントバリデーション: 入力済みの場合は `^([01]\d|2[0-3]):[0-5]\d$` パターンを検証。
     - 保存ボタン（成功トースト／エラーメッセージ）。
   - `App.tsx` に `page=settings` ルートと admin 専用ナビゲーション項目を追加。
 - 受け入れ条件:
   - 管理者が設定画面を開くと現在の設定値がフォームに表示される。
   - 値を変更して「保存」すると `PATCH /api/v1/settings` が呼ばれ、成功メッセージが表示される。
+  - `shift_sync_time` に有効な `HH:MM` を入力して保存すると、自動同期時刻が反映される。
+  - `shift_sync_time` を空にして保存すると自動同期が OFF になる。
   - admin 以外のユーザーにはナビゲーション項目が表示されない。
-  - クライアントバリデーション（範囲外の値）でフォームがエラー表示される。
+  - クライアントバリデーション（範囲外の値・形式不正）でフォームがエラー表示される。
 
 ## 4. 依存関係と着手順
 

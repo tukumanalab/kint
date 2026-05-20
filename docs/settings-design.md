@@ -32,6 +32,7 @@
 | `punch_cooldown_seconds` | integer | 60 | 0 | 3600 | 連続打刻防止クールダウン（秒）|
 | `shift_checkin_early_minutes` | integer | 15 | 0 | 120 | シフト開始前チェックイン許容時間（分）|
 | `shift_ical_url` | string \| null | null | — | — | シフト iCal 同期 URL |
+| `shift_sync_time` | string \| null | `"03:00"` | — | — | iCal 自動同期の実行時刻（HH:MM、24時間表記）。null / 空文字で自動同期 OFF |
 
 ---
 
@@ -89,9 +90,10 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
+- `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。
 
 ### 4-2. ER 図（既存テーブルとの関係）
 
@@ -131,7 +133,8 @@ erDiagram
 {
   "punch_cooldown_seconds": 60,
   "shift_checkin_early_minutes": 15,
-  "shift_ical_url": "https://example.com/calendar.ics"
+  "shift_ical_url": "https://example.com/calendar.ics",
+  "shift_sync_time": "03:00"
 }
 ```
 
@@ -158,7 +161,8 @@ erDiagram
 ```json
 {
   "punch_cooldown_seconds": 120,
-  "shift_ical_url": "https://example.com/calendar.ics"
+  "shift_ical_url": "https://example.com/calendar.ics",
+  "shift_sync_time": "03:00"
 }
 ```
 
@@ -170,6 +174,7 @@ erDiagram
 | `punch_cooldown_seconds` | integer, 0 ≤ value ≤ 3600 |
 | `shift_checkin_early_minutes` | integer, 0 ≤ value ≤ 120 |
 | `shift_ical_url` | string (URI 形式) または null / 空文字列（未設定として扱う） |
+| `shift_sync_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動同期 OFF） |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 
@@ -304,7 +309,7 @@ src/kint/services/settings.py
 | `get_all(db) -> SettingsResponse` | 全設定値を取得（DB + env フォールバック） |
 | `get_int(db, key) -> int` | 指定キーを int で取得 |
 | `get_str(db, key) -> str \| None` | 指定キーを str または None で取得 |
-| `upsert(db, updates, actor_id) -> SettingsResponse` | 指定フィールドを upsert し、更新後の全設定値を返す |
+| `upsert(db, updates, actor_id) -> SettingsResponse` | 指定フィールドを upsert し、更新後の全設定値を返す。`shift_sync_time` が含まれる場合はスケジューラをリスケジュールする |
 | `export(db, actor_email) -> SettingsExportFile` | メタデータ付きエクスポートオブジェクトを返す |
 | `import_preview(db, payload) -> SettingsImportResult` | ドライラン: 差分を返す（DB 書き込みなし）|
 | `import_apply(db, payload, actor_id) -> SettingsImportResult` | インポート適用: upsert 後に差分+結果を返す |
@@ -359,6 +364,11 @@ src/kint/services/settings.py
 │  │ https://example.com/calendar.ics    │    │
 │  └─────────────────────────────────────┘    │
 │  ※ 未入力で「未設定」扱い                     │
+│                                             │
+│  自動同期時刻（毎日）                          │
+│  ┌──────┐ （HH:MM 24時間表記）                │
+│  │ 03:00│ ※ 未入力で自動同期 OFF              │
+│  └──────┘                                   │
 │                                             │
 │                         [ 保存 ]            │
 ├─────────────────────────────────────────────┤
@@ -435,12 +445,14 @@ export interface SystemSettings {
   punch_cooldown_seconds: number;
   shift_checkin_early_minutes: number;
   shift_ical_url: string | null;
+  shift_sync_time: string | null;  // "HH:MM" または null（自動同期 OFF）
 }
 
 export interface SettingsPatchRequest {
   punch_cooldown_seconds?: number;
   shift_checkin_early_minutes?: number;
   shift_ical_url?: string | null;
+  shift_sync_time?: string | null;  // "HH:MM" または null / 空文字列
 }
 
 export interface SettingsExportFile {
