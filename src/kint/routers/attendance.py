@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,8 @@ from kint.models.user import User
 from kint.schemas.attendance import (
     AttendanceHistoryResponse,
     AttendanceListResponse,
+    AttendanceMonthlyDetailResponse,
+    AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
 )
@@ -91,3 +93,59 @@ async def get_attendance_history(
 
     service = AttendanceService(session)
     return await service.get_history(attendance_id)
+
+
+@router.get("/summary", response_model=list[AttendanceMonthlySummary])
+async def get_monthly_summaries(
+    year_month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[AttendanceMonthlySummary]:
+    """月次勤怠サマリーを取得する。一般従業員は自分のデータのみ、管理者は全員分参照できる。"""
+    if current_user.role == "employee":
+        user_id = current_user.id
+    service = AttendanceService(session)
+    return await service.get_monthly_summaries(year_month, user_id=user_id)
+
+
+@router.get("/monthly", response_model=AttendanceMonthlyDetailResponse)
+async def get_monthly_detail(
+    year_month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    user_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceMonthlyDetailResponse:
+    """月間日別勤怠詳細を取得する。一般従業員は自分のデータのみ、管理者は全員分参照できる。"""
+    if current_user.role == "employee" and user_id != current_user.id:
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="他のユーザーの勤怠詳細情報を参照する権限がありません",
+        )
+    service = AttendanceService(session)
+    return await service.get_monthly_detail(year_month, user_id=user_id)
+
+
+@router.get("/export")
+async def export_attendance_csv(
+    year_month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    scope: str = Query(default="detailed", pattern=r"^(detailed|summary)$"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """勤怠データをCSVでエクスポートする。管理者（admin）のみ利用可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+    service = AttendanceService(session)
+    csv_bytes = await service.export_csv(year_month, scope)
+
+    filename = f"kint_attendance_{scope}_{year_month}.csv"
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+

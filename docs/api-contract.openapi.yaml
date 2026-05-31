@@ -412,6 +412,128 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /attendance/summary:
+    get:
+      tags: [Attendance]
+      summary: 月次勤怠サマリーの取得
+      description: >-
+        指定された年月の勤怠集計データ（サマリー）を返却します。
+        管理者は全ワーカー、一般従業員は自分のデータのみ参照可能です。
+      parameters:
+        - in: query
+          name: year_month
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+          description: 集計対象の年月（YYYY-MM 形式）
+        - in: query
+          name: user_id
+          required: false
+          schema:
+            type: string
+          description: >-
+            対象ユーザーID（管理者のみ指定可能）。
+            一般従業員が他人のIDを指定した場合は 403 を返却します。
+      responses:
+        '200':
+          description: 月次サマリーの取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [year_month, items]
+                properties:
+                  year_month:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AttendanceMonthlySummary'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /attendance/monthly:
+    get:
+      tags: [Attendance]
+      summary: 月間日別勤怠詳細の取得
+      description: >-
+        指定された年月における、全日程の日別勤怠・シフト明細データを返却します。
+        管理者は全ワーカー分、一般従業員は自分のデータのみ参照可能です。
+      parameters:
+        - in: query
+          name: year_month
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+          description: 対象の年月（YYYY-MM 形式）
+        - in: query
+          name: user_id
+          required: true
+          schema:
+            type: string
+          description: 対象ユーザーID
+      responses:
+        '200':
+          description: 月間日別詳細の取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceMonthlyDetailResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /attendance/export:
+    get:
+      tags: [Attendance]
+      summary: 勤怠データCSVエクスポート (管理者専用)
+      description: >-
+        指定された年月における勤怠データを CSV フォーマットでエクスポートします。
+        このエンドポイントは管理者（admin ロール）専用です。
+      parameters:
+        - in: query
+          name: year_month
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+          description: 対象の年月 (YYYY-MM)
+        - in: query
+          name: scope
+          required: false
+          schema:
+            type: string
+            enum: [summary, detailed]
+            default: detailed
+          description: エクスポートの種類（summary:サマリー, detailed:日次詳細）
+      responses:
+        '200':
+          description: CSV ファイルのダウンロード成功
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: 管理者以外のアクセス拒否
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /attendance:
     get:
       tags: [Attendance]
@@ -1254,3 +1376,119 @@ components:
         detail:
           type: object
           additionalProperties: true
+
+    AttendanceMonthlySummary:
+      type: object
+      required: [user_id, user_name, full_name, prescribed_days, working_days, total_working_hours, total_overtime_hours, late_count, early_leave_count, absence_days, incomplete_days]
+      properties:
+        user_id:
+          type: string
+          example: "usr_01"
+        user_name:
+          type: string
+          description: 表示名
+          example: "yamada"
+        full_name:
+          type: string
+          description: 氏名
+          example: "山田 太郎"
+        prescribed_days:
+          type: integer
+          description: 所定内（シフトあり）日数
+          example: 21
+        working_days:
+          type: integer
+          description: 実稼働（打刻あり）日数
+          example: 20
+        total_working_hours:
+          type: number
+          format: float
+          description: 当月の総労働時間 (h)
+          example: 162.50
+        total_overtime_hours:
+          type: number
+          format: float
+          description: 当月の総時間外労働時間 (h)
+          example: 12.25
+        late_count:
+          type: integer
+          description: 遅刻回数
+          example: 1
+        early_leave_count:
+          type: integer
+          description: 早退回数
+          example: 0
+        absence_days:
+          type: integer
+          description: 欠勤日数
+          example: 1
+        incomplete_days:
+          type: integer
+          description: 打刻不整合（打刻漏れ等エラー）の日数
+          example: 0
+
+    AttendanceMonthlyDetailResponse:
+      type: object
+      required: [user_id, year_month, summary, days]
+      properties:
+        user_id:
+          type: string
+        year_month:
+          type: string
+        summary:
+          $ref: '#/components/schemas/AttendanceMonthlySummary'
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyAttendanceDetail'
+
+    DailyAttendanceDetail:
+      type: object
+      required: [work_date, has_shift, is_holiday, status]
+      properties:
+        work_date:
+          type: string
+          format: date
+          example: "2026-05-15"
+        has_shift:
+          type: boolean
+          description: シフトの有無
+        is_holiday:
+          type: boolean
+          description: 休日判定（シフトがなく、打刻もない場合など）
+        shift_start:
+          type: string
+          format: date-time
+          nullable: true
+        shift_end:
+          type: string
+          format: date-time
+          nullable: true
+        check_in:
+          type: string
+          format: date-time
+          nullable: true
+        check_out:
+          type: string
+          format: date-time
+          nullable: true
+        working_hours:
+          type: number
+          format: float
+          nullable: true
+          description: 1日の稼働時間(h)
+        overtime_hours:
+          type: number
+          format: float
+          nullable: true
+          description: 1日の時間外労働時間(h)
+        status:
+          type: string
+          enum: [normal, late, early_leave, late_and_early, absence, incomplete, off_duty]
+          description: 日次の勤怠状態
+          example: "normal"
+        source:
+          type: string
+          nullable: true
+          description: 打刻ソース
+          example: "webusb_nfc"

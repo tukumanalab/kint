@@ -1,0 +1,301 @@
+.attendance-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.attendance-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 25px;
+  border-bottom: 2px solid #eaeaea;
+  padding-bottom: 15px;
+}
+
+.attendance-page__title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.attendance-page__controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.attendance-page__month-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.attendance-page__label {
+  font-weight: bold;
+}
+
+.attendance-page__input {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 15px;
+}
+
+.attendance-page__csv-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.attendance-section {
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.attendance-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #333;
+}
+
+.att-user-summary-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 15px;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.att-user-summary-card__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.att-user-summary-card__item .label {
+  font-size: 12px;
+  color: #586069;
+  margin-bottom: 4px;
+}
+
+.att-user-summary-card__item .value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #24292e;
+}
+
+.att-table-container {
+  overflow-x: auto;
+}
+
+.att-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.att-table th {
+  background-color: #f6f8fa;
+  padding: 12px;
+  font-weight: bold;
+  color: #24292e;
+  border-bottom: 2px solid #e1e4e8;
+}
+
+.att-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eaecef;
+  vertical-align: middle;
+}
+
+.att-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.tr--selected {
+  background-color: #f0f7ff !important;
+}
+
+.tr--absence {
+  background-color: #fff5f5;
+}
+
+.tr--holiday {
+  background-color: #fafbfc;
+}
+
+/* 曜日の色分け */
+.att-day-normal {
+  color: #24292e;
+}
+.att-day-sunday {
+  color: #d73a49;
+  font-weight: bold;
+}
+.att-day-saturday {
+  color: #0366d6;
+  font-weight: bold;
+}
+
+/* タイムスタンプ類 */
+.att-fullname {
+  color: #586069;
+  font-size: 12px;
+}
+
+.att-text--danger {
+  color: #d73a49;
+  font-weight: bold;
+}
+
+.att-text--warning {
+  color: #b07e00;
+  font-weight: bold;
+}
+
+.att-text--info {
+  color: #0366d6;
+  font-weight: bold;
+}
+
+.att-text--muted {
+  color: #959da5;
+}
+
+/* ボタン */
+.att-btn {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.att-btn--primary {
+  background-color: #2ea44f;
+  color: #fff;
+}
+.att-btn--primary:hover {
+  background-color: #2c974b;
+}
+
+.att-btn--secondary {
+  background-color: #fff;
+  border-color: #cbd5e0;
+  color: #2d3748;
+}
+.att-btn--secondary:hover {
+  background-color: #f7fafc;
+  border-color: #a0aec0;
+}
+
+.att-btn--small {
+  padding: 4px 8px;
+  font-size: 12px;
+  background-color: #0366d6;
+  color: #fff;
+}
+.att-btn--small:hover {
+  background-color: #0255b3;
+}
+
+/* バッジ */
+.att-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.att-badge--normal {
+  background-color: #dcffe4;
+  color: #1a7f37;
+}
+
+.att-badge--late {
+  background-color: #fff1db;
+  color: #9a6700;
+}
+
+.att-badge--early {
+  background-color: #f4ecf7;
+  color: #7943c5;
+}
+
+.att-badge--late-early {
+  background-color: #fff0f6;
+  color: #c41d7f;
+}
+
+.att-badge--absence {
+  background-color: #ffebe9;
+  color: #cf222e;
+}
+
+.att-badge--incomplete {
+  background-color: #fff0f6;
+  color: #d11270;
+  border: 1px dashed #ffa3d4;
+}
+
+.att-badge--off-duty {
+  background-color: #f6f8fa;
+  color: #586069;
+}
+
+/* ユーティリティ */
+.att-loading {
+  text-align: center;
+  padding: 30px;
+  color: #586069;
+}
+
+.att-empty {
+  text-align: center;
+  padding: 30px;
+  color: #586069;
+  background: #f6f8fa;
+  border: 1px dashed #eaecef;
+  border-radius: 6px;
+}
+
+.att-alert {
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.att-alert--danger {
+  background-color: #ffebe9;
+  color: #cf222e;
+  border: 1px solid #ffc1c0;
+}
+
+/* 複数打刻 */
+.att-multiple-punches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.att-punch-item {
+  min-height: 20px;
+  line-height: 20px;
+}

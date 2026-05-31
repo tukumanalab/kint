@@ -6,9 +6,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kint.db import get_db, AsyncSessionLocal
+from kint.db import AsyncSessionLocal, get_db
 from kint.dependencies import get_current_user
-from kint.exceptions import KintBadRequestError, KintForbiddenError
+from kint.exceptions import KintForbiddenError
 from kint.models.user import User
 from kint.services.calendar_sync import CalendarSyncError, CalendarSyncService
 

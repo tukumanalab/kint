@@ -8,9 +8,10 @@ import { MyProfilePage } from './components/MyProfile';
 import { EmailVerificationPage } from './components/EmailVerification';
 import { LogsPage } from './components/Logs';
 import { SettingsPage } from './components/Settings';
+import { AttendancePage } from './components/Attendance';
 import './App.css';
 
-type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs';
+type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs' | 'attendance';
 type GuestPage = 'home' | 'punch' | 'login';
 
 function getEmailVerificationToken(): string | null {
@@ -123,6 +124,13 @@ function App() {
           >
             打刻
           </button>
+          <button
+            type="button"
+            className={`app-nav__link ${page === 'attendance' ? 'app-nav__link--active' : ''}`}
+            onClick={() => setPage('attendance')}
+          >
+            勤怠一覧
+          </button>
           {isAdmin && (
             <button
               type="button"
@@ -166,6 +174,7 @@ function App() {
       </nav>
 
       {page === 'punch' && <PunchPage />}
+      {page === 'attendance' && <AttendancePage auth={auth} />}
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
       {page === 'myProfile' && <MyProfilePage auth={auth} />}
       {page === 'settings' && isAdmin && <SettingsPage auth={auth} />}

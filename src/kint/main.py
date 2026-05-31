@@ -23,9 +23,19 @@ from kint.exceptions import (
 )
 from kint.logging_setup import setup_logging
 from kint.models.user import User
-from kint.routers import attendance, auth, email_verification, logs, me, punch, settings, shifts, user
-from kint.schemas.error import ErrorResponse
+from kint.routers import (
+    attendance,
+    auth,
+    email_verification,
+    logs,
+    me,
+    punch,
+    settings,
+    shifts,
+    user,
+)
 from kint.scheduler import init_scheduler, scheduler
+from kint.schemas.error import ErrorResponse
 
 setup_logging(log_level="DEBUG" if _app_settings.debug else "INFO")
 

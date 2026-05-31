@@ -3,7 +3,7 @@
 import json
 import logging
 import logging.handlers
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -12,7 +12,7 @@ class _JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """1行 JSON に変換する。"""
-        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        dt = datetime.fromtimestamp(record.created, tz=UTC)
         payload: dict = {
             "timestamp": dt.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
             "level": record.levelname,

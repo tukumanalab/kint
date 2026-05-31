@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, date, datetime
 
 from icalendar import Calendar, Event, vCalAddress, vDDDTypes
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.models.shift import Shift
