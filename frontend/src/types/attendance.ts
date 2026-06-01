@@ -22,12 +22,14 @@ export type DailyAttendanceStatus =
   | 'off_duty';
 
 export interface PunchPeriod {
+  attendance_id?: string | null;
   check_in: string | null;
   check_out: string | null;
 }
 
 export interface DailyAttendanceDetail {
   work_date: string; // ISO 8601 YYYY-MM-DD
+  attendance_id: string | null;
   has_shift: boolean;
   is_holiday: boolean;
   shift_start: string | null; // ISO 8601
@@ -46,4 +48,36 @@ export interface AttendanceMonthlyDetailResponse {
   year_month: string;
   summary: AttendanceMonthlySummary;
   days: DailyAttendanceDetail[];
+  is_locked: boolean;
+}
+
+export interface AttendanceCorrectionRequest {
+  id: string;
+  attendance_id: string;
+  user_id: string;
+  requested_check_in: string | null;
+  requested_check_out: string | null;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by_user_id: string | null;
+  approval_comment: string | null;
+  created_at: string;
+  updated_at: string;
+  user_name: string | null;
+  user_full_name: string | null;
+  approved_by_name: string | null;
+  work_date: string | null;
+  original_check_in?: string | null;
+  original_check_out?: string | null;
+}
+
+export interface AttendanceCorrectionRequestListResponse {
+  items: AttendanceCorrectionRequest[];
+  total: number;
+}
+
+export interface AttendanceLock {
+  year_month: string;
+  locked_by_user_id: string;
+  locked_at: string;
 }

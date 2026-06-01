@@ -36,9 +36,7 @@ def _make_ical(
     email: str = "employee@example.com",
 ) -> bytes:
     """テスト用 iCal バイト列を生成する。"""
-    return _ICAL_TEMPLATE.format(
-        uid=uid, dtstart=dtstart, dtend=dtend, email=email
-    ).encode()
+    return _ICAL_TEMPLATE.format(uid=uid, dtstart=dtstart, dtend=dtend, email=email).encode()
 
 
 def _hash_password(plain: str) -> str:
@@ -113,9 +111,7 @@ async def _get_employee_token(client: AsyncClient) -> str:
 class TestShiftSync:
     """POST /api/v1/shifts/sync のテスト。"""
 
-    async def test_sync_accepted_by_admin(
-        self, client: AsyncClient, session: AsyncSession
-    ) -> None:
+    async def test_sync_accepted_by_admin(self, client: AsyncClient, session: AsyncSession) -> None:
         """管理者が同期リクエストを送ると 202 が返る。"""
         await _create_admin(session)
         await _create_employee(session)
@@ -164,8 +160,12 @@ class TestCalendarSyncService:
         ical = _make_ical(email=employee.email)
 
         with (
-            patch("kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock) as mock_fetch,
-            patch("kint.services.settings.SettingsService.get_str", new_callable=AsyncMock) as mock_get_str,
+            patch(
+                "kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_fetch,
+            patch(
+                "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+            ) as mock_get_str,
         ):
             mock_fetch.return_value = ical
             mock_get_str.return_value = "https://example.com/cal.ics"
@@ -177,9 +177,9 @@ class TestCalendarSyncService:
         assert stats["updated"] == 0
 
         result = await session.execute(
-            __import__("sqlalchemy", fromlist=["select"]).select(Shift).where(
-                Shift.google_event_id == "event-001"
-            )
+            __import__("sqlalchemy", fromlist=["select"])
+            .select(Shift)
+            .where(Shift.google_event_id == "event-001")
         )
         shift = result.scalar_one_or_none()
         assert shift is not None
@@ -209,8 +209,12 @@ class TestCalendarSyncService:
         ical = _make_ical(email=employee.email, dtend="20260601T170000Z")
 
         with (
-            patch("kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock) as mock_fetch,
-            patch("kint.services.settings.SettingsService.get_str", new_callable=AsyncMock) as mock_get_str,
+            patch(
+                "kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_fetch,
+            patch(
+                "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+            ) as mock_get_str,
         ):
             mock_fetch.return_value = ical
             mock_get_str.return_value = "https://example.com/cal.ics"
@@ -221,9 +225,7 @@ class TestCalendarSyncService:
         assert stats["updated"] == 1
         assert stats["inserted"] == 0
 
-        result = await session.execute(
-            select(Shift).where(Shift.google_event_id == "event-001")
-        )
+        result = await session.execute(select(Shift).where(Shift.google_event_id == "event-001"))
         shift = result.scalar_one_or_none()
         assert shift is not None
         assert shift.end_time == datetime(2026, 6, 1, 17, 0, tzinfo=UTC)
@@ -252,8 +254,12 @@ class TestCalendarSyncService:
         ical = _make_ical(email=employee.email)
 
         with (
-            patch("kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock) as mock_fetch,
-            patch("kint.services.settings.SettingsService.get_str", new_callable=AsyncMock) as mock_get_str,
+            patch(
+                "kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_fetch,
+            patch(
+                "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+            ) as mock_get_str,
         ):
             mock_fetch.return_value = ical
             mock_get_str.return_value = "https://example.com/cal.ics"
@@ -278,8 +284,12 @@ class TestCalendarSyncService:
         ical = _make_ical(email="nobody@unknown.example.com")
 
         with (
-            patch("kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock) as mock_fetch,
-            patch("kint.services.settings.SettingsService.get_str", new_callable=AsyncMock) as mock_get_str,
+            patch(
+                "kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_fetch,
+            patch(
+                "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+            ) as mock_get_str,
         ):
             mock_fetch.return_value = ical
             mock_get_str.return_value = "https://example.com/cal.ics"
@@ -294,7 +304,9 @@ class TestCalendarSyncService:
         """SHIFT_ICAL_URL 未設定時は CalendarSyncError が送出される。"""
         from kint.services.calendar_sync import CalendarSyncError, CalendarSyncService
 
-        with patch("kint.services.settings.SettingsService.get_str", new_callable=AsyncMock) as mock_get_str:
+        with patch(
+            "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+        ) as mock_get_str:
             mock_get_str.return_value = None
 
             service = CalendarSyncService(session)

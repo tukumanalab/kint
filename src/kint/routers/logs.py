@@ -65,7 +65,9 @@ def _iter_log_entries(limit: int, level: str | None, keyword: str | None) -> lis
 
 @router.get("", response_model=LogsResponse)
 async def get_logs(
-    level: str | None = Query(default=None, description="ログレベルフィルタ (DEBUG/INFO/WARNING/ERROR/CRITICAL)"),
+    level: str | None = Query(
+        default=None, description="ログレベルフィルタ (DEBUG/INFO/WARNING/ERROR/CRITICAL)"
+    ),
     keyword: str | None = Query(default=None, description="メッセージ・ロガー名のキーワード検索"),
     limit: int = Query(default=200, ge=1, le=2000, description="取得件数上限"),
     current_user: User = Depends(get_current_user),

@@ -16,7 +16,12 @@ from kint.schemas.settings import (
     SettingsResponse,
 )
 
-ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time"}
+ALLOWED_SETTING_KEYS = {
+    "punch_cooldown_seconds",
+    "shift_checkin_early_minutes",
+    "shift_ical_url",
+    "shift_sync_time",
+}
 
 _KNOWN_VERSION = "1"
 

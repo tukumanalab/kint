@@ -37,7 +37,7 @@ def _extract_email(attendee: vCalAddress | str) -> str | None:
     value = str(attendee)
     prefix = "mailto:"
     if value.lower().startswith(prefix):
-        return value[len(prefix):]
+        return value[len(prefix) :]
     return None
 
 
@@ -88,7 +88,9 @@ class CalendarSyncService:
 
             if uid is None or dtstart is None or dtend is None:
                 skipped += 1
-                logger.warning("必須フィールドが欠落しているイベントをスキップします: %s", component)
+                logger.warning(
+                    "必須フィールドが欠落しているイベントをスキップします: %s", component
+                )
                 continue
 
             start_dt = _to_utc_datetime(dtstart)
@@ -129,9 +131,7 @@ class CalendarSyncService:
             seen_uids.add(uid)
 
             # Upsert
-            result = await self.session.execute(
-                select(Shift).where(Shift.google_event_id == uid)
-            )
+            result = await self.session.execute(select(Shift).where(Shift.google_event_id == uid))
             existing = result.scalar_one_or_none()
 
             if existing is None:
@@ -161,9 +161,7 @@ class CalendarSyncService:
 
         # 今日以降のシフトのうち iCal に存在しないものを削除
         if seen_uids:
-            result = await self.session.execute(
-                select(Shift).where(Shift.shift_date >= today)
-            )
+            result = await self.session.execute(select(Shift).where(Shift.shift_date >= today))
             future_shifts = result.scalars().all()
             to_delete = [s for s in future_shifts if s.google_event_id not in seen_uids]
             for shift in to_delete:

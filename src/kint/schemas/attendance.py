@@ -88,6 +88,7 @@ class AttendanceMonthlySummary(BaseModel):
 class PunchPeriod(BaseModel):
     """1回分の出退勤打刻ペア。"""
 
+    attendance_id: str | None = None
     check_in: datetime | None = None
     check_out: datetime | None = None
 
@@ -96,6 +97,7 @@ class DailyAttendanceDetail(BaseModel):
     """日次勤怠詳細。"""
 
     work_date: date
+    attendance_id: str | None = None
     has_shift: bool
     is_holiday: bool
     shift_start: datetime | None = None
@@ -124,4 +126,72 @@ class AttendanceMonthlyDetailResponse(BaseModel):
     year_month: str
     summary: AttendanceMonthlySummary
     days: list[DailyAttendanceDetail]
+    is_locked: bool = False
 
+
+class AttendanceCorrectionRequestCreate(BaseModel):
+    """勤怠修正申請作成リクエスト。"""
+
+    attendance_id: str
+    requested_check_in: datetime | None = None
+    requested_check_out: datetime | None = None
+    reason: str
+
+
+class AttendanceCorrectionRequestResponse(BaseModel):
+    """勤怠修正申請レスポンス。"""
+
+    id: str
+    attendance_id: str
+    user_id: str
+    requested_check_in: datetime | None = None
+    requested_check_out: datetime | None = None
+    reason: str
+    status: Literal["pending", "approved", "rejected"]
+    approved_by_user_id: str | None = None
+    approval_comment: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    user_name: str | None = None
+    user_full_name: str | None = None
+    approved_by_name: str | None = None
+    work_date: date | None = None
+    original_check_in: datetime | None = None
+    original_check_out: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class AttendanceCorrectionRequestListResponse(BaseModel):
+    """勤怠修正申請一覧。"""
+
+    items: list[AttendanceCorrectionRequestResponse]
+    total: int
+
+
+class AttendanceCorrectionRequestApprove(BaseModel):
+    """申請承認リクエスト。"""
+
+    approval_comment: str | None = None
+
+
+class AttendanceCorrectionRequestReject(BaseModel):
+    """申請却下リクエスト（理由必須）。"""
+
+    approval_comment: str
+
+
+class AttendanceLockRequest(BaseModel):
+    """勤怠締め処理リクエスト。"""
+
+    year_month: str
+
+
+class AttendanceLockResponse(BaseModel):
+    """勤怠締め処理レスポンス。"""
+
+    year_month: str
+    locked_at: datetime
+    locked_by_user_id: str
+
+    model_config = {"from_attributes": True}

@@ -57,7 +57,7 @@ async def _setup_test_data(session):
         name="管理者",
         full_name="Admin User",
         email="admin@example.com",
-        role="admin"
+        role="admin",
     )
     emp = await _create_user(
         session,
@@ -65,7 +65,7 @@ async def _setup_test_data(session):
         name="一般社員",
         full_name="Employee User",
         email="emp@example.com",
-        role="employee"
+        role="employee",
     )
 
     # 1. emp_user シフト1: 遅刻・早退なし (2026-05-01 09:00 - 18:00)
@@ -76,7 +76,7 @@ async def _setup_test_data(session):
         shift_date=date(2026, 5, 1),
         start_time=datetime(2026, 5, 1, 9, 0, 0),
         end_time=datetime(2026, 5, 1, 18, 0, 0),
-        google_event_id="evt1"
+        google_event_id="evt1",
     )
     att1 = Attendance(
         id="a1",
@@ -84,7 +84,7 @@ async def _setup_test_data(session):
         work_date=date(2026, 5, 1),
         check_in=datetime(2026, 5, 1, 8, 50, 0),
         check_out=datetime(2026, 5, 1, 18, 10, 0),
-        source="webusb_nfc"
+        source="webusb_nfc",
     )
 
     # 2. emp_user シフト2: 遅刻 (2026-05-02 09:00 - 18:00)
@@ -95,7 +95,7 @@ async def _setup_test_data(session):
         shift_date=date(2026, 5, 2),
         start_time=datetime(2026, 5, 2, 9, 0, 0),
         end_time=datetime(2026, 5, 2, 18, 0, 0),
-        google_event_id="evt2"
+        google_event_id="evt2",
     )
     att2 = Attendance(
         id="a2",
@@ -103,7 +103,7 @@ async def _setup_test_data(session):
         work_date=date(2026, 5, 2),
         check_in=datetime(2026, 5, 2, 9, 5, 0),
         check_out=datetime(2026, 5, 2, 18, 0, 0),
-        source="webusb_nfc"
+        source="webusb_nfc",
     )
 
     # 3. emp_user シフト3: 欠勤 (2026-05-03 09:00 - 18:00)
@@ -114,7 +114,7 @@ async def _setup_test_data(session):
         shift_date=date(2026, 5, 3),
         start_time=datetime(2026, 5, 3, 9, 0, 0),
         end_time=datetime(2026, 5, 3, 18, 0, 0),
-        google_event_id="evt3"
+        google_event_id="evt3",
     )
 
     # 4. emp_user シフト4: 打刻不整合 (2026-05-04 09:00 - 18:00)
@@ -125,7 +125,7 @@ async def _setup_test_data(session):
         shift_date=date(2026, 5, 4),
         start_time=datetime(2026, 5, 4, 9, 0, 0),
         end_time=datetime(2026, 5, 4, 18, 0, 0),
-        google_event_id="evt4"
+        google_event_id="evt4",
     )
     att4 = Attendance(
         id="a4",
@@ -133,7 +133,7 @@ async def _setup_test_data(session):
         work_date=date(2026, 5, 4),
         check_in=datetime(2026, 5, 4, 8, 55, 0),
         check_out=None,
-        source="webusb_nfc"
+        source="webusb_nfc",
     )
 
     session.add_all([shift1, att1, shift2, att2, shift3, shift4, att4])
@@ -149,14 +149,14 @@ class TestAttendanceSummaryAPI:
 
         resp = await client.get(
             "/api/v1/attendance/summary?year_month=2026-05",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        
+
         # 管理者と従業員の2人が active なので、2件
         assert len(data) == 2
-        
+
         emp_summary = next(x for x in data if x["user_id"] == "emp_user")
         assert emp_summary["prescribed_days"] == 4
         assert emp_summary["working_days"] == 3
@@ -172,7 +172,7 @@ class TestAttendanceSummaryAPI:
 
         resp = await client.get(
             "/api/v1/attendance/summary?year_month=2026-05",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -190,7 +190,7 @@ class TestAttendanceSummaryAPI:
         # user_id に admin_user を指定するが、employee なので自動的に emp_user のサマリーのみが返る
         resp = await client.get(
             "/api/v1/attendance/summary?year_month=2026-05&user_id=admin_user",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -206,7 +206,7 @@ class TestAttendanceDetailAPI:
 
         resp = await client.get(
             "/api/v1/attendance/monthly?year_month=2026-05&user_id=emp_user",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -242,7 +242,7 @@ class TestAttendanceDetailAPI:
 
         resp = await client.get(
             "/api/v1/attendance/monthly?year_month=2026-05&user_id=admin_user",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 403
 
@@ -255,7 +255,7 @@ class TestAttendanceExportAPI:
 
         resp = await client.get(
             "/api/v1/attendance/export?year_month=2026-05&scope=detailed",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "text/csv; charset=utf-8"
@@ -281,7 +281,7 @@ class TestAttendanceExportAPI:
 
         resp = await client.get(
             "/api/v1/attendance/export?year_month=2026-05&scope=summary",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         content_bytes = resp.content
@@ -302,7 +302,7 @@ class TestAttendanceExportAPI:
 
         resp = await client.get(
             "/api/v1/attendance/export?year_month=2026-05",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 403
 
@@ -317,7 +317,7 @@ class TestMultiplePunchesInSameDay:
             name="複数打刻者",
             full_name="Multi Punch User",
             email="multi@example.com",
-            role="employee"
+            role="employee",
         )
 
         shift = Shift(
@@ -326,7 +326,7 @@ class TestMultiplePunchesInSameDay:
             shift_date=date(2026, 5, 10),
             start_time=datetime(2026, 5, 10, 9, 0, 0),
             end_time=datetime(2026, 5, 10, 18, 0, 0),
-            google_event_id="mevt1"
+            google_event_id="mevt1",
         )
 
         # 1回目の打刻: 08:45 〜 12:15 (3.5時間)
@@ -336,7 +336,7 @@ class TestMultiplePunchesInSameDay:
             work_date=date(2026, 5, 10),
             check_in=datetime(2026, 5, 10, 8, 45, 0),
             check_out=datetime(2026, 5, 10, 12, 15, 0),
-            source="webusb_nfc"
+            source="webusb_nfc",
         )
 
         # 2回目の打刻: 13:00 〜 18:00 (5.0時間)
@@ -347,7 +347,7 @@ class TestMultiplePunchesInSameDay:
             check_in=datetime(2026, 5, 10, 13, 0, 0),
             check_out=datetime(2026, 5, 10, 18, 0, 0),
             source="web_user_id",
-            updated_reason="外出・再入館"
+            updated_reason="外出・再入館",
         )
 
         session.add_all([shift, att_a, att_b])
@@ -358,7 +358,7 @@ class TestMultiplePunchesInSameDay:
         # 1. 月間詳細を取得して2026-05-10の値を検証
         resp = await client.get(
             "/api/v1/attendance/monthly?year_month=2026-05&user_id=multipunch_user",
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200, resp.text
         data = resp.json()
@@ -397,12 +397,12 @@ class TestMultiplePunchesInSameDay:
             name="管理者CSV",
             full_name="CSV Admin",
             email="admin_csv@example.com",
-            role="admin"
+            role="admin",
         )
         admin_token = await _login(client, account_id="admin_for_csv", password="Password123")
         resp_csv = await client.get(
             "/api/v1/attendance/export?year_month=2026-05&scope=detailed",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert resp_csv.status_code == 200, resp_csv.text
         content_bytes = resp_csv.content
@@ -418,7 +418,7 @@ class TestMultiplePunchesInSameDay:
                 target_rows.append(row)
 
         assert len(target_rows) == 2
-        
+
         # 1行目: 1回目の打刻（08:45 〜 12:15 UTC）が JST 換算されて出力されている
         row1 = target_rows[0]
         assert "17:45:00" in row1[5]
@@ -430,4 +430,3 @@ class TestMultiplePunchesInSameDay:
         assert "22:00:00" in row2[5]
         assert "03:00:00" in row2[6]
         assert row2[7] == "5.00"  # 5.0時間
-

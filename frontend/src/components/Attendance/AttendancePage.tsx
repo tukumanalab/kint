@@ -3,12 +3,20 @@ import {
   getAttendanceSummary,
   getMonthlyAttendanceDetail,
   downloadAttendanceCsv,
+  lockMonth,
+  unlockMonth,
+  createCorrectionRequest,
+  listCorrectionRequests,
+  approveCorrectionRequest,
+  rejectCorrectionRequest,
+  cancelCorrectionRequest,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
   AttendanceMonthlySummary,
   AttendanceMonthlyDetailResponse,
   DailyAttendanceDetail,
+  AttendanceCorrectionRequest,
 } from '../../types/attendance';
 import './AttendancePage.css';
 
@@ -33,6 +41,32 @@ export function AttendancePage({ auth }: Props) {
   const [detailData, setDetailData] = useState<AttendanceMonthlyDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
+
+  // 修正申請関連
+  const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
+  const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [requestFormData, setRequestFormData] = useState({
+    attendanceId: '',
+    workDate: '',
+    requestedCheckIn: '',
+    requestedCheckOut: '',
+    originalCheckIn: '',
+    originalCheckOut: '',
+    requestedCheckInDate: '',
+    requestedCheckInTime: '',
+    requestedCheckOutDate: '',
+    requestedCheckOutTime: '',
+    reason: '',
+  });
+  const [approvalFormData, setApprovalFormData] = useState({
+    requestId: '',
+    action: '' as 'approve' | 'reject',
+    comment: '',
+  });
+  const [selectedRequestForApproval, setSelectedRequestForApproval] = useState<AttendanceCorrectionRequest | null>(null);
 
   const isAdmin = auth.user?.role === 'admin';
 
@@ -60,6 +94,21 @@ export function AttendancePage({ auth }: Props) {
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
+
+  // 修正申請一覧の取得
+  const fetchCorrectionRequests = useCallback(async () => {
+    if (!auth.token) return;
+    try {
+      const data = await listCorrectionRequests(auth.token);
+      setCorrectionRequests(data.items);
+    } catch (err) {
+      console.error('修正申請の取得に失敗しました:', err);
+    }
+  }, [auth.token]);
+
+  useEffect(() => {
+    fetchCorrectionRequests();
+  }, [fetchCorrectionRequests]);
 
   // 詳細データの取得
   const handleViewDetail = async (summary: AttendanceMonthlySummary) => {
@@ -93,6 +142,175 @@ export function AttendancePage({ auth }: Props) {
       document.body.removeChild(a);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'CSVのダウンロードに失敗しました');
+    }
+  };
+
+  // ロック/アンロック操作
+  const handleLockToggle = async () => {
+    if (!auth.token || !isAdmin) return;
+    
+    const isCurrentlyLocked = detailData?.is_locked ?? false;
+    const confirmMsg = isCurrentlyLocked
+      ? `${yearMonth} の締めを解除しますか？解除すると打刻や修正が再び可能になります。`
+      : `${yearMonth} を締めますか？締めると該当月の打刻・修正ができなくなります。`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    setLockLoading(true);
+    try {
+      if (isCurrentlyLocked) {
+        await unlockMonth(auth.token, yearMonth);
+      } else {
+        await lockMonth(auth.token, yearMonth);
+      }
+      // 詳細データを再取得して最新のロック状態を反映
+      if (selectedUser) {
+        await handleViewDetail(selectedUser);
+      } else if (!isAdmin && summaries.length > 0) {
+        await handleViewDetail(summaries[0]);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'ロック操作に失敗しました');
+    } finally {
+      setLockLoading(false);
+    }
+  };
+
+  const toLocalValues = (isoStr: string | null, fallbackDate: string) => {
+    if (!isoStr) return { date: fallbackDate, time: '' };
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return { date: fallbackDate, time: '' };
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}` };
+  };
+
+  const toUTCISOString = (dateStr: string, timeStr: string) => {
+    if (!dateStr || !timeStr) return null;
+    const dateParts = dateStr.split('-');
+    const timeParts = timeStr.split(':');
+    if (dateParts.length !== 3 || timeParts.length < 2) return null;
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1;
+    const day = parseInt(dateParts[2], 10);
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+    const d = new Date(year, month, day, hours, minutes);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  };
+
+  // 修正申請の作成
+  const handleOpenRequestModal = (attendanceId: string, workDate: string, checkIn: string | null, checkOut: string | null) => {
+    const localIn = toLocalValues(checkIn, workDate);
+    const localOut = toLocalValues(checkOut, workDate);
+
+    setRequestFormData({
+      attendanceId,
+      workDate,
+      requestedCheckIn: checkIn || '',
+      requestedCheckOut: checkOut || '',
+      originalCheckIn: checkIn || '',
+      originalCheckOut: checkOut || '',
+      requestedCheckInDate: localIn.date,
+      requestedCheckInTime: localIn.time,
+      requestedCheckOutDate: localOut.date,
+      requestedCheckOutTime: localOut.time,
+      reason: '',
+    });
+    setShowRequestModal(true);
+  };
+
+  const handleSubmitRequest = async () => {
+    if (!auth.token || !requestFormData.reason.trim()) {
+      alert('理由を入力してください');
+      return;
+    }
+
+    const isoIn = toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
+    const isoOut = toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
+
+    if (isoIn && isoOut) {
+      if (new Date(isoIn) >= new Date(isoOut)) {
+        alert('退勤時刻は出勤時刻より後の日時を指定してください');
+        return;
+      }
+    }
+
+    try {
+      await createCorrectionRequest(auth.token, {
+        attendance_id: requestFormData.attendanceId,
+        requested_check_in: isoIn,
+        requested_check_out: isoOut,
+        reason: requestFormData.reason,
+      });
+      alert('修正申請を提出しました');
+      setShowRequestModal(false);
+      await fetchCorrectionRequests();
+      if (selectedUser) {
+        await handleViewDetail(selectedUser);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '修正申請の提出に失敗しました');
+    }
+  };
+
+  // 修正申請の承認/却下（管理者のみ）
+  const handleOpenApprovalModal = (request: AttendanceCorrectionRequest, action: 'approve' | 'reject') => {
+    setApprovalFormData({
+      requestId: request.id,
+      action,
+      comment: '',
+    });
+    setSelectedRequestForApproval(request);
+    setShowApprovalModal(true);
+  };
+
+  const handleSubmitApproval = async () => {
+    if (!auth.token) return;
+    
+    if (approvalFormData.action === 'reject' && !approvalFormData.comment.trim()) {
+      alert('却下する場合はコメントが必須です');
+      return;
+    }
+
+    try {
+      if (approvalFormData.action === 'approve') {
+        await approveCorrectionRequest(auth.token, approvalFormData.requestId, approvalFormData.comment || undefined);
+        alert('申請を承認しました');
+      } else {
+        await rejectCorrectionRequest(auth.token, approvalFormData.requestId, approvalFormData.comment);
+        alert('申請を却下しました');
+      }
+      setShowApprovalModal(false);
+      setSelectedRequestForApproval(null);
+      await fetchCorrectionRequests();
+      // 詳細データも再取得（勤怠レコードが更新されている可能性があるため）
+      if (selectedUser) {
+        await handleViewDetail(selectedUser);
+      } else if (!isAdmin && summaries.length > 0) {
+        await handleViewDetail(summaries[0]);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '処理に失敗しました');
+    }
+  };
+
+  // 修正申請のキャンセル
+  const handleCancelRequest = async (requestId: string) => {
+    if (!auth.token) return;
+    if (!window.confirm('この申請をキャンセルしますか？')) return;
+
+    try {
+      await cancelCorrectionRequest(auth.token, requestId);
+      alert('申請をキャンセルしました');
+      await fetchCorrectionRequests();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'キャンセルに失敗しました');
     }
   };
 
@@ -158,6 +376,96 @@ export function AttendancePage({ auth }: Props) {
     return <span className={className}>({weekday[day]})</span>;
   };
 
+  const getRequestDiff = () => {
+    const origIn = requestFormData.originalCheckIn ? new Date(requestFormData.originalCheckIn) : null;
+    const origOut = requestFormData.originalCheckOut ? new Date(requestFormData.originalCheckOut) : null;
+
+    const isoIn = toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
+    const isoOut = toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
+    const reqIn = isoIn ? new Date(isoIn) : null;
+    const reqOut = isoOut ? new Date(isoOut) : null;
+
+    const formatLocalDateAndTime = (d: Date | null) => {
+      if (!d) return '未打刻';
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hh}:${min}`;
+    };
+
+    const calcHours = (start: Date | null, end: Date | null) => {
+      if (!start || !end) return 0;
+      const ms = end.getTime() - start.getTime();
+      return ms > 0 ? ms / (1000 * 60 * 60) : 0;
+    };
+
+    const origHours = calcHours(origIn, origOut);
+    const reqHours = calcHours(reqIn, reqOut);
+    const hoursDiff = reqHours - origHours;
+
+    return {
+      origInStr: formatLocalDateAndTime(origIn),
+      origOutStr: formatLocalDateAndTime(origOut),
+      reqInStr: formatLocalDateAndTime(reqIn),
+      reqOutStr: formatLocalDateAndTime(reqOut),
+      origHours,
+      reqHours,
+      hoursDiff,
+      isIncomplete: !reqIn || !reqOut,
+    };
+  };
+
+  const getApprovalDiff = (request: AttendanceCorrectionRequest | null) => {
+    if (!request) {
+      return {
+        origInStr: '未打刻',
+        origOutStr: '未打刻',
+        reqInStr: '未打刻',
+        reqOutStr: '未打刻',
+        origHours: 0,
+        reqHours: 0,
+        hoursDiff: 0,
+      };
+    }
+
+    const origIn = request.original_check_in ? new Date(request.original_check_in) : null;
+    const origOut = request.original_check_out ? new Date(request.original_check_out) : null;
+    const reqIn = request.requested_check_in ? new Date(request.requested_check_in) : null;
+    const reqOut = request.requested_check_out ? new Date(request.requested_check_out) : null;
+
+    const formatLocalDateAndTime = (d: Date | null) => {
+      if (!d) return '未打刻';
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hh}:${min}`;
+    };
+
+    const calcHours = (start: Date | null, end: Date | null) => {
+      if (!start || !end) return 0;
+      const ms = end.getTime() - start.getTime();
+      return ms > 0 ? ms / (1000 * 60 * 60) : 0;
+    };
+
+    const origHours = calcHours(origIn, origOut);
+    const reqHours = calcHours(reqIn, reqOut);
+    const hoursDiff = reqHours - origHours;
+
+    return {
+      origInStr: formatLocalDateAndTime(origIn),
+      origOutStr: formatLocalDateAndTime(origOut),
+      reqInStr: formatLocalDateAndTime(reqIn),
+      reqOutStr: formatLocalDateAndTime(reqOut),
+      origHours,
+      reqHours,
+      hoursDiff,
+    };
+  };
+
   return (
     <div className="attendance-page">
       <div className="attendance-page__header">
@@ -202,6 +510,155 @@ export function AttendancePage({ auth }: Props) {
       </div>
 
       {error && <div className="att-alert att-alert--danger">{error}</div>}
+
+      {/* 修正申請・承認履歴管理セクション */}
+      <div className="attendance-section att-requests-section">
+        <div className="att-requests-header">
+          <h2 className="att-requests-section-title">
+            {isAdmin ? '📋 修正申請の承認・履歴' : '📋 自分の修正申請・履歴'}
+          </h2>
+          <div className="att-filter-tabs">
+            <button
+              type="button"
+              className={`att-filter-tab ${requestFilter === 'pending' ? 'att-filter-tab--active' : ''}`}
+              onClick={() => setRequestFilter('pending')}
+            >
+              承認待ち ({correctionRequests.filter((r) => r.status === 'pending').length})
+            </button>
+            <button
+              type="button"
+              className={`att-filter-tab ${requestFilter === 'approved' ? 'att-filter-tab--active' : ''}`}
+              onClick={() => setRequestFilter('approved')}
+            >
+              承認済み ({correctionRequests.filter((r) => r.status === 'approved').length})
+            </button>
+            <button
+              type="button"
+              className={`att-filter-tab ${requestFilter === 'rejected' ? 'att-filter-tab--active' : ''}`}
+              onClick={() => setRequestFilter('rejected')}
+            >
+              却下済み ({correctionRequests.filter((r) => r.status === 'rejected').length})
+            </button>
+            <button
+              type="button"
+              className={`att-filter-tab ${requestFilter === 'all' ? 'att-filter-tab--active' : ''}`}
+              onClick={() => setRequestFilter('all')}
+            >
+              すべて ({correctionRequests.length})
+            </button>
+          </div>
+        </div>
+
+        {correctionRequests.filter((r) => requestFilter === 'all' || r.status === requestFilter).length === 0 ? (
+          <div className="att-empty" style={{ padding: '24px', background: '#f6f8fa', border: '1px solid #eaecef', borderRadius: '6px', textAlign: 'center', color: '#586069' }}>
+            対象の修正申請はありません。
+          </div>
+        ) : (
+          <div className="att-table-container">
+            <table className="att-table">
+              <thead>
+                <tr>
+                  <th>申請日</th>
+                  <th>対象日</th>
+                  {isAdmin && <th>申請者</th>}
+                  <th>修正希望内容</th>
+                  <th>申請理由</th>
+                  <th>状態</th>
+                  <th>承認/却下者・コメント</th>
+                  <th style={{ minWidth: '100px' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {correctionRequests
+                  .filter((r) => requestFilter === 'all' || r.status === requestFilter)
+                  .map((req) => (
+                    <tr key={req.id}>
+                      <td style={{ fontSize: '12px', color: '#586069' }}>
+                        {req.created_at ? new Date(req.created_at).toLocaleDateString('ja-JP') : '-'}
+                      </td>
+                      <td style={{ fontWeight: '500' }}>{req.work_date || '-'}</td>
+                      {isAdmin && (
+                        <td>
+                          <strong>{req.user_name}</strong>
+                          {req.user_full_name && <span className="att-fullname"> ({req.user_full_name})</span>}
+                        </td>
+                      )}
+                      <td>
+                        <div style={{ fontSize: '12px' }}>
+                          <span className="att-meta-label">出勤: </span>
+                          {req.requested_check_in ? formatTime(req.requested_check_in) : '未打刻 (クリア)'}
+                          <br />
+                          <span className="att-meta-label">退勤: </span>
+                          {req.requested_check_out ? formatTime(req.requested_check_out) : '未打刻 (クリア)'}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="att-comment-text" style={{ maxWidth: '300px' }}>{req.reason}</div>
+                      </td>
+                      <td>
+                        {req.status === 'pending' && <span className="att-corr-badge att-corr-badge--pending">承認待ち</span>}
+                        {req.status === 'approved' && <span className="att-corr-badge att-corr-badge--approved">承認済み</span>}
+                        {req.status === 'rejected' && <span className="att-corr-badge att-corr-badge--rejected">却下済み</span>}
+                      </td>
+                      <td>
+                        {req.status !== 'pending' && (
+                          <div style={{ fontSize: '12px' }}>
+                            {req.approved_by_name && (
+                              <div>
+                                <span className="att-meta-label" style={{ fontWeight: '500' }}>対応者:</span> {req.approved_by_name}
+                              </div>
+                            )}
+                            {req.approval_comment && (
+                              <div className="att-comment-text" style={{ background: '#f1f8ff', color: '#0366d6', maxWidth: '300px', borderLeft: '3px solid #0366d6' }}>
+                                {req.approval_comment}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {req.status === 'pending' && <span className="att-text--muted">-</span>}
+                      </td>
+                      <td>
+                        {req.status === 'pending' ? (
+                          isAdmin ? (
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="att-btn att-btn--small"
+                                style={{ background: '#2ea44f' }}
+                                onClick={() => handleOpenApprovalModal(req, 'approve')}
+                              >
+                                承認
+                              </button>
+                              <button
+                                type="button"
+                                className="att-btn att-btn--small"
+                                style={{ background: '#d73a49' }}
+                                onClick={() => handleOpenApprovalModal(req, 'reject')}
+                              >
+                                却下
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="att-btn att-btn--small"
+                              style={{ background: '#959da5' }}
+                              onClick={() => handleCancelRequest(req.id)}
+                            >
+                              取消
+                            </button>
+                          )
+                        ) : (
+                          <span className="att-text--muted">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* 管理者向け：全員のサマリー一覧 */}
       {isAdmin && (
@@ -288,6 +745,27 @@ export function AttendancePage({ auth }: Props) {
             日別勤怠詳細 ({yearMonth})
           </h2>
 
+          {/* ロック状態表示とコントロール（管理者のみ） */}
+          {!detailLoading && detailData && isAdmin && (
+            <div className="att-lock-control-container">
+              <div className={`att-lock-badge ${detailData.is_locked ? 'att-lock-badge--locked' : ''}`}>
+                {detailData.is_locked ? '🔒 締め済み（ロック中）' : '🔓 未締め（編集可能）'}
+              </div>
+              <button
+                type="button"
+                className={`att-lock-btn ${detailData.is_locked ? 'att-lock-btn--unlock' : 'att-lock-btn--lock'}`}
+                onClick={handleLockToggle}
+                disabled={lockLoading}
+              >
+                {lockLoading
+                  ? '処理中...'
+                  : detailData.is_locked
+                    ? '締めを解除'
+                    : '月を締める'}
+              </button>
+            </div>
+          )}
+
           {detailLoading && <div className="att-loading">詳細の読み込み中...</div>}
           {detailError && <div className="att-alert att-alert--danger">{detailError}</div>}
 
@@ -337,6 +815,7 @@ export function AttendancePage({ auth }: Props) {
                       <th>時間外</th>
                       <th>状態</th>
                       <th>打刻元</th>
+                      {!detailData.is_locked && <th>操作</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -390,6 +869,55 @@ export function AttendancePage({ auth }: Props) {
                           <td>{formatHours(day.overtime_hours)}</td>
                           <td>{getStatusBadge(day.status)}</td>
                           <td>{getSourceLabel(day.source)}</td>
+                          {!detailData.is_locked && (
+                            <td>
+                              {day.punches && day.punches.length > 0 ? (
+                                <div className="att-multiple-punches">
+                                  {day.punches.map((p, idx) => (
+                                    <div key={idx} className="att-punch-item">
+                                      {p.attendance_id ? (
+                                        <button
+                                          type="button"
+                                          className="att-btn att-btn--small"
+                                          onClick={() =>
+                                            handleOpenRequestModal(
+                                              p.attendance_id!,
+                                              day.work_date,
+                                              p.check_in,
+                                              p.check_out
+                                            )
+                                          }
+                                        >
+                                          修正申請
+                                        </button>
+                                      ) : (
+                                        <span className="att-text--muted">-</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                day.attendance_id ? (
+                                  <button
+                                    type="button"
+                                    className="att-btn att-btn--small"
+                                    onClick={() =>
+                                      handleOpenRequestModal(
+                                        day.attendance_id!,
+                                        day.work_date,
+                                        day.check_in,
+                                        day.check_out
+                                      )
+                                    }
+                                  >
+                                    修正申請
+                                  </button>
+                                ) : (
+                                  <span className="att-text--muted">-</span>
+                                )
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -400,6 +928,327 @@ export function AttendancePage({ auth }: Props) {
           )}
         </div>
       )}
+
+      {/* 修正申請作成モーダル */}
+      {showRequestModal && (() => {
+        const diff = getRequestDiff();
+        return (
+          <div className="att-modal" onClick={() => setShowRequestModal(false)}>
+            <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
+              <h3 className="att-modal__title">勤怠修正申請</h3>
+              
+              <div className="att-form-group">
+                <label>対象日</label>
+                <input type="text" value={requestFormData.workDate} disabled style={{ backgroundColor: '#f6f8fa', cursor: 'not-allowed' }} />
+              </div>
+
+              {/* 修正前の情報 */}
+              <div className="att-section-box">
+                <h4 className="att-section-box__title">修正前の打刻明細</h4>
+                <div className="att-section-box__grid">
+                  <div className="att-section-box__grid-item">
+                    <span className="att-meta-label">出勤:</span>
+                    <span className="att-meta-val">{diff.origInStr}</span>
+                  </div>
+                  <div className="att-section-box__grid-item">
+                    <span className="att-meta-label">退勤:</span>
+                    <span className="att-meta-val">{diff.origOutStr}</span>
+                  </div>
+                  <div className="att-section-box__grid-item">
+                    <span className="att-meta-label">勤務時間:</span>
+                    <span className="att-meta-val">{formatHours(diff.origHours)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 修正後の希望入力 */}
+              <div className="att-section-box" style={{ marginTop: '16px' }}>
+                <h4 className="att-section-box__title">修正後の希望時間（ローカル時刻）</h4>
+                
+                <div className="att-form-group">
+                  <label className="att-sub-label">出勤希望日時</label>
+                  <div className="att-datetime-picker-row">
+                    <input
+                      type="date"
+                      value={requestFormData.requestedCheckInDate}
+                      onChange={(e) =>
+                        setRequestFormData({ ...requestFormData, requestedCheckInDate: e.target.value })
+                      }
+                      className="att-date-input"
+                    />
+                    <input
+                      type="time"
+                      value={requestFormData.requestedCheckInTime}
+                      onChange={(e) =>
+                        setRequestFormData({ ...requestFormData, requestedCheckInTime: e.target.value })
+                      }
+                      className="att-time-input"
+                    />
+                    <button
+                      type="button"
+                      className="att-btn att-btn--link-danger"
+                      onClick={() =>
+                        setRequestFormData({ ...requestFormData, requestedCheckInDate: '', requestedCheckInTime: '' })
+                      }
+                      title="出勤日時をクリア"
+                    >
+                      クリア
+                    </button>
+                    <button
+                      type="button"
+                      className="att-btn att-btn--link"
+                      onClick={() => {
+                        const localIn = toLocalValues(requestFormData.originalCheckIn, requestFormData.workDate);
+                        setRequestFormData(prev => ({
+                          ...prev,
+                          requestedCheckInDate: localIn.date,
+                          requestedCheckInTime: localIn.time,
+                        }));
+                      }}
+                      title="修正前の時刻に戻す"
+                    >
+                      リセット
+                    </button>
+                  </div>
+                </div>
+
+                <div className="att-form-group" style={{ marginTop: '12px' }}>
+                  <label className="att-sub-label">退勤希望日時</label>
+                  <div className="att-datetime-picker-row">
+                    <input
+                      type="date"
+                      value={requestFormData.requestedCheckOutDate}
+                      onChange={(e) =>
+                        setRequestFormData({ ...requestFormData, requestedCheckOutDate: e.target.value })
+                      }
+                      className="att-date-input"
+                    />
+                    <input
+                      type="time"
+                      value={requestFormData.requestedCheckOutTime}
+                      onChange={(e) =>
+                        setRequestFormData({ ...requestFormData, requestedCheckOutTime: e.target.value })
+                      }
+                      className="att-time-input"
+                    />
+                    <button
+                      type="button"
+                      className="att-btn att-btn--link-danger"
+                      onClick={() =>
+                        setRequestFormData({ ...requestFormData, requestedCheckOutDate: '', requestedCheckOutTime: '' })
+                      }
+                      title="退勤日時をクリア"
+                    >
+                      クリア
+                    </button>
+                    <button
+                      type="button"
+                      className="att-btn att-btn--link"
+                      onClick={() => {
+                        const localOut = toLocalValues(requestFormData.originalCheckOut, requestFormData.workDate);
+                        setRequestFormData(prev => ({
+                          ...prev,
+                          requestedCheckOutDate: localOut.date,
+                          requestedCheckOutTime: localOut.time,
+                        }));
+                      }}
+                      title="修正前の時刻に戻す"
+                    >
+                      リセット
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 差分比較プレビュー */}
+              <div className="att-section-box att-section-box--preview" style={{ marginTop: '16px' }}>
+                <h4 className="att-section-box__title">申請内容プレビュー・差分</h4>
+                <div className="att-preview-rows">
+                  <div className="att-preview-row">
+                    <span className="att-preview-label">修正希望時刻：</span>
+                    <span className="att-preview-val">
+                      {diff.reqInStr} 〜 {diff.reqOutStr}
+                    </span>
+                  </div>
+                  <div className="att-preview-row">
+                    <span className="att-preview-label">総勤務時間：</span>
+                    <span className="att-preview-val" style={{ fontWeight: 'bold' }}>
+                      {formatHours(diff.reqHours)}
+                      <span className={`att-diff-badge ${diff.hoursDiff > 0 ? 'att-diff-badge--plus' : diff.hoursDiff < 0 ? 'att-diff-badge--minus' : 'att-diff-badge--zero'}`}>
+                        {diff.hoursDiff > 0 ? `+${diff.hoursDiff.toFixed(2)}h` : diff.hoursDiff < 0 ? `${diff.hoursDiff.toFixed(2)}h` : '±0.00h'}
+                      </span>
+                    </span>
+                  </div>
+                  {diff.isIncomplete && (
+                    <div className="att-preview-warning">
+                      ⚠️ 出勤または退勤が空欄のため、不整合打刻（勤務時間0h）として申請されます。
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="att-form-group" style={{ marginTop: '16px' }}>
+                <label>
+                  修正理由 <span style={{ color: '#d73a49' }}>*</span>
+                </label>
+                <textarea
+                  value={requestFormData.reason}
+                  onChange={(e) =>
+                    setRequestFormData({ ...requestFormData, reason: e.target.value })
+                  }
+                  placeholder="修正が必要な理由を入力してください"
+                />
+              </div>
+              <div className="att-modal__buttons">
+                <button
+                  type="button"
+                  className="att-btn att-btn--secondary"
+                  onClick={() => setShowRequestModal(false)}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className="att-btn att-btn--primary"
+                  onClick={handleSubmitRequest}
+                >
+                  申請する
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 承認/却下モーダル */}
+      {showApprovalModal && (() => {
+        const diff = getApprovalDiff(selectedRequestForApproval);
+        return (
+          <div className="att-modal" onClick={() => {
+            setShowApprovalModal(false);
+            setSelectedRequestForApproval(null);
+          }}>
+            <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
+              <h3 className="att-modal__title">
+                {approvalFormData.action === 'approve' ? '申請を承認' : '申請を却下'}
+              </h3>
+
+              {selectedRequestForApproval && (
+                <div style={{ marginBottom: '20px' }}>
+                  {/* 対象者・対象日情報 */}
+                  <div className="att-section-box" style={{ marginBottom: '16px' }}>
+                    <div className="att-preview-rows">
+                      <div className="att-preview-row">
+                        <span className="att-preview-label">申請者:</span>
+                        <span className="att-preview-val" style={{ fontWeight: 'bold' }}>
+                          {selectedRequestForApproval.user_full_name || selectedRequestForApproval.user_name || '未設定'}
+                        </span>
+                      </div>
+                      <div className="att-preview-row">
+                        <span className="att-preview-label">対象日:</span>
+                        <span className="att-preview-val">{selectedRequestForApproval.work_date}</span>
+                      </div>
+                      <div className="att-preview-row">
+                        <span className="att-preview-label">申請理由:</span>
+                        <span className="att-preview-val">{selectedRequestForApproval.reason}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 修正前後の比較プレビュー */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
+                    
+                    {/* 修正前 */}
+                    <div className="att-section-box">
+                      <h4 className="att-section-box__title" style={{ color: '#586069' }}>修正前の打刻明細</h4>
+                      <div className="att-preview-rows">
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>出勤:</span>
+                          <span className="att-preview-val">{diff.origInStr}</span>
+                        </div>
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>退勤:</span>
+                          <span className="att-preview-val">{diff.origOutStr}</span>
+                        </div>
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>時間:</span>
+                          <span className="att-preview-val" style={{ fontWeight: 'bold' }}>{formatHours(diff.origHours)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '20px', color: '#888' }}>➔</div>
+
+                    {/* 修正後 */}
+                    <div className="att-section-box" style={{ borderColor: '#2188ff', backgroundColor: '#f1f8ff' }}>
+                      <h4 className="att-section-box__title" style={{ color: '#0366d6', borderLeftColor: '#2188ff' }}>修正希望時刻</h4>
+                      <div className="att-preview-rows">
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>出勤:</span>
+                          <span className="att-preview-val" style={{ color: '#24292e', fontWeight: '500' }}>{diff.reqInStr}</span>
+                        </div>
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>退勤:</span>
+                          <span className="att-preview-val" style={{ color: '#24292e', fontWeight: '500' }}>{diff.reqOutStr}</span>
+                        </div>
+                        <div className="att-preview-row">
+                          <span className="att-preview-label" style={{ width: '45px' }}>時間:</span>
+                          <span className="att-preview-val" style={{ fontWeight: 'bold' }}>
+                            {formatHours(diff.reqHours)}
+                            <span className={`att-diff-badge ${diff.hoursDiff > 0 ? 'att-diff-badge--plus' : diff.hoursDiff < 0 ? 'att-diff-badge--minus' : 'att-diff-badge--zero'}`} style={{ marginLeft: '8px' }}>
+                              {diff.hoursDiff > 0 ? `+${diff.hoursDiff.toFixed(2)}h` : diff.hoursDiff < 0 ? `${diff.hoursDiff.toFixed(2)}h` : '±0.00h'}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+              <div className="att-form-group">
+                <label>
+                  コメント
+                  {approvalFormData.action === 'reject' && (
+                    <span style={{ color: '#d73a49' }}> *必須</span>
+                  )}
+                </label>
+                <textarea
+                  value={approvalFormData.comment}
+                  onChange={(e) =>
+                    setApprovalFormData({ ...approvalFormData, comment: e.target.value })
+                  }
+                  placeholder={
+                    approvalFormData.action === 'approve'
+                      ? 'コメント（任意）'
+                      : '却下理由を入力してください（必須）'
+                  }
+                />
+              </div>
+              <div className="att-modal__buttons">
+                <button
+                  type="button"
+                  className="att-btn att-btn--secondary"
+                  onClick={() => {
+                    setShowApprovalModal(false);
+                    setSelectedRequestForApproval(null);
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className="att-btn att-btn--primary"
+                  onClick={handleSubmitApproval}
+                >
+                  {approvalFormData.action === 'approve' ? '承認する' : '却下する'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

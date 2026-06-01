@@ -8,13 +8,25 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from kint.exceptions import KintConflictError, KintNotFoundError
-from kint.models.attendance import Attendance, AttendanceChangeLog
+from kint.exceptions import (
+    KintBadRequestError,
+    KintConflictError,
+    KintForbiddenError,
+    KintNotFoundError,
+)
+from kint.models.attendance import (
+    Attendance,
+    AttendanceChangeLog,
+    AttendanceCorrectionRequest,
+    AttendanceLock,
+)
 from kint.models.card import Card
 from kint.models.shift import Shift
 from kint.models.user import User
 from kint.schemas.attendance import (
+    AttendanceCorrectionRequestCreate,
     AttendanceHistoryEntry,
     AttendanceHistoryResponse,
     AttendanceHistorySnapshot,
@@ -28,6 +40,14 @@ from kint.schemas.attendance import (
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
 from kint.services.settings import SettingsService
+
+
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 class PunchService:
@@ -196,6 +216,14 @@ class PunchService:
         attendance = await self._get_open_attendance(user.id)
 
         if attendance is not None:
+            # 締め（ロック）チェック
+            att_svc = AttendanceService(self.session)
+            if await att_svc.is_date_locked(attendance.work_date):
+                raise KintBadRequestError(
+                    code="ATTENDANCE_LOCKED",
+                    message="対象年月の勤怠は締め処理が完了しているため、退勤打刻は行えません。",
+                )
+
             await self._do_check_out(
                 attendance=attendance,
                 occurred_at=request.occurred_at,
@@ -205,6 +233,15 @@ class PunchService:
             )
             action = "check_out"
         else:
+            # 締め（ロック）チェック
+            work_date = request.occurred_at.date()
+            att_svc = AttendanceService(self.session)
+            if await att_svc.is_date_locked(work_date):
+                raise KintBadRequestError(
+                    code="ATTENDANCE_LOCKED",
+                    message="対象年月の勤怠は締め処理が完了しているため、出勤打刻は行えません。",
+                )
+
             has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
             if not has_shift and not request.confirm:
                 settings_svc = SettingsService(self.session)
@@ -343,6 +380,77 @@ class AttendanceService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def _check_overlap(
+        self,
+        user_id: str,
+        attendance_id: str | None,
+        check_in: datetime | None,
+        check_out: datetime | None,
+    ) -> None:
+        """指定したユーザーの他の勤怠記録と重複していないか検証する。"""
+        if check_in is None:
+            return
+
+        # 同一ユーザーの他の（正常な出勤情報のある）勤怠記録を取得
+        stmt = select(Attendance).where(
+            Attendance.user_id == user_id,
+            Attendance.check_in.isnot(None),
+        )
+        if attendance_id is not None:
+            stmt = stmt.where(Attendance.id != attendance_id)
+
+        result = await self.session.execute(stmt)
+        other_attendances = result.scalars().all()
+
+        req_in = _ensure_utc(check_in)
+        req_out = _ensure_utc(check_out)
+
+        # Type narrowing for Pylance:
+        if req_in is None:
+            return
+
+        # req_in と req_out が不整合の場合 (退勤が出勤より前)
+        if req_out is not None and req_out <= req_in:
+            raise KintBadRequestError(
+                code="INVALID_DATETIME_RANGE",
+                message="退勤時刻は出勤時刻よりも後の時刻を指定してください。",
+            )
+
+        for other in other_attendances:
+            other_in = _ensure_utc(other.check_in)
+            other_out = _ensure_utc(other.check_out)
+
+            # other_in も念のため None の場合はスキップ
+            if other_in is None:
+                continue
+
+            # 重複判定ロジック
+            overlap = False
+            if req_out is not None and other_out is not None:
+                if req_in < other_out and other_in < req_out:
+                    overlap = True
+            elif req_out is not None and other_out is None:
+                if other_in < req_out:
+                    overlap = True
+            elif req_out is None and other_out is not None:
+                if req_in < other_out:
+                    overlap = True
+            else:
+                # 両方とも open-ended
+                overlap = True
+
+            if overlap:
+                # ユーザーフレンドリーなエラーメッセージ
+                in_str = other_in.strftime("%Y-%m-%d %H:%M:%S")
+                out_str = other_out.strftime("%H:%M:%S") if other_out else "未退勤"
+                raise KintBadRequestError(
+                    code="ATTENDANCE_OVERLAP",
+                    message=(
+                        f"指定された時間帯は、別の勤怠記録 ({in_str} 〜 {out_str}) "
+                        "と重複しています。"
+                    ),
+                )
+
     async def list_attendances(
         self,
         *,
@@ -398,6 +506,13 @@ class AttendanceService:
                 message=f"勤怠記録 '{attendance_id}' が見つかりません",
             )
 
+        # 締め（ロック）チェック
+        if await self.is_date_locked(attendance.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、変更できません。",
+            )
+
         now = datetime.now(tz=UTC)
         before_check_in = attendance.check_in
         before_check_out = attendance.check_out
@@ -406,6 +521,14 @@ class AttendanceService:
             attendance.check_in = patch.check_in
         if patch.check_out is not None:
             attendance.check_out = patch.check_out
+
+        # 重複勤務時間のチェック
+        await self._check_overlap(
+            user_id=attendance.user_id,
+            attendance_id=attendance.id,
+            check_in=attendance.check_in,
+            check_out=attendance.check_out,
+        )
 
         attendance.updated_reason = patch.reason
         attendance.last_updated_by_user_id = actor.id
@@ -641,18 +764,23 @@ class AttendanceService:
                 # 1日の中のすべての打刻ペアを時系列順（check_in昇順）に整理して格納
                 sorted_atts = sorted(
                     day_atts,
-                    key=lambda a: a.check_in if a.check_in else datetime.max.replace(tzinfo=UTC)
+                    key=lambda a: a.check_in if a.check_in else datetime.max.replace(tzinfo=UTC),
                 )
                 punches = [
                     PunchPeriod(
+                        attendance_id=a.id,
                         check_in=ensure_utc(a.check_in),
                         check_out=ensure_utc(a.check_out),
                     )
                     for a in sorted_atts
                 ]
 
+                # attendance_id: その日の最初の打刻レコードのIDを使用（修正申請用）
+                attendance_id = sorted_atts[0].id if sorted_atts else None
+
                 detail = DailyAttendanceDetail(
                     work_date=cur_date,
+                    attendance_id=attendance_id,
                     has_shift=has_shift,
                     is_holiday=is_holiday,
                     shift_start=ensure_utc(shift_start),
@@ -704,11 +832,13 @@ class AttendanceService:
                 message=f"ユーザーID '{user_id}' が見つかりません、またはアクティブではありません",
             )
         _, summary, daily_details = data[0]
+        is_locked = await self.is_month_locked(year_month)
         return AttendanceMonthlyDetailResponse(
             user_id=user_id,
             year_month=year_month,
             summary=summary,
             days=daily_details,
+            is_locked=is_locked,
         )
 
     async def export_csv(self, year_month: str, scope: str = "detailed") -> bytes:
@@ -719,52 +849,58 @@ class AttendanceService:
         writer = csv.writer(output, lineterminator="\n")
 
         if scope == "summary":
-            writer.writerow([
-                "対象月",
-                "ユーザーID",
-                "表示名",
-                "氏名",
-                "所定労働日数",
-                "実出勤日数",
-                "総労働時間(h)",
-                "時間外労働時間(h)",
-                "遅刻回数",
-                "早退回数",
-                "欠勤日数",
-                "打刻エラー日数",
-            ])
+            writer.writerow(
+                [
+                    "対象月",
+                    "ユーザーID",
+                    "表示名",
+                    "氏名",
+                    "所定労働日数",
+                    "実出勤日数",
+                    "総労働時間(h)",
+                    "時間外労働時間(h)",
+                    "遅刻回数",
+                    "早退回数",
+                    "欠勤日数",
+                    "打刻エラー日数",
+                ]
+            )
             for _, summary, _ in data:
-                writer.writerow([
-                    year_month,
-                    summary.user_id,
-                    summary.user_name,
-                    summary.full_name,
-                    summary.prescribed_days,
-                    summary.working_days,
-                    f"{summary.total_working_hours:.2f}",
-                    f"{summary.total_overtime_hours:.2f}",
-                    summary.late_count,
-                    summary.early_leave_count,
-                    summary.absence_days,
-                    summary.incomplete_days,
-                ])
+                writer.writerow(
+                    [
+                        year_month,
+                        summary.user_id,
+                        summary.user_name,
+                        summary.full_name,
+                        summary.prescribed_days,
+                        summary.working_days,
+                        f"{summary.total_working_hours:.2f}",
+                        f"{summary.total_overtime_hours:.2f}",
+                        summary.late_count,
+                        summary.early_leave_count,
+                        summary.absence_days,
+                        summary.incomplete_days,
+                    ]
+                )
         else:
-            writer.writerow([
-                "日付",
-                "表示名",
-                "氏名",
-                "シフト開始時刻",
-                "シフト終了時刻",
-                "出勤時間",
-                "退勤時間",
-                "実労働時間(h)",
-                "時間外労働時間(h)",
-                "遅刻判定",
-                "早退判定",
-                "勤怠ステータス",
-                "打刻ソース",
-                "修正理由",
-            ])
+            writer.writerow(
+                [
+                    "日付",
+                    "表示名",
+                    "氏名",
+                    "シフト開始時刻",
+                    "シフト終了時刻",
+                    "出勤時間",
+                    "退勤時間",
+                    "実労働時間(h)",
+                    "時間外労働時間(h)",
+                    "遅刻判定",
+                    "早退判定",
+                    "勤怠ステータス",
+                    "打刻ソース",
+                    "修正理由",
+                ]
+            )
 
             def ensure_utc(dt: datetime | None) -> datetime | None:
                 if dt is None:
@@ -800,10 +936,7 @@ class AttendanceService:
 
                     day_atts = att_map.get((user.id, day.work_date), [])
                     max_dt = datetime.max.replace(tzinfo=UTC)
-                    sorted_atts = sorted(
-                        day_atts,
-                        key=lambda a: ensure_utc(a.check_in) or max_dt
-                    )
+                    sorted_atts = sorted(day_atts, key=lambda a: ensure_utc(a.check_in) or max_dt)
 
                     if sorted_atts:
                         # 打刻がある場合：各打刻レコード(エントリー)毎に1行ずつ出力する
@@ -814,8 +947,12 @@ class AttendanceService:
                             # 実労働時間（このエントリー単体）
                             working_hours = 0.0
                             if att.check_in and att.check_out:
-                                cin_utc = ensure_utc(att.check_in) or datetime.min.replace(tzinfo=UTC)
-                                cout_utc = ensure_utc(att.check_out) or datetime.min.replace(tzinfo=UTC)
+                                cin_utc = ensure_utc(att.check_in) or datetime.min.replace(
+                                    tzinfo=UTC
+                                )
+                                cout_utc = ensure_utc(att.check_out) or datetime.min.replace(
+                                    tzinfo=UTC
+                                )
                                 duration = (cout_utc - cin_utc).total_seconds()
                                 working_hours = duration / 3600.0
 
@@ -870,25 +1007,390 @@ class AttendanceService:
                             if att.check_in and not att.check_out:
                                 entry_status_label = "打刻漏れ"
 
-                            writer.writerow([
-                                day.work_date.strftime("%Y-%m-%d"),
-                                user.name,
-                                user.full_name,
-                                shift_start_str,
-                                shift_end_str,
-                                check_in_str,
-                                check_out_str,
-                                f"{working_hours:.2f}",
-                                f"{overtime_hours:.2f}",
-                                is_late_val,
-                                is_early_val,
-                                entry_status_label,
-                                att.source if att.source else "",
-                                att.updated_reason if att.updated_reason else "",
-                            ])
+                            writer.writerow(
+                                [
+                                    day.work_date.strftime("%Y-%m-%d"),
+                                    user.name,
+                                    user.full_name,
+                                    shift_start_str,
+                                    shift_end_str,
+                                    check_in_str,
+                                    check_out_str,
+                                    f"{working_hours:.2f}",
+                                    f"{overtime_hours:.2f}",
+                                    is_late_val,
+                                    is_early_val,
+                                    entry_status_label,
+                                    att.source if att.source else "",
+                                    att.updated_reason if att.updated_reason else "",
+                                ]
+                            )
 
         # BOM (\xef\xbb\xbf) を付与して保存
         csv_str = output.getvalue()
         csv_bytes = csv_str.encode("utf-8")
         bom = b"\xef\xbb\xbf"
         return bom + csv_bytes
+
+    async def is_month_locked(self, year_month: str) -> bool:
+        """指定した年月（YYYY-MM）が締め（ロック）されているか判定する。"""
+        stmt = select(AttendanceLock).where(AttendanceLock.year_month == year_month)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def is_date_locked(self, target_date: date) -> bool:
+        """指定した日付が属する年月が締め（ロック）されているか判定する。"""
+        year_month = target_date.strftime("%Y-%m")
+        return await self.is_month_locked(year_month)
+
+    async def lock_month(self, year_month: str, actor_id: str) -> AttendanceLock:
+        """指定した年月を締め（ロック）する。"""
+        import re
+
+        if not re.match(r"^\d{4}-\d{2}$", year_month):
+            raise KintBadRequestError(
+                code="INVALID_YEAR_MONTH", message="年月は YYYY-MM 形式で指定してください。"
+            )
+
+        if await self.is_month_locked(year_month):
+            raise KintBadRequestError(
+                code="ALREADY_LOCKED", message="この年月はすでに締め処理が完了しています。"
+            )
+
+        year, month = map(int, year_month.split("-"))
+        _, last_day = calendar.monthrange(year, month)
+        from_date = date(year, month, 1)
+        to_date = date(year, month, last_day)
+
+        # 対象年月の pending 申請を自動的に却下する
+        stmt = (
+            select(AttendanceCorrectionRequest)
+            .join(Attendance)
+            .where(
+                Attendance.work_date >= from_date,
+                Attendance.work_date <= to_date,
+                AttendanceCorrectionRequest.status == "pending",
+            )
+        )
+        res = await self.session.execute(stmt)
+        pending_requests = res.scalars().all()
+
+        now = datetime.now(tz=UTC)
+        for req in pending_requests:
+            req.status = "rejected"
+            req.approved_by_user_id = actor_id
+            req.approval_comment = (
+                "当月の締め処理が完了したため、システムにより自動的に却下されました。"
+            )
+            req.updated_at = now
+
+        lock = AttendanceLock(year_month=year_month, locked_by_user_id=actor_id, locked_at=now)
+        self.session.add(lock)
+        await self.session.commit()
+        return lock
+
+    async def unlock_month(self, year_month: str) -> None:
+        """指定した年月の締め（ロック）を解除する。"""
+        stmt = select(AttendanceLock).where(AttendanceLock.year_month == year_month)
+        result = await self.session.execute(stmt)
+        lock = result.scalar_one_or_none()
+        if lock is None:
+            raise KintNotFoundError(
+                code="LOCK_NOT_FOUND", message="指定された年月の締め履歴はありません。"
+            )
+
+        await self.session.delete(lock)
+        await self.session.commit()
+
+    async def list_locks(self) -> list[AttendanceLock]:
+        """締め（ロック）されている年月の一覧を返す。"""
+        stmt = select(AttendanceLock).order_by(AttendanceLock.year_month.desc())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    # ------------------------------------------------------------------
+    # 勤怠修正申請（AttendanceCorrectionRequest）関連メソッド
+    # ------------------------------------------------------------------
+
+    async def create_correction_request(
+        self, author_id: str, creator_role: str, body: AttendanceCorrectionRequestCreate
+    ) -> AttendanceCorrectionRequest:
+        """新規の修正申請を作成する。"""
+        # 勤怠レコードの存在確認
+        stmt = select(Attendance).where(Attendance.id == body.attendance_id)
+        result = await self.session.execute(stmt)
+        attendance = result.scalar_one_or_none()
+        if attendance is None:
+            raise KintNotFoundError(
+                code="ATTENDANCE_NOT_FOUND",
+                message=f"勤怠記録 '{body.attendance_id}' が見つかりません",
+            )
+
+        # 従業員ロールの場合は本人確認
+        if creator_role == "employee" and attendance.user_id != author_id:
+            raise KintForbiddenError(
+                code="FORBIDDEN", message="自分以外の勤怠記録に対して申請することはできません。"
+            )
+
+        # ロック（締め）チェック
+        if await self.is_date_locked(attendance.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、申請は行えません。",
+            )
+
+        # 重複する pending 申請のチェック
+        stmt_dup = select(AttendanceCorrectionRequest).where(
+            AttendanceCorrectionRequest.attendance_id == body.attendance_id,
+            AttendanceCorrectionRequest.status == "pending",
+        )
+        res_dup = await self.session.execute(stmt_dup)
+        if res_dup.scalar_one_or_none() is not None:
+            raise KintBadRequestError(
+                code="PENDING_REQUEST_EXISTS", message="すでに承認待ちの申請が存在します。"
+            )
+
+        # 重複勤務時間のチェック
+        await self._check_overlap(
+            user_id=attendance.user_id,
+            attendance_id=body.attendance_id,
+            check_in=body.requested_check_in,
+            check_out=body.requested_check_out,
+        )
+
+        # 申請作成
+        now = datetime.now(tz=UTC)
+        request = AttendanceCorrectionRequest(
+            id=str(uuid.uuid4()),
+            attendance_id=body.attendance_id,
+            user_id=attendance.user_id,
+            requested_check_in=body.requested_check_in,
+            requested_check_out=body.requested_check_out,
+            reason=body.reason,
+            status="pending",
+            created_at=now,
+            updated_at=now,
+        )
+        self.session.add(request)
+        await self.session.commit()
+
+        # 関連オブジェクトを明示的にロードした上で返却
+        stmt_ref = (
+            select(AttendanceCorrectionRequest)
+            .where(AttendanceCorrectionRequest.id == request.id)
+            .options(
+                joinedload(AttendanceCorrectionRequest.user),
+                joinedload(AttendanceCorrectionRequest.approved_by),
+                joinedload(AttendanceCorrectionRequest.attendance),
+            )
+        )
+        res_ref = await self.session.execute(stmt_ref)
+        return res_ref.scalar_one()
+
+    async def list_correction_requests(
+        self, status: str | None = None, user_id: str | None = None
+    ) -> list[AttendanceCorrectionRequest]:
+        """修正申請一覧を返す。関係オブジェクトをロードして人名や対象日を読み出せるようにする。"""
+        stmt = (
+            select(AttendanceCorrectionRequest)
+            .join(Attendance, AttendanceCorrectionRequest.attendance_id == Attendance.id)
+            .options(
+                joinedload(AttendanceCorrectionRequest.user),
+                joinedload(AttendanceCorrectionRequest.approved_by),
+                joinedload(AttendanceCorrectionRequest.attendance),
+            )
+        )
+
+        if status is not None:
+            stmt = stmt.where(AttendanceCorrectionRequest.status == status)
+        if user_id is not None:
+            stmt = stmt.where(AttendanceCorrectionRequest.user_id == user_id)
+
+        stmt = stmt.order_by(
+            Attendance.work_date.desc(), AttendanceCorrectionRequest.created_at.desc()
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def approve_correction_request(
+        self, request_id: str, actor: User, comment: str | None
+    ) -> AttendanceCorrectionRequest:
+        """申請を承認し、同一トランザクション内で勤怠レコードを上書き更新、監査ログを出力する。"""
+        stmt = select(AttendanceCorrectionRequest).where(
+            AttendanceCorrectionRequest.id == request_id
+        )
+        result = await self.session.execute(stmt)
+        request = result.scalars().first()
+        if request is None:
+            raise KintNotFoundError(
+                code="REQUEST_NOT_FOUND", message=f"申請ID '{request_id}' が見つかりません。"
+            )
+
+        if request.status != "pending":
+            raise KintBadRequestError(
+                code="INVALID_REQUEST_STATUS", message="承認待ちではない申請は処理できません。"
+            )
+
+        # 勤怠を取得
+        stmt_att = select(Attendance).where(Attendance.id == request.attendance_id)
+        res_att = await self.session.execute(stmt_att)
+        attendance = res_att.scalar_one_or_none()
+        if attendance is None:
+            raise KintNotFoundError(
+                code="ATTENDANCE_NOT_FOUND", message="対象の勤怠記録が見つかりません。"
+            )
+
+        # ロック（締め）チェック
+        if await self.is_date_locked(attendance.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、承認できません。",
+            )
+
+        now = datetime.now(tz=UTC)
+        before_check_in = attendance.check_in
+        before_check_out = attendance.check_out
+
+        # 勤怠更新
+        attendance.check_in = request.requested_check_in
+        attendance.check_out = request.requested_check_out
+        attendance.updated_reason = request.reason
+        attendance.last_updated_by_user_id = actor.id
+        attendance.last_updated_at = now
+
+        # 重複勤務時間のチェック
+        await self._check_overlap(
+            user_id=attendance.user_id,
+            attendance_id=attendance.id,
+            check_in=attendance.check_in,
+            check_out=attendance.check_out,
+        )
+
+        # 監査ログの追加
+        log_reason = request.reason
+        if comment:
+            log_reason += f" (承認時コメント: {comment})"
+
+        log = AttendanceChangeLog(
+            id=str(uuid.uuid4()),
+            attendance_id=attendance.id,
+            actor_user_id=actor.id,
+            actor_role=actor.role,
+            before_check_in=before_check_in,
+            before_check_out=before_check_out,
+            after_check_in=request.requested_check_in,
+            after_check_out=request.requested_check_out,
+            reason=log_reason,
+            changed_at=now,
+        )
+        self.session.add(log)
+
+        # 申請ステータス変更
+        request.status = "approved"
+        request.approved_by_user_id = actor.id
+        request.approval_comment = comment
+        request.updated_at = now
+
+        await self.session.commit()
+
+        # 関連オブジェクトを明示的にロードした上で返却
+        stmt_ref = (
+            select(AttendanceCorrectionRequest)
+            .where(AttendanceCorrectionRequest.id == request.id)
+            .options(
+                joinedload(AttendanceCorrectionRequest.user),
+                joinedload(AttendanceCorrectionRequest.approved_by),
+                joinedload(AttendanceCorrectionRequest.attendance),
+            )
+        )
+        res_ref = await self.session.execute(stmt_ref)
+        return res_ref.scalar_one()
+
+    async def reject_correction_request(
+        self, request_id: str, actor: User, comment: str
+    ) -> AttendanceCorrectionRequest:
+        """申請を却下する（勤怠レコードは変更しない）。"""
+        stmt = select(AttendanceCorrectionRequest).where(
+            AttendanceCorrectionRequest.id == request_id
+        )
+        result = await self.session.execute(stmt)
+        request = result.scalars().first()
+        if request is None:
+            raise KintNotFoundError(
+                code="REQUEST_NOT_FOUND", message=f"申請ID '{request_id}' が見つかりません。"
+            )
+
+        if request.status != "pending":
+            raise KintBadRequestError(
+                code="INVALID_REQUEST_STATUS", message="承認待ちではない申請は処理できません。"
+            )
+
+        # 勤怠を取得してロック状態のチェック
+        stmt_att = select(Attendance).where(Attendance.id == request.attendance_id)
+        res_att = await self.session.execute(stmt_att)
+        attendance = res_att.scalar_one_or_none()
+        if attendance is not None:
+            if await self.is_date_locked(attendance.work_date):
+                raise KintBadRequestError(
+                    code="ATTENDANCE_LOCKED",
+                    message="対象年月の勤怠は締め処理が完了しているため、却下できません。",
+                )
+
+        now = datetime.now(tz=UTC)
+        request.status = "rejected"
+        request.approved_by_user_id = actor.id
+        request.approval_comment = comment
+        request.updated_at = now
+
+        await self.session.commit()
+
+        # 関連オブジェクトを明示的にロードした上で返却
+        stmt_ref = (
+            select(AttendanceCorrectionRequest)
+            .where(AttendanceCorrectionRequest.id == request.id)
+            .options(
+                joinedload(AttendanceCorrectionRequest.user),
+                joinedload(AttendanceCorrectionRequest.approved_by),
+                joinedload(AttendanceCorrectionRequest.attendance),
+            )
+        )
+        res_ref = await self.session.execute(stmt_ref)
+        return res_ref.scalar_one()
+
+    async def cancel_correction_request(self, request_id: str, user_id: str, role: str) -> None:
+        """申請をキャンセル（削除）する。"""
+        stmt = select(AttendanceCorrectionRequest).where(
+            AttendanceCorrectionRequest.id == request_id
+        )
+        result = await self.session.execute(stmt)
+        request = result.scalars().first()
+        if request is None:
+            raise KintNotFoundError(
+                code="REQUEST_NOT_FOUND", message=f"申請ID '{request_id}' が見つかりません。"
+            )
+
+        if request.status != "pending":
+            raise KintBadRequestError(
+                code="INVALID_REQUEST_STATUS",
+                message="承認待ちではない申請はキャンセルできません。",
+            )
+
+        # 一般従業員なら申請者本人チェック
+        if role == "employee" and request.user_id != user_id:
+            raise KintForbiddenError(
+                code="FORBIDDEN", message="他人の申請をキャンセルすることはできません。"
+            )
+
+        # 勤怠を取得してロックチェック
+        stmt_att = select(Attendance).where(Attendance.id == request.attendance_id)
+        res_att = await self.session.execute(stmt_att)
+        attendance = res_att.scalar_one_or_none()
+        if attendance is not None:
+            if await self.is_date_locked(attendance.work_date):
+                raise KintBadRequestError(
+                    code="ATTENDANCE_LOCKED",
+                    message="対象年月の勤怠は締め処理が完了しているため、キャンセルできません。",
+                )
+
+        await self.session.delete(request)
+        await self.session.commit()

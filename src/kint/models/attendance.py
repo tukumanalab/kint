@@ -53,6 +53,9 @@ class Attendance(Base):
         foreign_keys="[Attendance.card_idm]",
     )
     change_logs: Mapped[list["AttendanceChangeLog"]] = relationship(back_populates="attendance")
+    correction_requests: Mapped[list["AttendanceCorrectionRequest"]] = relationship(
+        back_populates="attendance", cascade="all, delete-orphan"
+    )
 
 
 class AttendanceChangeLog(Base):
@@ -91,4 +94,68 @@ class AttendanceChangeLog(Base):
     attendance: Mapped["Attendance"] = relationship(back_populates="change_logs")
     actor: Mapped["User"] = relationship(  # noqa: F821
         back_populates="attendance_change_logs", foreign_keys=[actor_user_id]
+    )
+
+
+class AttendanceCorrectionRequest(Base):
+    """勤怠修正申請モデル。"""
+
+    __tablename__ = "attendance_correction_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_attendance_correction_requests_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    attendance_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("attendances.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    requested_check_in: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    requested_check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reason: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="pending")
+    approved_by_user_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approval_comment: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    attendance: Mapped["Attendance"] = relationship(back_populates="correction_requests")
+    user: Mapped["User"] = relationship(  # noqa: F821
+        foreign_keys=[user_id]
+    )
+    approved_by: Mapped["User | None"] = relationship(  # noqa: F821
+        foreign_keys=[approved_by_user_id]
+    )
+
+
+class AttendanceLock(Base):
+    """勤怠締め処理（ロック）モデル。"""
+
+    __tablename__ = "attendance_locks"
+
+    year_month: Mapped[str] = mapped_column(String, primary_key=True)
+    locked_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    locked_by_user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    locked_by: Mapped["User"] = relationship(  # noqa: F821
+        foreign_keys=[locked_by_user_id]
     )

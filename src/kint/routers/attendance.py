@@ -12,8 +12,15 @@ from kint.exceptions import KintForbiddenError
 from kint.models.attendance import Attendance
 from kint.models.user import User
 from kint.schemas.attendance import (
+    AttendanceCorrectionRequestApprove,
+    AttendanceCorrectionRequestCreate,
+    AttendanceCorrectionRequestListResponse,
+    AttendanceCorrectionRequestReject,
+    AttendanceCorrectionRequestResponse,
     AttendanceHistoryResponse,
     AttendanceListResponse,
+    AttendanceLockRequest,
+    AttendanceLockResponse,
     AttendanceMonthlyDetailResponse,
     AttendanceMonthlySummary,
     AttendancePatchRequest,
@@ -149,3 +156,207 @@ async def export_attendance_csv(
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+
+@router.post("/requests", response_model=AttendanceCorrectionRequestResponse, status_code=201)
+async def create_correction_request(
+    body: AttendanceCorrectionRequestCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceCorrectionRequestResponse:
+    """勤怠修正申請を登録する。一般従業員は自分の記録のみ、管理者は誰の分でも申請可能。"""
+    service = AttendanceService(session)
+    r = await service.create_correction_request(
+        author_id=current_user.id,
+        creator_role=current_user.role,
+        body=body,
+    )
+    return AttendanceCorrectionRequestResponse(
+        id=r.id,
+        attendance_id=r.attendance_id,
+        user_id=r.user_id,
+        requested_check_in=r.requested_check_in,
+        requested_check_out=r.requested_check_out,
+        reason=r.reason,
+        status=r.status,  # type: ignore[arg-type]
+        approved_by_user_id=r.approved_by_user_id,
+        approval_comment=r.approval_comment,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        user_name=r.user.name if r.user else None,
+        user_full_name=r.user.full_name if r.user else None,
+        approved_by_name=r.approved_by.name if r.approved_by else None,
+        work_date=r.attendance.work_date if r.attendance else None,
+        original_check_in=r.attendance.check_in if r.attendance else None,
+        original_check_out=r.attendance.check_out if r.attendance else None,
+    )
+
+
+@router.get("/requests", response_model=AttendanceCorrectionRequestListResponse)
+async def list_correction_requests(
+    status: str | None = Query(default=None, pattern=r"^(pending|approved|rejected)$"),
+    user_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceCorrectionRequestListResponse:
+    """修正申請の一覧を取得する。一般従業員は自分の申請のみ、管理者は全員分参照できる。"""
+    if current_user.role == "employee":
+        user_id = current_user.id
+
+    service = AttendanceService(session)
+    reqs = await service.list_correction_requests(status=status, user_id=user_id)
+
+    items = []
+    for r in reqs:
+        items.append(
+            AttendanceCorrectionRequestResponse(
+                id=r.id,
+                attendance_id=r.attendance_id,
+                user_id=r.user_id,
+                requested_check_in=r.requested_check_in,
+                requested_check_out=r.requested_check_out,
+                reason=r.reason,
+                status=r.status,  # type: ignore[arg-type]
+                approved_by_user_id=r.approved_by_user_id,
+                approval_comment=r.approval_comment,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                user_name=r.user.name if r.user else None,
+                user_full_name=r.user.full_name if r.user else None,
+                approved_by_name=r.approved_by.name if r.approved_by else None,
+                work_date=r.attendance.work_date if r.attendance else None,
+                original_check_in=r.attendance.check_in if r.attendance else None,
+                original_check_out=r.attendance.check_out if r.attendance else None,
+            )
+        )
+    return AttendanceCorrectionRequestListResponse(items=items, total=len(items))
+
+
+@router.post("/requests/{request_id}/approve", response_model=AttendanceCorrectionRequestResponse)
+async def approve_correction_request(
+    request_id: str,
+    body: AttendanceCorrectionRequestApprove,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceCorrectionRequestResponse:
+    """申請を承認する。管理者（admin）のみ利用可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(code="FORBIDDEN", message="この操作は管理者のみ許可されています")
+
+    service = AttendanceService(session)
+    r = await service.approve_correction_request(
+        request_id=request_id,
+        actor=current_user,
+        comment=body.approval_comment,
+    )
+    return AttendanceCorrectionRequestResponse(
+        id=r.id,
+        attendance_id=r.attendance_id,
+        user_id=r.user_id,
+        requested_check_in=r.requested_check_in,
+        requested_check_out=r.requested_check_out,
+        reason=r.reason,
+        status=r.status,  # type: ignore[arg-type]
+        approved_by_user_id=r.approved_by_user_id,
+        approval_comment=r.approval_comment,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        user_name=r.user.name if r.user else None,
+        user_full_name=r.user.full_name if r.user else None,
+        approved_by_name=r.approved_by.name if r.approved_by else None,
+        work_date=r.attendance.work_date if r.attendance else None,
+        original_check_in=r.attendance.check_in if r.attendance else None,
+        original_check_out=r.attendance.check_out if r.attendance else None,
+    )
+
+
+@router.post("/requests/{request_id}/reject", response_model=AttendanceCorrectionRequestResponse)
+async def reject_correction_request(
+    request_id: str,
+    body: AttendanceCorrectionRequestReject,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceCorrectionRequestResponse:
+    """申請を却下する。管理者（admin）のみ利用可能。コメントは必須。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(code="FORBIDDEN", message="この操作は管理者のみ許可されています")
+
+    service = AttendanceService(session)
+    r = await service.reject_correction_request(
+        request_id=request_id,
+        actor=current_user,
+        comment=body.approval_comment,
+    )
+    return AttendanceCorrectionRequestResponse(
+        id=r.id,
+        attendance_id=r.attendance_id,
+        user_id=r.user_id,
+        requested_check_in=r.requested_check_in,
+        requested_check_out=r.requested_check_out,
+        reason=r.reason,
+        status=r.status,  # type: ignore[arg-type]
+        approved_by_user_id=r.approved_by_user_id,
+        approval_comment=r.approval_comment,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        user_name=r.user.name if r.user else None,
+        user_full_name=r.user.full_name if r.user else None,
+        approved_by_name=r.approved_by.name if r.approved_by else None,
+        work_date=r.attendance.work_date if r.attendance else None,
+        original_check_in=r.attendance.check_in if r.attendance else None,
+        original_check_out=r.attendance.check_out if r.attendance else None,
+    )
+
+
+@router.delete("/requests/{request_id}", status_code=204)
+async def cancel_correction_request(
+    request_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """申請をキャンセルする。一般従業員は自分の未承認の申請のみ、管理者は誰の分でもキャンセル可能。"""
+    service = AttendanceService(session)
+    await service.cancel_correction_request(
+        request_id=request_id,
+        user_id=current_user.id,
+        role=current_user.role,
+    )
+
+
+@router.post("/locks", response_model=AttendanceLockResponse, status_code=201)
+async def lock_month(
+    body: AttendanceLockRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceLockResponse:
+    """指定した年月を締め処理（ロック）する。管理者（admin）のみ利用可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(code="FORBIDDEN", message="この操作は管理者のみ許可されています")
+
+    service = AttendanceService(session)
+    lock = await service.lock_month(year_month=body.year_month, actor_id=current_user.id)
+    return AttendanceLockResponse.model_validate(lock)
+
+
+@router.delete("/locks/{year_month}", status_code=204)
+async def unlock_month(
+    year_month: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """指定した年月の締め処理を解除する。管理者（admin）のみ利用可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(code="FORBIDDEN", message="この操作は管理者のみ許可されています")
+
+    service = AttendanceService(session)
+    await service.unlock_month(year_month=year_month)
+
+
+@router.get("/locks", response_model=list[AttendanceLockResponse])
+async def list_locks(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[AttendanceLockResponse]:
+    """締め（ロック）されている年月の一覧を取得する。全員利用可能。"""
+    service = AttendanceService(session)
+    locks = await service.list_locks()
+    return [AttendanceLockResponse.model_validate(lock) for lock in locks]

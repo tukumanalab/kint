@@ -1,6 +1,11 @@
 """モデルパッケージ。全モデルをここからインポートする。"""
 
-from kint.models.attendance import Attendance, AttendanceChangeLog
+from kint.models.attendance import (
+    Attendance,
+    AttendanceChangeLog,
+    AttendanceCorrectionRequest,
+    AttendanceLock,
+)
 from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
 from kint.models.shift import Shift
@@ -13,6 +18,8 @@ __all__ = [
     "Card",
     "Attendance",
     "AttendanceChangeLog",
+    "AttendanceCorrectionRequest",
+    "AttendanceLock",
     "Shift",
     "UserProfileChangeLog",
     "EmailVerificationRequest",
