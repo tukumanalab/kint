@@ -8,6 +8,7 @@ from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
 from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse, UsersListResponse
+from kint.schemas.user_backup import ImportResultSchema, UserBackupSchema
 from kint.services.user import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -69,3 +70,27 @@ async def delete_user(
     service = UserService(session)
     await service.delete_user(user_id)
     return Response(status_code=204)
+
+
+@router.get("/export", response_model=list[UserBackupSchema])
+async def export_users(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[UserBackupSchema]:
+    """登録ユーザーとカード情報を一括エクスポートする。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    return await service.export_users()
+
+
+@router.post("/import", response_model=ImportResultSchema)
+async def import_users(
+    body: list[UserBackupSchema],
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> ImportResultSchema:
+    """登録ユーザーとカード情報を一括インポート（復元）する。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    res = await service.import_users(body)
+    return ImportResultSchema(**res)

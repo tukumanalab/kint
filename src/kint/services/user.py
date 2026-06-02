@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import bcrypt
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from kint.config import settings
 from kint.exceptions import (
@@ -36,6 +37,7 @@ from kint.schemas.user import (
     UserResponse,
     UsersListResponse,
 )
+from kint.schemas.user_backup import CardBackupSchema, ImportErrorItem, UserBackupSchema
 from kint.services.gmail import GmailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
@@ -520,3 +522,158 @@ class UserService:
         )
         for evr in result.scalars().all():
             evr.cancelled_at = now
+
+    async def export_users(self) -> list[UserBackupSchema]:
+        """全ユーザーとそれに紐づくカード情報をエクスポート形式で取得する。"""
+        result = await self.session.execute(
+            select(User).options(selectinload(User.cards)).order_by(User.created_at)
+        )
+        users = result.scalars().all()
+
+        backup_list = []
+        for u in users:
+            cards_backup = [
+                CardBackupSchema(
+                    card_idm=c.card_idm, name=c.name, is_active=bool(c.is_active)
+                )
+                for c in u.cards
+            ]
+            backup_list.append(
+                UserBackupSchema(
+                    id=u.id,
+                    name=u.name,
+                    full_name=u.full_name,
+                    email=u.email,
+                    password_hash=u.password_hash,
+                    google_sub=u.google_sub,
+                    role=u.role,  # type: ignore[arg-type]
+                    google_calendar_id=u.google_calendar_id,
+                    email_verified_at=u.email_verified_at,
+                    is_active=bool(u.is_active),
+                    cards=cards_backup,
+                )
+            )
+        return backup_list
+
+    async def import_users(self, backup_data: list[UserBackupSchema]) -> dict:
+        """ユーザーとカード情報の一括復元（UPSERT）を行う。エラー時は該当ユーザーのみスキップする。"""
+        imported_count = 0
+        updated_count = 0
+        failed_count = 0
+        errors = []
+
+        # ファイル内でのカードIDmの重複チェック用
+        idm_to_user = {}
+        file_duplicate_idms = set()
+        for u_data in backup_data:
+            for c_data in u_data.cards:
+                if c_data.card_idm in idm_to_user:
+                    file_duplicate_idms.add(c_data.card_idm)
+                idm_to_user[c_data.card_idm] = u_data.id
+
+        # 順次UPSERT処理
+        for u_data in backup_data:
+            # 各ユーザーごとにセーブポイントを作成し、エラー時はそのユーザーのみロールバックする
+            async with self.session.begin_nested():
+                try:
+                    # 1. ファイル内重複チェックに引っかかっているか検証
+                    for c_data in u_data.cards:
+                        if c_data.card_idm in file_duplicate_idms:
+                            raise KintConflictError(
+                                code="CARD_IDM_CONFLICT",
+                                message=f"カード IDm '{c_data.card_idm}' がインポートファイル内で複数定義されています",
+                            )
+
+                    # 2. 既存DBのカード重複チェック (他ユーザーが既にそのIDmを使っているか)
+                    for c_data in u_data.cards:
+                        stmt = select(Card).where(Card.card_idm == c_data.card_idm)
+                        res = await self.session.execute(stmt)
+                        existing_card = res.scalar_one_or_none()
+                        if existing_card is not None and existing_card.user_id != u_data.id:
+                            raise KintConflictError(
+                                code="CARD_IDM_CONFLICT",
+                                message=f"カード IDm '{c_data.card_idm}' はすでに別のユーザー（ID: {existing_card.user_id}）に登録されています",
+                            )
+
+                    # 3. 既存DBのメールアドレス重複チェック (他ユーザーが既にそのアドレスを使っているか)
+                    stmt = select(User).where(User.email == u_data.email, User.id != u_data.id)
+                    res = await self.session.execute(stmt)
+                    dup_email_user = res.scalar_one_or_none()
+                    if dup_email_user is not None:
+                        raise KintConflictError(
+                            code="EMAIL_CONFLICT",
+                            message=f"メールアドレス '{u_data.email}' はすでに別のユーザー（ID: {dup_email_user.id}）に使用されています",
+                        )
+
+                    # 4. ユーザー情報のUPSERT
+                    stmt = select(User).where(User.id == u_data.id).options(selectinload(User.cards))
+                    res = await self.session.execute(stmt)
+                    user = res.scalar_one_or_none()
+
+                    is_new = False
+                    if user is None:
+                        is_new = True
+                        user = User(id=u_data.id)
+                        self.session.add(user)
+
+                    user.name = u_data.name
+                    user.full_name = u_data.full_name
+                    user.email = u_data.email
+                    user.role = u_data.role
+                    user.is_active = 1 if u_data.is_active else 0
+                    user.google_sub = u_data.google_sub
+                    user.google_calendar_id = u_data.google_calendar_id
+                    user.email_verified_at = u_data.email_verified_at
+                    if u_data.password_hash:
+                        user.password_hash = u_data.password_hash
+
+                    # 5. カード同期
+                    backup_idms = {c.card_idm for c in u_data.cards}
+
+                    # インポートファイルに含まれない既存カードは物理削除
+                    if not is_new:
+                        for existing_card in list(user.cards):
+                            if existing_card.card_idm not in backup_idms:
+                                await self.session.delete(existing_card)
+
+                    # インポートに含まれるカードをUPSERT
+                    existing_cards_by_idm = (
+                        {c.card_idm: c for c in user.cards} if not is_new else {}
+                    )
+                    for c_data in u_data.cards:
+                        if c_data.card_idm in existing_cards_by_idm:
+                            c_obj = existing_cards_by_idm[c_data.card_idm]
+                            c_obj.name = c_data.name
+                            c_obj.is_active = 1 if c_data.is_active else 0
+                        else:
+                            new_card = Card(
+                                id=str(uuid.uuid4()),
+                                user_id=user.id,
+                                card_idm=c_data.card_idm,
+                                name=c_data.name,
+                                is_active=1 if c_data.is_active else 0,
+                            )
+                            self.session.add(new_card)
+
+                    # セーブポイント内で一時的にDBへフラッシュし制約違反等を検知する
+                    await self.session.flush()
+
+                    if is_new:
+                        imported_count += 1
+                    else:
+                        updated_count += 1
+
+                except Exception as e:
+                    # このユーザーのセーブポイントでの変更のみロールバックされる
+                    failed_count += 1
+                    code = getattr(e, "code", "IMPORT_ERROR")
+                    message = getattr(e, "message", str(e))
+                    errors.append(ImportErrorItem(id=u_data.id, code=code, message=message))
+
+        await self.session.commit()
+        return {
+            "imported_count": imported_count,
+            "updated_count": updated_count,
+            "failed_count": failed_count,
+            "errors": errors,
+        }
