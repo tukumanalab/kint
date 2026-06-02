@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { getUsers, createUser, patchUser, deleteUser } from '../../api/user';
+import { getUsers, createUser, patchUser, deleteUser, exportUsers, importUsers } from '../../api/user';
 import { ApiError } from '../../types/error';
 import type { UserResponse, UserCreateRequest, UserPatchRequest } from '../../types/user';
 import type { UseAuth } from '../../hooks/useAuth';
@@ -268,6 +268,79 @@ function DeleteConfirmModal({ user, onClose, onDeleted, token }: DeleteModalProp
   );
 }
 
+// ===== インポート結果モーダル =====
+
+interface ImportResultModalProps {
+  result: {
+    imported_count: number;
+    updated_count: number;
+    failed_count: number;
+    errors: Array<{ id: string; code: string; message: string }>;
+  };
+  onClose: () => void;
+}
+
+function ImportResultModal({ result, onClose }: ImportResultModalProps) {
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="インポート結果">
+      <div className="modal-box modal-box--wide">
+        <h2 className="modal-title">インポート処理結果</h2>
+        <div className="import-result-summary">
+          <p>
+            新規追加: <strong>{result.imported_count}</strong> 件
+          </p>
+          <p>
+            更新: <strong>{result.updated_count}</strong> 件
+          </p>
+          <p>
+            スキップ（エラー）:{' '}
+            <strong className={result.failed_count > 0 ? 'text-danger' : ''}>
+              {result.failed_count}
+            </strong>{' '}
+            件
+          </p>
+        </div>
+
+        {result.errors && result.errors.length > 0 && (
+          <div className="import-errors-section">
+            <h3 className="import-errors-title">エラーが発生したユーザー一覧</h3>
+            <div className="import-errors-list-wrapper">
+              <table className="import-errors-table">
+                <thead>
+                  <tr>
+                    <th>ユーザーID</th>
+                    <th>エラー種別</th>
+                    <th>詳細メッセージ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.errors.map((err, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <code>{err.id}</code>
+                      </td>
+                      <td>
+                        <span className="error-code-badge">{err.code}</span>
+                      </td>
+                      <td className="error-message-text">{err.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="btn btn--primary" onClick={onClose}>
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== メインページ =====
 
 export function UserManagementPage({ auth }: Props) {
@@ -278,6 +351,79 @@ export function UserManagementPage({ auth }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
 
   const token = auth.token!;
+
+  const [importResult, setImportResult] = useState<{
+    imported_count: number;
+    updated_count: number;
+    failed_count: number;
+    errors: Array<{ id: string; code: string; message: string }>;
+  } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleExport() {
+    setActionError(null);
+    setIsExporting(true);
+    try {
+      const data = await exportUsers(token);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      a.href = url;
+      a.download = `users_backup_${dateStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError('エクスポートに失敗しました。');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setActionError(null);
+    setIsImporting(true);
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const json = JSON.parse(text);
+        if (!Array.isArray(json)) {
+          throw new Error('インポート用データはJSON配列である必要があります。');
+        }
+        const res = await importUsers(token, json);
+        setImportResult(res);
+
+        // ユーザー一覧をリロード
+        setIsLoading(true);
+        const resUsers = await getUsers(token);
+        setUsers(resUsers.users);
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+            ? err.message
+            : 'インポートに失敗しました。ファイル形式を確認してください。'
+        );
+      } finally {
+        setIsImporting(false);
+        setIsLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setActionError('ファイルの読み込みに失敗しました。');
+      setIsImporting(false);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -320,14 +466,46 @@ export function UserManagementPage({ auth }: Props) {
     <main className="user-mgmt-page">
       <div className="user-mgmt-header">
         <h1 className="user-mgmt-title">ユーザー管理</h1>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={() => setModal({ kind: 'create' })}
-        >
-          + ユーザー登録
-        </button>
+        <div className="user-mgmt-actions">
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept=".json"
+            onChange={handleFileChange}
+          />
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={handleExport}
+            disabled={isExporting || isImporting}
+          >
+            {isExporting ? '保存中...' : '一括保存 (JSON)'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isExporting || isImporting}
+          >
+            {isImporting ? '復元中...' : '一括復元'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => setModal({ kind: 'create' })}
+            disabled={isExporting || isImporting}
+          >
+            + ユーザー登録
+          </button>
+        </div>
       </div>
+
+      {actionError && (
+        <div className="user-mgmt-error" style={{ marginBottom: '1rem' }} role="alert">
+          {actionError}
+        </div>
+      )}
 
       {isLoading && <p className="user-mgmt-loading">読み込み中...</p>}
       {loadError && (
@@ -409,6 +587,12 @@ export function UserManagementPage({ auth }: Props) {
           onClose={() => setDeleteTarget(null)}
           onDeleted={handleDeleted}
           token={token}
+        />
+      )}
+      {importResult && (
+        <ImportResultModal
+          result={importResult}
+          onClose={() => setImportResult(null)}
         />
       )}
     </main>

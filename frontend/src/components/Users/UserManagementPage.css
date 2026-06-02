@@ -257,3 +257,92 @@
 .required {
   color: #ef4444;
 }
+
+.user-mgmt-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.modal-box--wide {
+  max-width: 640px;
+}
+
+.import-result-summary {
+  margin-bottom: 1.5rem;
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 6px;
+  display: flex;
+  gap: 2rem;
+}
+
+.import-result-summary p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.import-result-summary strong {
+  font-size: 1.1rem;
+}
+
+.text-danger {
+  color: #dc2626;
+}
+
+.import-errors-section {
+  margin-top: 1.5rem;
+}
+
+.import-errors-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.75rem;
+}
+
+.import-errors-list-wrapper {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.import-errors-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.import-errors-table th,
+.import-errors-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.import-errors-table th {
+  background: #f9fafb;
+  position: sticky;
+  top: 0;
+  font-weight: 600;
+  color: #374151;
+}
+
+.import-errors-table tr:last-child td {
+  border-bottom: none;
+}
+
+.error-code-badge {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.error-message-text {
+  color: #4b5563;
+}

@@ -60,3 +60,22 @@ export async function patchUser(
 export async function deleteUser(token: string, userId: string): Promise<void> {
   return request<void>(`/users/${userId}`, { method: 'DELETE' }, token);
 }
+
+export async function exportUsers(token: string): Promise<any[]> {
+  return request<any[]>('/users/export', { method: 'GET' }, token);
+}
+
+export async function importUsers(
+  token: string,
+  payload: any[],
+): Promise<{
+  imported_count: number;
+  updated_count: number;
+  failed_count: number;
+  errors: Array<{ id: string; code: string; message: string }>;
+}> {
+  return request('/users/import', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, token);
+}
