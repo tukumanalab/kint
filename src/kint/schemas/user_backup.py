@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Literal, Optional, List
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class CardBackupSchema(BaseModel):
@@ -19,7 +19,7 @@ class UserBackupSchema(BaseModel):
     id: str
     name: str
     full_name: str
-    email: EmailStr
+    email: str
     password_hash: Optional[str] = None
     google_sub: Optional[str] = None
     role: Literal["admin", "employee"]
