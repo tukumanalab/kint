@@ -228,6 +228,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /users/export:
+    get:
+      tags: [User]
+      summary: ユーザーとカード情報を一括エクスポート（管理者）
+      description: >-
+        登録されている全ユーザー情報と、それぞれに紐づくNFCカード情報をJSON形式で一括エクスポートします。
+        このエンドポイントは管理者（adminロール）専用です。
+      responses:
+        '200':
+          description: エクスポート成功。全ユーザーとカードのバックアップデータを返します。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserBackup'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/import:
+    post:
+      tags: [User]
+      summary: ユーザーとカード情報を一括インポート（管理者）
+      description: >-
+        JSONファイルからユーザーとカード情報を一括復元（インポート）します。
+        エラーとなったユーザーのみ処理をスキップし、他の正常なユーザーのインポート処理は継続されます。
+        不要になった既存カードは物理削除されます。
+        このエンドポイントは管理者（adminロール）専用です。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserBackup'
+      responses:
+        '200':
+          description: インポート処理完了（部分エラーを含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（admin以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /users/{user_id}:
     patch:
       tags: [User]
@@ -854,6 +920,80 @@ components:
         email_verification_status:
           type: string
           enum: [pending, verified]
+
+    UserBackup:
+      type: object
+      required: [id, name, full_name, email, role, is_active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+          description: メールアドレス。特殊ドメイン（.local 等）をインポート可能とするためプレーンな文字列型とします。
+        password_hash:
+          type: string
+          nullable: true
+        google_sub:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [admin, employee]
+        google_calendar_id:
+          type: string
+          nullable: true
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_active:
+          type: boolean
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/CardBackup'
+
+    CardBackup:
+      type: object
+      required: [card_idm]
+      properties:
+        card_idm:
+          type: string
+        name:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+
+    ImportResult:
+      type: object
+      required: [imported_count, updated_count, failed_count, errors]
+      properties:
+        imported_count:
+          type: integer
+        updated_count:
+          type: integer
+        failed_count:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportErrorItem'
+
+    ImportErrorItem:
+      type: object
+      required: [id, code, message]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
 
     UserCreateRequest:
       type: object
