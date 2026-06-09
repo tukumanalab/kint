@@ -1,11 +1,4 @@
-"""カード忘れ打刻向け公開ユーザー検索 API のテスト。"""
-
-import bcrypt
 from httpx import AsyncClient
-
-
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 async def _create_user(session, **kwargs) -> object:
@@ -17,7 +10,6 @@ async def _create_user(session, **kwargs) -> object:
         "name": "taro",
         "full_name": "山田 太郎",
         "email": "taro@example.com",
-        "password_hash": _hash_password("Password1"),
         "role": "employee",
         "is_active": 1,
         "token_version": 1,

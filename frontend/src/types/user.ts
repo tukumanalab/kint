@@ -68,10 +68,7 @@ export interface EmailChangeRequestAcceptedResponse {
   expires_at?: string;
 }
 
-export interface PasswordChangeRequest {
-  current_password: string;
-  new_password: string;
-}
+
 
 export interface EmailVerificationConfirmRequest {
   token: string;

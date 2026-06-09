@@ -18,7 +18,7 @@ class UserProfileChangeLog(Base):
             name="ck_user_profile_change_logs_actor_role",
         ),
         CheckConstraint(
-            "event_type IN ('profile', 'password', 'email_change_requested', 'email_change_confirmed')",  # noqa: E501
+            "event_type IN ('profile', 'email_change_requested', 'email_change_confirmed')",  # noqa: E501
             name="ck_user_profile_change_logs_event_type",
         ),
     )

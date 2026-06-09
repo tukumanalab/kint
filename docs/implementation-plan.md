@@ -212,14 +212,12 @@
 
 ### DB-06: プロフィール変更監査ログテーブル実装
 - 目的:
-  - ユーザーのプロフィール変更（email / name / full_name / password）を監査証跡として記録する。
-  - パスワードは値を記録せず、変更イベントのみ保存する。
+  - ユーザーのプロフィール変更（email / name / full_name）を監査証跡として記録する。
 - 実装範囲:
   - user_profile_change_logs テーブルを実装。
-    - event_type = 'profile' / 'password' / 'email_change_requested' / 'email_change_confirmed' で区別。
+    - event_type = 'profile' / 'email_change_requested' / 'email_change_confirmed' で区別。
     - profile イベント時は before/after で name / full_name を記録。
     - email_change_requested / email_change_confirmed イベント時は before/after で email を記録。
-    - password イベント時は before/after = NULL（値は保存しない）。
   - SQLAlchemy モデルと Alembic マイグレーションを作成。
   - 不変ログ運用（INSERT のみ、UPDATE/DELETE は行わない）。
   - インデックス: user_id / actor_user_id / changed_at / event_type。
@@ -335,27 +333,19 @@
        - バリデーション（文字数上限）。
        - 更新ボタン。
        - 成功時：プロフィール再表示 + メッセージ表示。
-   3. メールアドレス変更フォーム
+    3. メールアドレス変更フォーム
        - new_email の入力。
        - 送信ボタン。
        - 成功時：「確認メールを送信しました」表示。
        - 承認完了後の画面遷移は専用確認完了ページで扱う。
-     4. パスワード変更フォーム
-       - 現在のパスワード、新パスワード、新パスワード（確認）の入力。
-       - バリデーション（最小文字数 8、英数混在）。
-       - 現在のパスワードと新パスワード入力値のリアルタイム一致確認。
-       - 変更ボタン。
-       - 成功時：「パスワード変更完了。セッションが無効になりました。再度ログインしてください」→ ログイン画面へ。
-       - 失敗時（current_password 不一致）：「現在のパスワードが正しくありません」エラー表示。
-  - API クライアント（frontend/src/api/user.ts 等）に loadMyProfile / updateProfile / requestEmailChange / confirmEmailVerification / changePassword を追加。
+  - API クライアント（frontend/src/api/user.ts 等）に loadMyProfile / updateProfile / requestEmailChange / confirmEmailVerification を追加。
   - ナビゲーション（ヘッダーなど）にマイページへのリンク追加。
 - 受け入れ条件:
   - ユーザーが GET /api/v1/me でプロフィール取得可能。
   - ユーザーが PATCH /api/v1/me/profile で name / full_name 更新可能で、成功時にプロフィール再表示。
   - ユーザーが POST /api/v1/me/email-change-requests で確認メール送信を依頼できる。
   - ユーザーが確認リンクを開くと email 変更完了画面に遷移する。
-  - ユーザーが PATCH /api/v1/me/password でパスワード変更可能で、成功時に自動ログアウト＆ログイン画面へ。
-  - email 変更完了時 / パスワード変更時にセッション無効化が自動検知され、再ログイン画面へ遷移。
+  - email 変更完了時にセッション無効化が自動検知され、再ログイン画面へ遷移。
   - 入力値バリデーションが Frontend で実施され、サーバーエラー時は適切にエラーメッセージ表示。
 
 ### FE-08: メール確認完了ページ実装
@@ -453,13 +443,10 @@ gantt
 - カード忘れ打刻: user_id + reason で打刻でき、source=web_user_id で保存される。
 - 修正監査: 勤怠修正時に履歴が欠落なく追記される。
 - 表示整合: 管理画面で full_name、打刻元、変更履歴が正しく表示される。
-- マイページ: ユーザーが自分のプロフィール（name / full_name）とパスワードを自分で変更できる。
-- マイページ: ユーザーが自分のプロフィール（name / full_name）とパスワードを自分で変更できる。
-- メール確認: ユーザーがメールアドレス変更要求を送信すると Gmail API 経由で確認メールが送信される。
+- マイページ: ユーザーが自分のプロフィール（name / full_name）を自分で変更できる。
 - メール確認: ユーザーがメールアドレス変更要求を送信すると Gmail API（OAuth クライアント）経由で確認メールが送信される。
 - プロフィール監査: email / name / full_name 変更が user_profile_change_logs に記録される。
-- パスワード監査: パスワード変更がイベントのみ（値なし）で user_profile_change_logs に記録される。
-- セッション管理: email 変更確定時またはパスワード変更時に認証セッションが無効化され、再ログインが要求される。
+- セッション管理: email 変更確定時に認証セッションが無効化され、再ログインが要求される。
 - 契約整合: API 実装と Frontend が docs/api-contract.openapi.yaml と一致する。
 - システム設定: 管理者が UI から打刻クールダウン・シフト早着時間・iCal URL を変更でき、再起動なしで即時反映される。
 
@@ -523,9 +510,8 @@ gantt
 - 完了条件:
   - user_profile_change_logs テーブルが作成される。
   - email_verification_requests テーブルが作成される。
-  - GET /me / PATCH /me/profile / POST /me/email-change-requests / POST /email-verifications/confirm / PATCH /me/password が実装される。
+  - GET /me / PATCH /me/profile / POST /me/email-change-requests / POST /email-verifications/confirm が実装される。
   - email 変更確定時にセッション無効化が発生する。
-  - パスワード変更時にセッション無効化が発生する。
 
 ### P2-1: マイページ UI 実装
 - 担当: @frontend
@@ -533,8 +519,7 @@ gantt
 - 完了条件:
   - ユーザーがマイページ画面でプロフィール（name / full_name）を編集できる。
   - ユーザーがマイページ画面でメールアドレス変更要求を送信できる。
-  - ユーザーがマイページ画面でパスワードを変更できる。
-  - email 変更完了後 / パスワード変更後に自動ログアウト＆ログイン画面へ遷移。
+  - email 変更完了後に自動ログアウト＆ログイン画面へ遷移。
 
 ### P2-2: メール確認画面実装
 - 担当: @frontend

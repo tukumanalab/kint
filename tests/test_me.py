@@ -1,15 +1,8 @@
-"""マイページ API (BE-09) および Gmail 確認メール (BE-10) のテスト。"""
-
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import bcrypt
 import pytest
 from httpx import AsyncClient
-
-
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 async def _create_user(session, **kwargs) -> object:
@@ -21,7 +14,6 @@ async def _create_user(session, **kwargs) -> object:
         "name": "テストユーザー",
         "full_name": "Test User",
         "email": "test@example.com",
-        "password_hash": _hash_password("Password1"),
         "role": "employee",
         "is_active": 1,
         "token_version": 1,
@@ -37,13 +29,9 @@ async def _create_user(session, **kwargs) -> object:
 async def _login(
     client: AsyncClient, account_id: str = "testuser", password: str = "Password1"
 ) -> str:
-    """ログインして Bearer トークンを返す。"""
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"account_id": account_id, "password": password},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    """JWTトークンを直接生成して返す。"""
+    from kint.routers.auth import _create_access_token
+    return _create_access_token(account_id, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -353,98 +341,4 @@ class TestEmailVerificationConfirm:
         assert resp.json()["code"] == "TOKEN_ALREADY_USED"
 
 
-# ---------------------------------------------------------------------------
-# PATCH /api/v1/me/password
-# ---------------------------------------------------------------------------
 
-
-class TestChangePassword:
-    async def test_change_password_success(self, client: AsyncClient, session: object) -> None:
-        """正しい current_password で新しいパスワードに変更できる。204 を返す。"""
-        await _create_user(session)
-        token = await _login(client)
-
-        resp = await client.patch(
-            "/api/v1/me/password",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"current_password": "Password1", "new_password": "NewPass2"},
-        )
-        assert resp.status_code == 204
-
-    async def test_change_password_invalidates_session(
-        self, client: AsyncClient, session: object
-    ) -> None:
-        """パスワード変更後に古いトークンが無効になる。"""
-        await _create_user(session)
-        old_token = await _login(client)
-
-        # パスワード変更
-        await client.patch(
-            "/api/v1/me/password",
-            headers={"Authorization": f"Bearer {old_token}"},
-            json={"current_password": "Password1", "new_password": "NewPass2"},
-        )
-
-        # 古いトークンで /me にアクセス → 401 になるはず
-        resp = await client.get("/api/v1/me", headers={"Authorization": f"Bearer {old_token}"})
-        assert resp.status_code == 401
-        assert resp.json()["code"] == "TOKEN_INVALIDATED"
-
-    async def test_change_password_wrong_current_returns_401(
-        self, client: AsyncClient, session: object
-    ) -> None:
-        """current_password が不一致の場合は 401 を返す。"""
-        await _create_user(session)
-        token = await _login(client)
-
-        resp = await client.patch(
-            "/api/v1/me/password",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"current_password": "WrongPass9", "new_password": "NewPass2"},
-        )
-        assert resp.status_code == 401
-        assert resp.json()["code"] == "INVALID_PASSWORD"
-
-    async def test_change_password_same_password_returns_422(
-        self, client: AsyncClient, session: object
-    ) -> None:
-        """new_password が current_password と同一の場合は 422 を返す。"""
-        await _create_user(session)
-        token = await _login(client)
-
-        resp = await client.patch(
-            "/api/v1/me/password",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"current_password": "Password1", "new_password": "Password1"},
-        )
-        assert resp.status_code == 422
-
-    @pytest.mark.parametrize(
-        "new_password",
-        [
-            "short1",  # 7文字未満
-            "nonnumber",  # 数字なし
-            "12345678",  # 英字なし
-        ],
-    )
-    async def test_change_password_weak_password_returns_422(
-        self, client: AsyncClient, session: object, new_password: str
-    ) -> None:
-        """強度不足のパスワードは 422 を返す。"""
-        await _create_user(session)
-        token = await _login(client)
-
-        resp = await client.patch(
-            "/api/v1/me/password",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"current_password": "Password1", "new_password": new_password},
-        )
-        assert resp.status_code == 422
-
-    async def test_change_password_unauthenticated(self, client: AsyncClient) -> None:
-        """未認証時は 401。"""
-        resp = await client.patch(
-            "/api/v1/me/password",
-            json={"current_password": "Password1", "new_password": "NewPass2"},
-        )
-        assert resp.status_code == 401

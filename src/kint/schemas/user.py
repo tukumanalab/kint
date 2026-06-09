@@ -43,7 +43,6 @@ class MeCardPatchRequest(BaseModel):
     name: str | None = None
 
 
-_PASSWORD_RE = re.compile(r"(?=.*[a-zA-Z])(?=.*\d)")
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 
 
@@ -226,25 +225,4 @@ class EmailVerificationConfirmResponse(BaseModel):
     status: Literal["confirmed"]
 
 
-class PasswordChangeRequest(BaseModel):
-    """パスワード変更リクエスト。"""
 
-    current_password: str
-    new_password: str
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        """8〜72 文字かつ英字・数字を各 1 文字以上含むことを検証する。"""
-        if not 8 <= len(v) <= 72:
-            raise ValueError("new_password は 8〜72 文字で入力してください")
-        if not _PASSWORD_RE.search(v):
-            raise ValueError("new_password は英字と数字をそれぞれ 1 文字以上含める必要があります")
-        return v
-
-    @model_validator(mode="after")
-    def passwords_differ(self) -> "PasswordChangeRequest":
-        """新旧パスワードが同一の場合はエラー。"""
-        if self.current_password == self.new_password:
-            raise ValueError("new_password は current_password と異なる必要があります")
-        return self

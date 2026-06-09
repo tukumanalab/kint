@@ -15,7 +15,6 @@ from kint.schemas.user import (
     MeCardRegistrationRequest,
     MeCardRegistrationResponse,
     MeProfileUpdateRequest,
-    PasswordChangeRequest,
 )
 from kint.services.gmail import GmailAdapter
 from kint.services.user import UserService
@@ -53,16 +52,7 @@ async def request_email_change(
     return await service.request_email_change(current_user, body, gmail)
 
 
-@router.patch("/password", status_code=204)
-async def change_password(
-    body: PasswordChangeRequest,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-) -> Response:
-    """パスワードを変更する。成功時は 204 を返しセッションを無効化する。"""
-    service = UserService(session)
-    await service.change_password(current_user, body.current_password, body.new_password)
-    return Response(status_code=204)
+
 
 
 @router.get("/cards", response_model=list[MeCardListItem])

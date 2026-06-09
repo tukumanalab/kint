@@ -1,8 +1,5 @@
-"""打刻判定規則の API テスト。"""
-
 from datetime import UTC, date, datetime, timedelta
 
-import bcrypt
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,11 +10,6 @@ from kint.models.shift import Shift
 from kint.models.user import User
 
 
-def _hash_password(plain: str) -> str:
-    """テスト用パスワードをハッシュ化する。"""
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-
 async def _create_user(session: AsyncSession, user_id: str = "user-001") -> User:
     """テスト用ユーザーを作成する。"""
     user = User(
@@ -25,7 +17,6 @@ async def _create_user(session: AsyncSession, user_id: str = "user-001") -> User
         name="taro",
         full_name="山田 太郎",
         email=f"{user_id}@example.com",
-        password_hash=_hash_password("Password1"),
         role="employee",
         is_active=1,
         token_version=1,

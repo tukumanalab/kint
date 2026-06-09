@@ -3,7 +3,6 @@
 from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, patch
 
-import bcrypt
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,10 +38,6 @@ def _make_ical(
     return _ICAL_TEMPLATE.format(uid=uid, dtstart=dtstart, dtend=dtend, email=email).encode()
 
 
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-
 async def _create_admin(session: AsyncSession, user_id: str = "admin-001") -> User:
     """テスト用管理者ユーザーを作成する。"""
     user = User(
@@ -50,7 +45,6 @@ async def _create_admin(session: AsyncSession, user_id: str = "admin-001") -> Us
         name="admin",
         full_name="管理 太郎",
         email="admin@example.com",
-        password_hash=_hash_password("AdminPass1"),
         role="admin",
         is_active=1,
         token_version=1,
@@ -72,7 +66,6 @@ async def _create_employee(
         name="employee",
         full_name="従業 花子",
         email=email,
-        password_hash=_hash_password("EmpPass1"),
         role="employee",
         is_active=1,
         token_version=1,
@@ -85,22 +78,14 @@ async def _create_employee(
 
 async def _get_admin_token(client: AsyncClient) -> str:
     """ログインして管理者 JWT トークンを取得する。"""
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"account_id": "admin-001", "password": "AdminPass1"},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    from kint.routers.auth import _create_access_token
+    return _create_access_token("admin-001", 1)
 
 
 async def _get_employee_token(client: AsyncClient) -> str:
     """ログインして従業員 JWT トークンを取得する。"""
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"account_id": "emp-001", "password": "EmpPass1"},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    from kint.routers.auth import _create_access_token
+    return _create_access_token("emp-001", 1)
 
 
 # ---------------------------------------------------------------------------

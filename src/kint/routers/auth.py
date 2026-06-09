@@ -1,9 +1,6 @@
-"""認証ルーター。POST /api/v1/auth/login および GET /api/v1/auth/me を提供する。"""
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import bcrypt
 from fastapi import APIRouter, Depends
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -18,7 +15,6 @@ from kint.exceptions import KintConflictError, KintUnauthorizedError
 from kint.models.user import User
 from kint.schemas.auth import (
     GoogleLoginRequest,
-    LoginRequest,
     LoginResponse,
     RegisterRequest,
     UserProfile,
@@ -35,31 +31,6 @@ def _create_access_token(user_id: str, token_version: int) -> str:
     expire = datetime.now(tz=UTC) + timedelta(hours=_TOKEN_EXPIRE_HOURS)
     payload = {"sub": user_id, "tv": token_version, "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
-
-
-@router.post("/login", response_model=LoginResponse)
-async def login(
-    body: LoginRequest,
-    session: AsyncSession = Depends(get_db),
-) -> LoginResponse:
-    """アカウントIDとパスワードで認証し、JWT トークンを返す。"""
-    result = await session.execute(
-        select(User).where(User.id == body.account_id, User.is_active == 1)
-    )
-    user = result.scalar_one_or_none()
-
-    if user is None or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
-        raise KintUnauthorizedError(
-            code="INVALID_CREDENTIALS",
-            message="アカウントIDまたはパスワードが正しくありません",
-        )
-
-    token = _create_access_token(user.id, user.token_version or 1)
-    return LoginResponse(
-        access_token=token,
-        token_type="bearer",
-        user=UserProfile.model_validate(user),
-    )
 
 
 @router.get("/me", response_model=UserProfile)

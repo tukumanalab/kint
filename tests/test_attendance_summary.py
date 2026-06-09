@@ -4,16 +4,11 @@ import csv
 import io
 from datetime import date, datetime
 
-import bcrypt
 from httpx import AsyncClient
 
 from kint.models.attendance import Attendance
 from kint.models.shift import Shift
 from kint.models.user import User
-
-
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 async def _create_user(session, **kwargs) -> User:
@@ -23,7 +18,6 @@ async def _create_user(session, **kwargs) -> User:
         "name": "テストユーザー",
         "full_name": "Test User",
         "email": "test@example.com",
-        "password_hash": _hash_password("Password123"),
         "role": "employee",
         "is_active": 1,
         "token_version": 1,
@@ -39,13 +33,9 @@ async def _create_user(session, **kwargs) -> User:
 async def _login(
     client: AsyncClient, account_id: str = "testuser", password: str = "Password123"
 ) -> str:
-    """ログインして Bearer トークンを返す。"""
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"account_id": account_id, "password": password},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    """JWTトークンを直接生成して返す。"""
+    from kint.routers.auth import _create_access_token
+    return _create_access_token(account_id, 1)
 
 
 async def _setup_test_data(session):

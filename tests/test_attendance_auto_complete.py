@@ -11,18 +11,12 @@ from kint.models.user import User
 from kint.services.attendance import AttendanceService
 
 
-def _hash_password(plain: str) -> str:
-    import bcrypt
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-
 async def _create_user(session: AsyncSession, user_id: str = "user-test-01") -> User:
     user = User(
         id=user_id,
         name="testuser",
         full_name="テストユーザー",
         email=f"{user_id}@example.com",
-        password_hash=_hash_password("Password1"),
         role="employee",
         is_active=1,
         token_version=1,

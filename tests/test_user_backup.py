@@ -1,7 +1,4 @@
-"""登録ユーザーの一括保存・復元 API のテスト。"""
-
 import uuid
-import bcrypt
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -11,10 +8,6 @@ from kint.models.card import Card
 from kint.models.user import User
 
 
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-
 async def _create_user(session, **kwargs) -> User:
     """テスト用ユーザーを DB に作成する。"""
     defaults = {
@@ -22,7 +15,6 @@ async def _create_user(session, **kwargs) -> User:
         "name": "管理者",
         "full_name": "Test Admin",
         "email": "admin@example.com",
-        "password_hash": _hash_password("Password1"),
         "role": "admin",
         "is_active": 1,
         "token_version": 1,
@@ -38,13 +30,9 @@ async def _create_user(session, **kwargs) -> User:
 async def _login(
     client: AsyncClient, account_id: str = "testadmin", password: str = "Password1"
 ) -> str:
-    """ログインして Bearer トークンを返す。"""
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"account_id": account_id, "password": password},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    """JWTトークンを直接生成して返す。"""
+    from kint.routers.auth import _create_access_token
+    return _create_access_token(account_id, 1)
 
 
 class TestUserBackup:
@@ -98,7 +86,6 @@ class TestUserBackup:
                 "email": "admin@example.com",
                 "role": "admin",
                 "is_active": True,
-                "password_hash": admin.password_hash,
                 "cards": [],
             },
             {

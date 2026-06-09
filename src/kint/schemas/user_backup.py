@@ -20,7 +20,6 @@ class UserBackupSchema(BaseModel):
     name: str
     full_name: str
     email: str
-    password_hash: Optional[str] = None
     google_sub: Optional[str] = None
     role: Literal["admin", "employee"]
     google_calendar_id: Optional[str] = None

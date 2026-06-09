@@ -9,7 +9,6 @@ import type {
   MeProfileUpdateRequest,
   EmailChangeRequestCreate,
   EmailChangeRequestAcceptedResponse,
-  PasswordChangeRequest,
   EmailVerificationConfirmRequest,
   EmailVerificationConfirmResponse,
 } from '../types/user';
@@ -61,16 +60,7 @@ export async function requestEmailChange(
   );
 }
 
-export async function changePassword(
-  token: string,
-  payload: PasswordChangeRequest,
-): Promise<void> {
-  return request<void>(
-    '/me/password',
-    { method: 'PATCH', body: JSON.stringify(payload) },
-    token,
-  );
-}
+
 
 export async function confirmEmailVerification(
   payload: EmailVerificationConfirmRequest,

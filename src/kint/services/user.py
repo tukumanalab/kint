@@ -1,11 +1,8 @@
-"""ユーザー管理サービス。"""
-
 import hashlib
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import bcrypt
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -41,11 +38,6 @@ from kint.schemas.user_backup import CardBackupSchema, ImportErrorItem, UserBack
 from kint.services.gmail import GmailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
-
-
-def _hash_password(plain: str) -> str:
-    """bcrypt でパスワードをハッシュ化する。"""
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 async def _count_active_admins(session: AsyncSession, exclude_user_id: str | None = None) -> int:
@@ -478,34 +470,7 @@ class UserService:
             status="confirmed",
         )
 
-    async def change_password(
-        self,
-        current_user: User,
-        current_password: str,
-        new_password: str,
-    ) -> None:
-        """パスワードを変更する。current_password 不一致は KintUnauthorizedError。
-        変更成功時は token_version をインクリメントしてセッションを無効化する。
-        """
-        if not bcrypt.checkpw(current_password.encode(), current_user.password_hash.encode()):
-            raise KintUnauthorizedError(
-                code="INVALID_PASSWORD",
-                message="現在のパスワードが正しくありません",
-            )
 
-        current_user.password_hash = _hash_password(new_password)
-        current_user.token_version = (current_user.token_version or 1) + 1
-
-        log = UserProfileChangeLog(
-            id=str(uuid.uuid4()),
-            user_id=current_user.id,
-            actor_user_id=current_user.id,
-            actor_role=current_user.role,
-            event_type="password",
-            reason="本人によるパスワード変更",
-        )
-        self.session.add(log)
-        await self.session.commit()
 
     async def _cancel_pending_email_verification(
         self, user_id: str, verification_type: str
@@ -544,7 +509,6 @@ class UserService:
                     name=u.name,
                     full_name=u.full_name,
                     email=u.email,
-                    password_hash=u.password_hash,
                     google_sub=u.google_sub,
                     role=u.role,  # type: ignore[arg-type]
                     google_calendar_id=u.google_calendar_id,
@@ -624,8 +588,6 @@ class UserService:
                     user.google_sub = u_data.google_sub
                     user.google_calendar_id = u_data.google_calendar_id
                     user.email_verified_at = u_data.email_verified_at
-                    if u_data.password_hash:
-                        user.password_hash = u_data.password_hash
 
                     # 5. カード同期
                     backup_idms = {c.card_idm for c in u_data.cards}

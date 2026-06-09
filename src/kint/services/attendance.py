@@ -1432,7 +1432,6 @@ class AttendanceService:
                 name="system",
                 full_name="System Automatic Processor",
                 email="system@kint.local",
-                password_hash=None,
                 role="admin",
                 is_active=1,
             )

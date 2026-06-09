@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import bcrypt
 from fastapi import FastAPI, Form, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -46,13 +45,7 @@ app = FastAPI(
 )
 
 _DEFAULT_ADMIN_ID = "manager"
-_DEFAULT_ADMIN_PASSWORD = "manager123"
 _DEFAULT_ADMIN_EMAIL = "manager+bootstrap@kint.local"
-
-
-def _hash_password(plain: str) -> str:
-    """bcrypt でパスワードをハッシュ化する。"""
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 @app.on_event("startup")
@@ -81,7 +74,6 @@ async def ensure_default_admin_user() -> None:
                 name="manager",
                 full_name="Manager",
                 email=_DEFAULT_ADMIN_EMAIL,
-                password_hash=_hash_password(_DEFAULT_ADMIN_PASSWORD),
                 role="admin",
                 is_active=1,
             )

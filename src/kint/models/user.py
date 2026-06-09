@@ -18,7 +18,6 @@ class User(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
-    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     google_sub: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
     role: Mapped[str] = mapped_column(String, nullable=False)
     google_calendar_id: Mapped[str | None] = mapped_column(String, nullable=True)
