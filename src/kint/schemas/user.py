@@ -223,6 +223,3 @@ class EmailVerificationConfirmResponse(BaseModel):
     verification_type: Literal["signup", "email_change"]
     email: str
     status: Literal["confirmed"]
-
-
-

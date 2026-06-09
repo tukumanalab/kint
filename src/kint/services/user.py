@@ -13,7 +13,6 @@ from kint.exceptions import (
     KintBadRequestError,
     KintConflictError,
     KintNotFoundError,
-    KintUnauthorizedError,
 )
 from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
@@ -111,7 +110,6 @@ class UserService:
             name=data.name,
             full_name=data.full_name,
             email=data.email,
-            password_hash=None,
             role=data.role,
             is_active=1,
         )
@@ -470,8 +468,6 @@ class UserService:
             status="confirmed",
         )
 
-
-
     async def _cancel_pending_email_verification(
         self, user_id: str, verification_type: str
     ) -> None:
@@ -498,9 +494,7 @@ class UserService:
         backup_list = []
         for u in users:
             cards_backup = [
-                CardBackupSchema(
-                    card_idm=c.card_idm, name=c.name, is_active=bool(c.is_active)
-                )
+                CardBackupSchema(card_idm=c.card_idm, name=c.name, is_active=bool(c.is_active))
                 for c in u.cards
             ]
             backup_list.append(
@@ -570,7 +564,9 @@ class UserService:
                         )
 
                     # 4. ユーザー情報のUPSERT
-                    stmt = select(User).where(User.id == u_data.id).options(selectinload(User.cards))
+                    stmt = (
+                        select(User).where(User.id == u_data.id).options(selectinload(User.cards))
+                    )
                     res = await self.session.execute(stmt)
                     user = res.scalar_one_or_none()
 

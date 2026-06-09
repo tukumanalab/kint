@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -31,6 +30,7 @@ async def _login(
 ) -> str:
     """JWTトークンを直接生成して返す。"""
     from kint.routers.auth import _create_access_token
+
     return _create_access_token(account_id, 1)
 
 
@@ -339,6 +339,3 @@ class TestEmailVerificationConfirm:
         resp = await client.post("/api/v1/email-verifications/confirm", json={"token": raw_token})
         assert resp.status_code == 400
         assert resp.json()["code"] == "TOKEN_ALREADY_USED"
-
-
-

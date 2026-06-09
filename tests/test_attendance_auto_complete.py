@@ -1,7 +1,8 @@
 """自動退勤補完の単体テスト。"""
 
-import pytest
 from datetime import UTC, date, datetime, timedelta
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,14 +66,18 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
     yesterday = date.today() - timedelta(days=1)
     shift_start = datetime.combine(yesterday, datetime.min.time()).replace(hour=9, tzinfo=UTC)
     shift_end = datetime.combine(yesterday, datetime.min.time()).replace(hour=18, tzinfo=UTC)
-    await _create_shift(session, user_id=user.id, shift_date=yesterday, start_time=shift_start, end_time=shift_end)
+    await _create_shift(
+        session, user_id=user.id, shift_date=yesterday, start_time=shift_start, end_time=shift_end
+    )
 
     att_yesterday_with_shift = Attendance(
         id="att-y-with-shift",
         user_id=user.id,
         card_idm="0000000000000001",
         work_date=yesterday,
-        check_in=datetime.combine(yesterday, datetime.min.time()).replace(hour=8, minute=55, tzinfo=UTC),
+        check_in=datetime.combine(yesterday, datetime.min.time()).replace(
+            hour=8, minute=55, tzinfo=UTC
+        ),
         check_out=None,
         source="webusb_nfc",
     )
@@ -85,7 +90,9 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
         user_id=user.id,
         card_idm="0000000000000001",
         work_date=two_days_ago,
-        check_in=datetime.combine(two_days_ago, datetime.min.time()).replace(hour=9, minute=0, tzinfo=UTC),
+        check_in=datetime.combine(two_days_ago, datetime.min.time()).replace(
+            hour=9, minute=0, tzinfo=UTC
+        ),
         check_out=None,
         source="webusb_nfc",
     )
@@ -95,14 +102,22 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
     today = date.today()
     shift_start_today = datetime.combine(today, datetime.min.time()).replace(hour=9, tzinfo=UTC)
     shift_end_today = datetime.combine(today, datetime.min.time()).replace(hour=18, tzinfo=UTC)
-    await _create_shift(session, user_id=user.id, shift_date=today, start_time=shift_start_today, end_time=shift_end_today)
+    await _create_shift(
+        session,
+        user_id=user.id,
+        shift_date=today,
+        start_time=shift_start_today,
+        end_time=shift_end_today,
+    )
 
     att_today_with_shift = Attendance(
         id="att-t-with-shift",
         user_id=user.id,
         card_idm="0000000000000001",
         work_date=today,
-        check_in=datetime.combine(today, datetime.min.time()).replace(hour=8, minute=50, tzinfo=UTC),
+        check_in=datetime.combine(today, datetime.min.time()).replace(
+            hour=8, minute=50, tzinfo=UTC
+        ),
         check_out=None,
         source="webusb_nfc",
     )
@@ -128,7 +143,9 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
     assert att1.last_updated_by_user_id == "system"
 
     # 監査ログが作成されていること
-    res_log = await session.execute(select(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == "att-y-with-shift"))
+    res_log = await session.execute(
+        select(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == "att-y-with-shift")
+    )
     logs = res_log.scalars().all()
     assert len(logs) == 1
     assert logs[0].actor_user_id == "system"

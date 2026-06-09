@@ -10,6 +10,7 @@ import {
   approveCorrectionRequest,
   rejectCorrectionRequest,
   cancelCorrectionRequest,
+  getAttendanceHistory,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
@@ -17,6 +18,7 @@ import type {
   AttendanceMonthlyDetailResponse,
   DailyAttendanceDetail,
   AttendanceCorrectionRequest,
+  AttendanceHistoryEntry,
 } from '../../types/attendance';
 import './AttendancePage.css';
 
@@ -68,7 +70,30 @@ export function AttendancePage({ auth }: Props) {
   });
   const [selectedRequestForApproval, setSelectedRequestForApproval] = useState<AttendanceCorrectionRequest | null>(null);
 
+  // 変更履歴関連
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyData, setHistoryData] = useState<AttendanceHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyWorkDate, setHistoryWorkDate] = useState('');
+
   const isAdmin = auth.user?.role === 'admin';
+
+  const handleViewHistory = async (attendanceId: string, workDate: string) => {
+    if (!auth.token) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    setHistoryWorkDate(workDate);
+    setShowHistoryModal(true);
+    try {
+      const res = await getAttendanceHistory(auth.token, attendanceId);
+      setHistoryData(res.items);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : '変更履歴の取得に失敗しました');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   // サマリー (管理者：全員、一般：自分のみ) の取得
   const fetchSummary = useCallback(async () => {
@@ -815,7 +840,7 @@ export function AttendancePage({ auth }: Props) {
                       <th>時間外</th>
                       <th>状態</th>
                       <th>打刻元</th>
-                      {!detailData.is_locked && <th>操作</th>}
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -876,35 +901,43 @@ export function AttendancePage({ auth }: Props) {
                               </span>
                             )}
                           </td>
-                          {!detailData.is_locked && (
-                            <td>
-                              {day.punches && day.punches.length > 0 ? (
-                                <div className="att-multiple-punches">
-                                  {day.punches.map((p, idx) => (
-                                    <div key={idx} className="att-punch-item">
-                                      {p.attendance_id ? (
-                                        <button
-                                          type="button"
-                                          className="att-btn att-btn--small"
-                                          onClick={() =>
-                                            handleOpenRequestModal(
-                                              p.attendance_id!,
-                                              day.work_date,
-                                              p.check_in,
-                                              p.check_out
-                                            )
-                                          }
-                                        >
-                                          修正申請
-                                        </button>
-                                      ) : (
-                                        <span className="att-text--muted">-</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                day.attendance_id ? (
+                          <td>
+                            {day.punches && day.punches.length > 0 ? (
+                              <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {day.punches.map((p, idx) => (
+                                  <div key={idx} className="att-punch-item" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                    {!detailData.is_locked && p.attendance_id && (
+                                      <button
+                                        type="button"
+                                        className="att-btn att-btn--small"
+                                        onClick={() =>
+                                          handleOpenRequestModal(
+                                            p.attendance_id!,
+                                            day.work_date,
+                                            p.check_in,
+                                            p.check_out
+                                          )
+                                        }
+                                      >
+                                        修正申請
+                                      </button>
+                                    )}
+                                    {p.attendance_id && (
+                                      <button
+                                        type="button"
+                                        className="att-btn att-btn--small att-btn--secondary"
+                                        onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
+                                      >
+                                        履歴
+                                      </button>
+                                    )}
+                                    {!p.attendance_id && <span className="att-text--muted">-</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                {!detailData.is_locked && day.attendance_id && (
                                   <button
                                     type="button"
                                     className="att-btn att-btn--small"
@@ -919,12 +952,20 @@ export function AttendancePage({ auth }: Props) {
                                   >
                                     修正申請
                                   </button>
-                                ) : (
-                                  <span className="att-text--muted">-</span>
-                                )
-                              )}
-                            </td>
-                          )}
+                                )}
+                                {day.attendance_id && (
+                                  <button
+                                    type="button"
+                                    className="att-btn att-btn--small att-btn--secondary"
+                                    onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
+                                  >
+                                    履歴
+                                  </button>
+                                )}
+                                {!day.attendance_id && <span className="att-text--muted">-</span>}
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -1256,6 +1297,73 @@ export function AttendancePage({ auth }: Props) {
           </div>
         );
       })()}
+
+      {/* 変更履歴モーダル */}
+      {showHistoryModal && (
+        <div className="att-modal" onClick={() => setShowHistoryModal(false)}>
+          <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
+            <h3 className="att-modal__title">変更履歴 ({historyWorkDate})</h3>
+            
+            {historyLoading && <div className="att-loading">履歴の読み込み中...</div>}
+            {historyError && <div className="att-alert att-alert--danger">{historyError}</div>}
+            
+            {!historyLoading && !historyError && historyData.length === 0 && (
+              <div className="att-empty" style={{ padding: '24px', background: '#f6f8fa', border: '1px solid #eaecef', borderRadius: '6px', textAlign: 'center', color: '#586069' }}>
+                変更履歴はありません。
+              </div>
+            )}
+            
+            {!historyLoading && !historyError && historyData.length > 0 && (
+              <div className="att-history-timeline">
+                {historyData.map((entry) => (
+                  <div key={entry.id} className="att-history-item" style={{ borderBottom: '1px solid #eaecef', padding: '12px 0' }}>
+                    <div className="att-history-meta" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#586069' }}>
+                      <span className="att-history-date">
+                        {new Date(entry.changed_at).toLocaleString('ja-JP')}
+                      </span>
+                      <span className={`att-history-role att-history-role--${entry.actor_role}`}>
+                        {entry.actor_role === 'admin' ? '管理者' : '従業員'} (ID: {entry.actor_user_id})
+                      </span>
+                    </div>
+                    <div className="att-history-comparison" style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f6f8fa', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
+                      <div className="att-history-state">
+                        <span className="att-meta-label" style={{ color: '#586069' }}>前：</span>
+                        <span style={{ color: '#586069' }}>
+                          {entry.before.check_in ? formatTime(entry.before.check_in) : '未打刻'} 〜{' '}
+                          {entry.before.check_out ? formatTime(entry.before.check_out) : '未打刻'}
+                        </span>
+                      </div>
+                      <div className="att-history-state">
+                        <span className="att-meta-label" style={{ color: '#0366d6' }}>後：</span>
+                        <span style={{ fontWeight: 'bold' }}>
+                          {entry.after.check_in ? formatTime(entry.after.check_in) : '未打刻'} 〜{' '}
+                          {entry.after.check_out ? formatTime(entry.after.check_out) : '未打刻'}
+                        </span>
+                      </div>
+                    </div>
+                    {entry.reason && (
+                      <div className="att-history-reason" style={{ fontSize: '13px', background: '#f9f9f9', padding: '8px', borderLeft: '3px solid #0366d6', borderRadius: '0 4px 4px 0' }}>
+                        <strong>理由：</strong>
+                        <span>{entry.reason}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="att-modal__buttons" style={{ marginTop: '20px' }}>
+              <button
+                type="button"
+                className="att-btn att-btn--secondary"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

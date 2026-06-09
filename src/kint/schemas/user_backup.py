@@ -1,7 +1,8 @@
 """ユーザー一括保存・復元用のスキーマ。"""
 
 from datetime import datetime
-from typing import Literal, Optional, List
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -9,7 +10,7 @@ class CardBackupSchema(BaseModel):
     """一括保存用のカード情報。"""
 
     card_idm: str
-    name: Optional[str] = None
+    name: str | None = None
     is_active: bool = True
 
 
@@ -20,12 +21,12 @@ class UserBackupSchema(BaseModel):
     name: str
     full_name: str
     email: str
-    google_sub: Optional[str] = None
+    google_sub: str | None = None
     role: Literal["admin", "employee"]
-    google_calendar_id: Optional[str] = None
-    email_verified_at: Optional[datetime] = None
+    google_calendar_id: str | None = None
+    email_verified_at: datetime | None = None
     is_active: bool = True
-    cards: List[CardBackupSchema] = Field(default_factory=list)
+    cards: list[CardBackupSchema] = Field(default_factory=list)
 
 
 class ImportErrorItem(BaseModel):
@@ -42,4 +43,4 @@ class ImportResultSchema(BaseModel):
     imported_count: int
     updated_count: int
     failed_count: int
-    errors: List[ImportErrorItem]
+    errors: list[ImportErrorItem]

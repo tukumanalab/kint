@@ -134,7 +134,6 @@ async def register(
         name=display_name,
         full_name=display_name,
         email=email,
-        password_hash=None,
         google_sub=sub,
         role="admin" if is_admin else "employee",
         is_active=1,

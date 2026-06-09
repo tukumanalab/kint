@@ -35,6 +35,7 @@ async def _login(
 ) -> str:
     """JWTトークンを直接生成して返す。"""
     from kint.routers.auth import _create_access_token
+
     return _create_access_token(account_id, 1)
 
 

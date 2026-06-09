@@ -79,12 +79,14 @@ async def _create_employee(
 async def _get_admin_token(client: AsyncClient) -> str:
     """ログインして管理者 JWT トークンを取得する。"""
     from kint.routers.auth import _create_access_token
+
     return _create_access_token("admin-001", 1)
 
 
 async def _get_employee_token(client: AsyncClient) -> str:
     """ログインして従業員 JWT トークンを取得する。"""
     from kint.routers.auth import _create_access_token
+
     return _create_access_token("emp-001", 1)
 
 

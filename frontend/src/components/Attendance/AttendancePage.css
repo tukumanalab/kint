@@ -686,3 +686,69 @@
   color: #fff !important;
   font-weight: bold;
 }
+
+/* 履歴タイムライン用 */
+.att-history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-top: 10px;
+}
+
+.att-history-item {
+  border-bottom: 1px solid #eaecef;
+  padding: 12px 0;
+}
+
+.att-history-item:last-child {
+  border-bottom: none;
+}
+
+.att-history-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #586069;
+}
+
+.att-history-role {
+  font-weight: bold;
+}
+
+.att-history-role--admin {
+  color: #c41d7f;
+}
+
+.att-history-role--employee {
+  color: #0366d6;
+}
+
+.att-history-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f6f8fa;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.att-history-state {
+  display: flex;
+  gap: 8px;
+}
+
+.att-history-reason {
+  font-size: 13px;
+  background: #f9f9f9;
+  padding: 8px;
+  border-left: 3px solid #0366d6;
+  border-radius: 0 4px 4px 0;
+  margin-top: 4px;
+  word-break: break-all;
+}
+

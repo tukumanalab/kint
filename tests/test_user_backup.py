@@ -1,5 +1,5 @@
 import uuid
-import pytest
+
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -32,6 +32,7 @@ async def _login(
 ) -> str:
     """JWTトークンを直接生成して返す。"""
     from kint.routers.auth import _create_access_token
+
     return _create_access_token(account_id, 1)
 
 
@@ -39,7 +40,7 @@ class TestUserBackup:
     async def test_export_and_import_success(self, client: AsyncClient, session) -> None:
         """一括エクスポートと、全員が正常な一括インポート（UPSERT / カード同期）が動作すること。"""
         # 管理者作成 & ログイン
-        admin = await _create_user(session)
+        _ = await _create_user(session)
         token = await _login(client)
 
         # 別の従業員ユーザーと紐づくカードを作成
@@ -95,9 +96,7 @@ class TestUserBackup:
                 "email": "emp1@example.com",
                 "role": "employee",
                 "is_active": True,
-                "cards": [
-                    {"card_idm": "fedcba9876543210", "name": "Pasmo", "is_active": True}
-                ],
+                "cards": [{"card_idm": "fedcba9876543210", "name": "Pasmo", "is_active": True}],
             },
             {
                 "id": "emp2",

@@ -1399,7 +1399,7 @@ class AttendanceService:
 
     async def auto_complete_missing_checkouts(self) -> dict[str, int]:
         """前日以前の未退勤レコード（check_inあり、check_outがNULL）を自動補完する。
-        
+
         シフトが存在する場合は、シフト終了予定時刻を退勤時間とし、is_auto_completed=True に設定。
         監査ログ（AttendanceChangeLog）を actor_user_id='system' で保存する。
         シフトが存在しない場合は、補完を行わず incomplete 状態のままとする。
@@ -1408,14 +1408,14 @@ class AttendanceService:
             dict[str, int]: { "processed": 補完成功件数, "skipped": 補完対象外件数 }
         """
         import uuid
-        from datetime import date, datetime, UTC
+        from datetime import UTC, date, datetime
 
         today = date.today()
         # 前日以前の未退勤レコードを抽出
         stmt = select(Attendance).where(
             Attendance.work_date < today,
             Attendance.check_in.isnot(None),
-            Attendance.check_out.is_(None)
+            Attendance.check_out.is_(None),
         )
         result = await self.session.execute(stmt)
         attendances = result.scalars().all()
@@ -1443,8 +1443,7 @@ class AttendanceService:
         for att in attendances:
             # 該当日の該当ユーザーのシフトを取得
             stmt_shift = select(Shift).where(
-                Shift.user_id == att.user_id,
-                Shift.shift_date == att.work_date
+                Shift.user_id == att.user_id, Shift.shift_date == att.work_date
             )
             result_shift = await self.session.execute(stmt_shift)
             shift = result_shift.scalar_one_or_none()
@@ -1452,7 +1451,11 @@ class AttendanceService:
             if shift is not None and shift.end_time is not None:
                 before_check_in = att.check_in
                 # シフトの終了時刻で補完
-                att.check_out = shift.end_time.replace(tzinfo=UTC) if shift.end_time.tzinfo is None else shift.end_time.astimezone(UTC)
+                att.check_out = (
+                    shift.end_time.replace(tzinfo=UTC)
+                    if shift.end_time.tzinfo is None
+                    else shift.end_time.astimezone(UTC)
+                )
                 att.is_auto_completed = True
                 att.auto_completed_at = now
                 att.updated_reason = "退勤忘れのためシフト終了時刻でシステム自動補完"

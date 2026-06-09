@@ -4,6 +4,7 @@ import type {
   AttendanceCorrectionRequest,
   AttendanceCorrectionRequestListResponse,
   AttendanceLock,
+  AttendanceHistoryResponse,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -191,3 +192,15 @@ export async function unlockMonth(
 export async function listLocks(token: string): Promise<AttendanceLock[]> {
   return request<AttendanceLock[]>('/attendance/locks', { method: 'GET' }, token);
 }
+
+export async function getAttendanceHistory(
+  token: string,
+  attendanceId: string,
+): Promise<AttendanceHistoryResponse> {
+  return request<AttendanceHistoryResponse>(
+    `/attendance/${attendanceId}/history`,
+    { method: 'GET' },
+    token,
+  );
+}
+

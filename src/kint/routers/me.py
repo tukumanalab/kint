@@ -52,9 +52,6 @@ async def request_email_change(
     return await service.request_email_change(current_user, body, gmail)
 
 
-
-
-
 @router.get("/cards", response_model=list[MeCardListItem])
 async def get_my_cards(
     current_user: User = Depends(get_current_user),

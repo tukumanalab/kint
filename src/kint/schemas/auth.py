@@ -9,9 +9,6 @@ from pydantic import BaseModel, field_validator
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 
 
-
-
-
 class UserProfile(BaseModel):
     """ログインユーザープロファイル。"""
 

@@ -82,3 +82,25 @@ export interface AttendanceLock {
   locked_by_user_id: string;
   locked_at: string;
 }
+
+export interface AttendanceHistorySnapshot {
+  check_in: string | null;
+  check_out: string | null;
+}
+
+export interface AttendanceHistoryEntry {
+  id: string;
+  attendance_id: string;
+  actor_user_id: string;
+  actor_role: 'admin' | 'employee';
+  changed_at: string;
+  before: AttendanceHistorySnapshot;
+  after: AttendanceHistorySnapshot;
+  reason: string;
+}
+
+export interface AttendanceHistoryResponse {
+  items: AttendanceHistoryEntry[];
+  total: number;
+}
+
