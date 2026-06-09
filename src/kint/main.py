@@ -70,7 +70,7 @@ async def stop_scheduler() -> None:
 
 @app.on_event("startup")
 async def ensure_default_admin_user() -> None:
-    """起動時に既定の管理者ユーザーを未作成時のみ作成する。"""
+    """起動時に既定の管理者ユーザーおよびシステムユーザーを未作成時のみ作成する。"""
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == _DEFAULT_ADMIN_ID))
         admin_user = result.scalar_one_or_none()
@@ -86,6 +86,21 @@ async def ensure_default_admin_user() -> None:
                 is_active=1,
             )
             session.add(admin_user)
+
+        result_system = await session.execute(select(User).where(User.id == "system"))
+        system_user = result_system.scalar_one_or_none()
+
+        if system_user is None:
+            system_user = User(
+                id="system",
+                name="system",
+                full_name="System Automatic Processor",
+                email="system@kint.local",
+                password_hash=None,
+                role="admin",
+                is_active=1,
+            )
+            session.add(system_user)
 
         await session.commit()
 

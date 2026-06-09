@@ -1272,6 +1272,15 @@ components:
         last_updated_by_user_id:
           type: string
           nullable: true
+        is_auto_completed:
+          type: boolean
+          description: システム自動補完フラグ
+          default: false
+        auto_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: システム自動補完実行日時
 
     AttendanceHistorySnapshot:
       type: object
@@ -1632,3 +1641,7 @@ components:
           nullable: true
           description: 打刻ソース
           example: "webusb_nfc"
+        is_auto_completed:
+          type: boolean
+          description: システム自動補完フラグ
+          default: false

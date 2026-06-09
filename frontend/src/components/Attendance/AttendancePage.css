@@ -259,6 +259,13 @@
   color: #586069;
 }
 
+.att-badge--auto-completed {
+  background-color: #eaecef;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+}
+
+
 /* ユーティリティ */
 .att-loading {
   text-align: center;

@@ -40,6 +40,7 @@ export interface DailyAttendanceDetail {
   overtime_hours: number | null;
   status: DailyAttendanceStatus;
   source: string | null;
+  is_auto_completed?: boolean;
   punches?: PunchPeriod[];
 }
 

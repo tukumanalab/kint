@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 CALENDAR_SYNC_JOB_ID = "calendar_sync_daily"
+AUTO_COMPLETE_JOB_ID = "missing_checkout_auto_complete_daily"
 
 
 async def _run_calendar_sync() -> None:
@@ -27,6 +28,19 @@ async def _run_calendar_sync() -> None:
             logger.error("定期同期失敗: %s", exc)
         except Exception as exc:
             logger.exception("定期同期で予期しないエラー: %s", exc)
+
+
+async def _run_missing_checkout_auto_complete() -> None:
+    """スケジューラから呼ばれる退勤自動補完ジョブ。"""
+    from kint.services.attendance import AttendanceService
+
+    async with AsyncSessionLocal() as session:
+        service = AttendanceService(session)
+        try:
+            stats = await service.auto_complete_missing_checkouts()
+            logger.info("定期退勤自動補完完了: %s", stats)
+        except Exception as exc:
+            logger.exception("定期退勤自動補完で予期しないエラー: %s", exc)
 
 
 def reschedule_calendar_sync(time_str: str | None) -> None:
@@ -64,6 +78,16 @@ async def init_scheduler() -> None:
         reschedule_calendar_sync(sync_time)
     else:
         logger.info("shift_sync_time が未設定のため定期同期は無効です")
+
+    # 毎日午前 4:00 に自動補完バッチを実行
+    if not scheduler.get_job(AUTO_COMPLETE_JOB_ID):
+        scheduler.add_job(
+            _run_missing_checkout_auto_complete,
+            trigger=CronTrigger(hour=4, minute=0),
+            id=AUTO_COMPLETE_JOB_ID,
+            replace_existing=True,
+        )
+        logger.info("定期退勤自動補完ジョブを登録しました: 04:00")
 
     scheduler.start()
     logger.info("スケジューラを起動しました")

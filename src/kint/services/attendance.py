@@ -777,6 +777,7 @@ class AttendanceService:
 
                 # attendance_id: その日の最初の打刻レコードのIDを使用（修正申請用）
                 attendance_id = sorted_atts[0].id if sorted_atts else None
+                is_auto_completed = any(a.is_auto_completed for a in day_atts)
 
                 detail = DailyAttendanceDetail(
                     work_date=cur_date,
@@ -791,6 +792,7 @@ class AttendanceService:
                     overtime_hours=round(overtime_hours, 2) if overtime_hours > 0 else 0.0,
                     status=status,
                     source=source,
+                    is_auto_completed=is_auto_completed,
                     punches=punches,
                 )
                 daily_details.append(detail)
@@ -1394,3 +1396,89 @@ class AttendanceService:
 
         await self.session.delete(request)
         await self.session.commit()
+
+    async def auto_complete_missing_checkouts(self) -> dict[str, int]:
+        """前日以前の未退勤レコード（check_inあり、check_outがNULL）を自動補完する。
+        
+        シフトが存在する場合は、シフト終了予定時刻を退勤時間とし、is_auto_completed=True に設定。
+        監査ログ（AttendanceChangeLog）を actor_user_id='system' で保存する。
+        シフトが存在しない場合は、補完を行わず incomplete 状態のままとする。
+
+        Returns:
+            dict[str, int]: { "processed": 補完成功件数, "skipped": 補完対象外件数 }
+        """
+        import uuid
+        from datetime import date, datetime, UTC
+
+        today = date.today()
+        # 前日以前の未退勤レコードを抽出
+        stmt = select(Attendance).where(
+            Attendance.work_date < today,
+            Attendance.check_in.isnot(None),
+            Attendance.check_out.is_(None)
+        )
+        result = await self.session.execute(stmt)
+        attendances = result.scalars().all()
+
+        processed = 0
+        skipped = 0
+
+        # system ユーザーが存在することを確認する
+        result_system = await self.session.execute(select(User).where(User.id == "system"))
+        system_user = result_system.scalar_one_or_none()
+        if system_user is None:
+            system_user = User(
+                id="system",
+                name="system",
+                full_name="System Automatic Processor",
+                email="system@kint.local",
+                password_hash=None,
+                role="admin",
+                is_active=1,
+            )
+            self.session.add(system_user)
+            await self.session.flush()
+
+        now = datetime.now(tz=UTC)
+
+        for att in attendances:
+            # 該当日の該当ユーザーのシフトを取得
+            stmt_shift = select(Shift).where(
+                Shift.user_id == att.user_id,
+                Shift.shift_date == att.work_date
+            )
+            result_shift = await self.session.execute(stmt_shift)
+            shift = result_shift.scalar_one_or_none()
+
+            if shift is not None and shift.end_time is not None:
+                before_check_in = att.check_in
+                # シフトの終了時刻で補完
+                att.check_out = shift.end_time.replace(tzinfo=UTC) if shift.end_time.tzinfo is None else shift.end_time.astimezone(UTC)
+                att.is_auto_completed = True
+                att.auto_completed_at = now
+                att.updated_reason = "退勤忘れのためシフト終了時刻でシステム自動補完"
+                att.last_updated_by_user_id = "system"
+                att.last_updated_at = now
+
+                # 監査ログを追加
+                log = AttendanceChangeLog(
+                    id=str(uuid.uuid4()),
+                    attendance_id=att.id,
+                    actor_user_id="system",
+                    actor_role="admin",
+                    before_check_in=before_check_in,
+                    before_check_out=None,
+                    after_check_in=before_check_in,
+                    after_check_out=att.check_out,
+                    reason="退勤忘れのためシフト終了時刻でシステム自動補完",
+                    changed_at=now,
+                )
+                self.session.add(log)
+                processed += 1
+            else:
+                skipped += 1
+
+        if processed > 0:
+            await self.session.commit()
+
+        return {"processed": processed, "skipped": skipped}

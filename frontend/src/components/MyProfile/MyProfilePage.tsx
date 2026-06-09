@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { fetchMyProfile, updateMyProfile, requestEmailChange, registerMyCard, fetchMyCards, renameMyCard, deleteMyCard } from '../../api/me';
+import { fetchMyProfile, updateMyProfile, requestEmailChange, registerMyCard, fetchMyCards, renameMyCard, deleteMyCard, changePassword } from '../../api/me';
 import { ApiError } from '../../types/error';
 import type { UserProfile } from '../../types/auth';
 import type { UseAuth } from '../../hooks/useAuth';
@@ -511,6 +511,163 @@ function EmailChangeForm({ token }: EmailChangeFormProps) {
   );
 }
 
+// ===== パスワード変更フォーム =====
+
+interface PasswordChangeFormProps {
+  token: string;
+  onSessionInvalidated: (msg: string) => void;
+}
+
+function PasswordChangeForm({ token, onSessionInvalidated }: PasswordChangeFormProps) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const hasLetter = /[a-zA-Z]/.test(newPassword);
+  const hasDigit = /[0-9]/.test(newPassword);
+  const isLengthValid = newPassword.length >= 8 && newPassword.length <= 72;
+  const isStrengthValid = newPassword === '' || (hasLetter && hasDigit && isLengthValid);
+
+  const isMatchValid = confirmPassword === '' || newPassword === confirmPassword;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('すべてのフィールドを入力してください。');
+      return;
+    }
+
+    if (newPassword.length < 8 || newPassword.length > 72 || !hasLetter || !hasDigit) {
+      setError('新パスワードは8〜72文字で、英字と数字を各1文字以上含める必要があります。');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('新パスワードと確認用新パスワードが一致しません。');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setError('新しいパスワードは現在のパスワードと異なる必要があります。');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await changePassword(token, {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      setSuccess('パスワードを変更しました。再度ログインしてください。');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        onSessionInvalidated('パスワードが変更されたため、セッションが無効化されました。再度ログインしてください。');
+      }, 2000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError('現在のパスワードが正しくありません。');
+          return;
+        }
+        if (err.status === 422) {
+          setError('新パスワードが要件を満たしていないか、現在のパスワードと同一です。');
+          return;
+        }
+      }
+      setError('操作に失敗しました。もう一度お試しください。');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="myprofile-section">
+      <h2 className="myprofile-section__title">パスワード変更</h2>
+      <form className="myprofile-form" onSubmit={handleSubmit} noValidate>
+        <div className="form-field">
+          <label htmlFor="current-password" className="form-label">
+            現在のパスワード <span className="required">*</span>
+          </label>
+          <input
+            id="current-password"
+            type="password"
+            className="form-input"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            onPaste={(e) => e.preventDefault()}
+            autoComplete="off"
+            disabled={submitting}
+            required
+          />
+        </div>
+        <div className="form-field">
+          <label htmlFor="new-password" className="form-label">
+            新パスワード <span className="required">*</span>
+          </label>
+          <input
+            id="new-password"
+            type="password"
+            className="form-input"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="off"
+            disabled={submitting}
+            required
+          />
+          {newPassword !== '' && !isStrengthValid && (
+            <p className="form-hint form-hint--warn">
+              ⚠️ パスワードは8〜72文字で、英字と数字を各1文字以上含む必要があります
+            </p>
+          )}
+        </div>
+        <div className="form-field">
+          <label htmlFor="new-password-confirm" className="form-label">
+            新パスワード（確認） <span className="required">*</span>
+          </label>
+          <input
+            id="new-password-confirm"
+            type="password"
+            className="form-input"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="off"
+            disabled={submitting}
+            required
+          />
+          {confirmPassword !== '' && !isMatchValid && (
+            <p className="form-hint form-hint--warn">⚠️ パスワードが一致しません</p>
+          )}
+        </div>
+        {error && (
+          <div className="form-alert form-alert--error" role="alert">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="form-alert form-alert--success" role="status">
+            {success}
+          </div>
+        )}
+        <button
+          type="submit"
+          className="btn btn--primary"
+          disabled={submitting || !currentPassword || !newPassword || !confirmPassword || !isStrengthValid || !isMatchValid}
+        >
+          {submitting ? '変更中...' : 'パスワードを変更'}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 // ===== マイページ本体 =====
 
 export function MyProfilePage({ auth }: Props) {
@@ -540,8 +697,8 @@ export function MyProfilePage({ auth }: Props) {
       });
   }, [token]);
 
-  const handleSessionInvalidated = useCallback(() => {
-    setSessionMessage('メールアドレスが変更されたため、セッションが無効化されました。再度ログインしてください。');
+  const handleSessionInvalidated = useCallback((msg?: string) => {
+    setSessionMessage(msg || 'メールアドレスが変更されたため、セッションが無効化されました。再度ログインしてください。');
     setTimeout(() => {
       auth.logout();
     }, 2000);
@@ -725,6 +882,7 @@ export function MyProfilePage({ auth }: Props) {
       </section>
 
       <EmailChangeForm token={token} />
+      <PasswordChangeForm token={token} onSessionInvalidated={handleSessionInvalidated} />
 
       {/* ダイアログ */}
       {openDialog === 'profile' && (

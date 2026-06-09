@@ -17,6 +17,8 @@ class AttendanceRecord(BaseModel):
     check_out: datetime | None = None
     source: Literal["webusb_nfc", "web_user_id", "admin_manual", "self_service"]
     updated_reason: str | None = None
+    is_auto_completed: bool = False
+    auto_completed_at: datetime | None = None
     last_updated_at: datetime | None = None
     last_updated_by_user_id: str | None = None
 
@@ -116,6 +118,7 @@ class DailyAttendanceDetail(BaseModel):
         "off_duty",
     ]
     source: str | None = None
+    is_auto_completed: bool = False
     punches: list[PunchPeriod] = []
 
 

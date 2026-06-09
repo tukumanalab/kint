@@ -868,7 +868,14 @@ export function AttendancePage({ auth }: Props) {
                           <td>{formatHours(day.working_hours)}</td>
                           <td>{formatHours(day.overtime_hours)}</td>
                           <td>{getStatusBadge(day.status)}</td>
-                          <td>{getSourceLabel(day.source)}</td>
+                          <td>
+                            {getSourceLabel(day.source)}
+                            {day.is_auto_completed && (
+                              <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
+                                自動補完
+                              </span>
+                            )}
+                          </td>
                           {!detailData.is_locked && (
                             <td>
                               {day.punches && day.punches.length > 0 ? (

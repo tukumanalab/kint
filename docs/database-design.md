@@ -83,6 +83,8 @@
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
 | `last_updated_at`          | DATETIME | NULL                                                   | 最終修正日時                         |
+| `is_auto_completed`        | INTEGER  | NOT NULL, DEFAULT 0                                    | 退勤忘れによるシステム自動補完フラグ（1=自動補完） |
+| `auto_completed_at`        | DATETIME | NULL                                                   | 自動補完実行日時                     |
 | `created_at`               | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | 作成日時                             |
 | `updated_at`               | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | 更新日時                             |
 
@@ -296,6 +298,8 @@ erDiagram
     DATETIME check_out
     TEXT source
     TEXT updated_reason
+    INTEGER is_auto_completed
+    DATETIME auto_completed_at
     TEXT last_updated_by_user_id FK
     DATETIME last_updated_at
     DATETIME created_at

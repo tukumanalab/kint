@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
@@ -33,6 +33,8 @@ class Attendance(Base):
     check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False)
     updated_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_auto_completed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    auto_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_updated_by_user_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

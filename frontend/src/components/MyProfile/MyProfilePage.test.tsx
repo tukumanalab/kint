@@ -279,4 +279,68 @@ describe('MyProfilePage', () => {
     expect(screen.getByText(/「通勤定期」としてすでに登録されています/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'このカードを登録' })).not.toBeInTheDocument();
   });
+
+  it('パスワード変更フォームでバリデーションが動作し、変更が成功する', async () => {
+    vi.spyOn(meApi, 'fetchMyProfile').mockResolvedValue(mockProfile);
+    const mockChangePassword = vi.spyOn(meApi, 'changePassword').mockResolvedValue(undefined);
+    const authMock = makeAuth();
+
+    render(<MyProfilePage auth={authMock} />);
+
+    // ロード完了を待つ (Real Timers)
+    await waitFor(() => expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument());
+
+    // ロード完了後に Fake Timers に切り替える
+    vi.useFakeTimers();
+
+    const currentInput = screen.getByLabelText(/^現在のパスワード\s*\*/) as HTMLInputElement;
+    const newInput = screen.getByLabelText(/^新パスワード\s*\*/) as HTMLInputElement;
+    const confirmInput = screen.getByLabelText(/^新パスワード（確認）\s*\*/) as HTMLInputElement;
+    const submitBtn = screen.getByRole('button', { name: 'パスワードを変更' });
+
+    // 初期状態は disabled
+    expect(submitBtn).toBeDisabled();
+
+    // コピペ抑止テスト
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    currentInput.dispatchEvent(pasteEvent);
+    expect(pasteEvent.defaultPrevented).toBe(true);
+
+    // 強度不足のパスワード（英字のみ）
+    fireEvent.change(currentInput, { target: { value: 'OldPass1' } });
+    fireEvent.change(newInput, { target: { value: 'letters' } });
+    fireEvent.change(confirmInput, { target: { value: 'letters' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByText(/パスワードは8〜72文字で、英字と数字を各1文字以上含む必要があります/)).toBeInTheDocument();
+    expect(submitBtn).toBeDisabled();
+
+    // 不一致のパスワード
+    fireEvent.change(newInput, { target: { value: 'NewPass2' } });
+    fireEvent.change(confirmInput, { target: { value: 'DiffPass2' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByText(/パスワードが一致しません/)).toBeInTheDocument();
+    expect(submitBtn).toBeDisabled();
+
+    // 正常値入力
+    fireEvent.change(confirmInput, { target: { value: 'NewPass2' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    // 非同期の API 呼び出しと1つ目のタイムアウト (2秒) を進める
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(mockChangePassword).toHaveBeenCalledWith('test-token', {
+      current_password: 'OldPass1',
+      new_password: 'NewPass2',
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('パスワードを変更しました');
+
+    // 2つ目のタイムアウト（ログアウト実行までさらに2秒）を進める
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(authMock.logout).toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
 });
