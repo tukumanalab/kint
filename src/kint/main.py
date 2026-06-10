@@ -29,6 +29,7 @@ from kint.routers import (
     logs,
     me,
     punch,
+    punch_device,
     settings,
     shifts,
     user,
@@ -173,6 +174,7 @@ async def bad_gateway_handler(request: Request, exc: KintBadGatewayError) -> JSO
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(punch.router, prefix="/api/v1")
+app.include_router(punch_device.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(me.router, prefix="/api/v1")

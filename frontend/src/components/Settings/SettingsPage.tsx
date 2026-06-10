@@ -10,6 +10,7 @@ import {
 import { ApiError } from '../../types/error';
 import type { SettingsExportFile, SettingsImportResult, SystemSettings } from '../../types/settings';
 import type { UseAuth } from '../../hooks/useAuth';
+import { PunchDeviceManager } from './PunchDeviceManager';
 import './SettingsPage.css';
 
 interface Props {
@@ -412,6 +413,8 @@ export function SettingsPage({ auth }: Props) {
           />
         </div>
       </section>
+
+      <PunchDeviceManager auth={auth} />
 
       {importFile && importPreview && (
         <ImportDialog

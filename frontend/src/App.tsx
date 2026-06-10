@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { PunchPage } from './components/Punch';
+import { verifyDeviceToken } from './api/punch_device';
 import { LoginPage } from './components/Login';
 import { RegisterPage } from './components/Register';
 import { UserManagementPage } from './components/Users';
@@ -27,6 +28,52 @@ function App() {
   const [guestPage, setGuestPage] = useState<GuestPage>('home');
   const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
 
+  // 打刻デバイストークンの検証状態
+  const [deviceStatus, setDeviceStatus] = useState<{
+    isChecked: boolean;
+    isValid: boolean;
+    deviceName: string | null;
+  }>({
+    isChecked: false,
+    isValid: false,
+    deviceName: null,
+  });
+
+  const checkDeviceToken = useCallback(async () => {
+    const token = localStorage.getItem('kint_punch_device_token');
+    if (!token) {
+      await Promise.resolve();
+      setDeviceStatus({ isChecked: true, isValid: false, deviceName: null });
+      return;
+    }
+    try {
+      const res = await verifyDeviceToken(token);
+      setDeviceStatus({ isChecked: true, isValid: res.valid, deviceName: res.name });
+    } catch {
+      setDeviceStatus({ isChecked: true, isValid: false, deviceName: null });
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      checkDeviceToken();
+    });
+    window.addEventListener('kint_device_changed', checkDeviceToken);
+    return () => {
+      window.removeEventListener('kint_device_changed', checkDeviceToken);
+    };
+  }, [checkDeviceToken, auth.token]);
+
+  // ログイン後のハンドリング: 一般ユーザーは打刻ページを表示させず勤怠一覧にする
+  const isAdmin = auth.user?.role === 'admin';
+  useEffect(() => {
+    if (auth.user && !isAdmin && page === 'punch') {
+      Promise.resolve().then(() => {
+        setPage('attendance');
+      });
+    }
+  }, [auth.user, isAdmin, page]);
+
   // メール確認ページはログイン不要・認証状態問わず表示
   if (window.location.pathname === '/email-verifications/confirm') {
     return (
@@ -48,6 +95,43 @@ function App() {
   // 未ログイン → 打刻ページ（ログイン不要）・ログイン画面・トップページ
   if (!auth.token || !auth.user) {
     if (guestPage === 'punch') {
+      if (!deviceStatus.isChecked) {
+        return <div className="app-loading">読み込み中...</div>;
+      }
+
+      if (!deviceStatus.isValid) {
+        return (
+          <div className="app">
+            <nav className="app-nav">
+              <span className="app-nav__brand">Kint</span>
+              <div className="app-nav__links">
+                <button
+                  type="button"
+                  className="app-nav__link"
+                  onClick={() => setGuestPage('home')}
+                >
+                  ← ホーム
+                </button>
+              </div>
+            </nav>
+            <div className="unregistered-device-container" style={{ padding: '3rem 1.5rem', textAlign: 'center', maxWidth: '600px', margin: '4rem auto', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: '#fff' }}>
+              <h2 style={{ marginBottom: '1rem', color: '#e53e3e' }}>未登録の端末です</h2>
+              <p style={{ marginBottom: '0.5rem', fontSize: '1.05rem' }}>この端末は打刻用端末として登録されていません。</p>
+              <p style={{ marginBottom: '2rem', color: '#718096', fontSize: '0.95rem' }}>
+                管理者がログインし、設定画面からこの端末を登録する必要があります。
+              </p>
+              <button
+                type="button"
+                className="top-page__btn top-page__btn--primary"
+                onClick={() => setGuestPage('login')}
+              >
+                管理者ログイン画面へ
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="app">
           <nav className="app-nav">
@@ -61,7 +145,10 @@ function App() {
                 ← ホーム
               </button>
             </div>
-            <div className="app-nav__user">
+            <div className="app-nav__user" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ color: '#4a5568', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                端末: {deviceStatus.deviceName}
+              </span>
               <button
                 type="button"
                 className="app-nav__link"
@@ -110,20 +197,20 @@ function App() {
     );
   }
 
-  const isAdmin = auth.user.role === 'admin';
-
   return (
     <div className="app">
       <nav className="app-nav">
         <span className="app-nav__brand">Kint</span>
         <div className="app-nav__links">
-          <button
-            type="button"
-            className={`app-nav__link ${page === 'punch' ? 'app-nav__link--active' : ''}`}
-            onClick={() => setPage('punch')}
-          >
-            打刻
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`app-nav__link ${page === 'punch' ? 'app-nav__link--active' : ''}`}
+              onClick={() => setPage('punch')}
+            >
+              打刻
+            </button>
+          )}
           <button
             type="button"
             className={`app-nav__link ${page === 'attendance' ? 'app-nav__link--active' : ''}`}

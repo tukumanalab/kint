@@ -29,8 +29,10 @@ flowchart LR
     LogUI[ログビューア UI]
     USB[WebUSB-FeliCa アダプター]
     Reader[PaSoRi USB 接続]
+    LS[(LocalStorage: デバイストークン)]
   end
 
+  PunchUI --> LS
   PunchUI --> USB --> Reader
   PunchUI -->|HTTPS| API
   AdminUI -->|HTTPS| API
@@ -92,6 +94,36 @@ sequenceDiagram
   Sv->>Cal: シフト照合（非同期許容）
   Sv-->>Rt: 打刻結果
   Rt-->>Brw: 200 OK
+
+### 4-2. 打刻端末制限と登録シーケンス
+
+```mermaid
+sequenceDiagram
+  participant Emp as 従業員/管理者
+  participant Brw as Browser (打刻端末)
+  participant API as FastAPI Backend
+
+  alt 初回/未登録
+    Emp->>Brw: 打刻ページを開く
+    Brw->>Brw: LocalStorage にデバイストークンが無いことを確認
+    Brw-->>Emp: 「未登録の端末です」エラーと管理者ログインボタンを表示
+    Emp->>Brw: 管理者アカウントでログイン
+    Brw->>API: POST /api/v1/auth/google (管理者認証)
+    API-->>Brw: 認証成功 (管理者JWTトークン)
+    Emp->>Brw: 端末名を入力して「この端末を登録」をクリック
+    Brw->>API: POST /api/v1/punch-devices/token (name)
+    API-->>Brw: デバイストークン (署名付きJWT)
+    Brw->>Brw: LocalStorage にデバイストークンを保存
+    Brw-->>Emp: 打刻待ち受け画面を表示
+  else 登録済み
+    Emp->>Brw: 打刻ページを開く
+    Brw->>Brw: LocalStorage からデバイストークンを取得
+    Brw->>API: GET /api/v1/punch-devices/verify (X-Punch-Device-Token)
+    Note over API: DBを使わずにトークンの署名を検証
+    API-->>Brw: { "valid": true, "name": "端末名" }
+    Brw-->>Emp: 打刻待ち受け画面を表示
+  end
+```
 ```
 
 ## 5. 概念 ER 図
@@ -193,8 +225,11 @@ sequenceDiagram
 - ADR-014: 勤怠集計（サマライズ）および日別突き合わせ処理は、メモリ上で一括マージ（In-memory Map-Reduce）処理を行う。
   - 根拠: 1か月単位の範囲データは、ユーザー数・日付数が限定的（例: 従業員100人 × 31日 ＝ 3,100レコード）であり、データベースで複雑な多重アウタージョインを書くよりも、SQLite への Bulk Query 後の Python メモリ上でのマージのほうがシンプルであり、かつパフォーマンスや拡張性に優れ（N+1問題の完全な排除）、コードの可読性を格段に高められるため。
 
-- ADR-015: 勤怠データのエクスポート（ローカル保存）における文字エンコーディングとして、BOM付き UTF-8 を指定する。
+- ADR-015: 勤怠データのエクスポート（ローカル保存）における文字エンコーディングとして、BOM付き UTF-8 を指定する.
   - 根拠: 日本国内の業務フローにおいて、エクスポートされた CSV ファイルを Microsoft Excel 等の表計算ソフトで直接開くユースケースが圧倒的に多く、それによる日本語を含む文字化けの発生を完全に防止して高いユーザビリティを提供するため。
+
+- ADR-016: 打刻端末の制限にはデータベース（サーバー側保存）を使わず、管理者が署名したデバイストークン（JWT）をブラウザの LocalStorage に保存する方式を採用する。
+  - 根拠: サーバー側でのデバイス一覧管理やデータベーススキーマ変更などの運用複雑性を排除しつつ、暗号的な検証のみで打刻ページのアクセス制御（端末制限）と打刻機能の安全な提供を行えるため。また、登録解除も端末上の LocalStorage 削除のみで完結し非常にシンプルである。
 
 ## 10. 本番デプロイ構成
 
@@ -291,6 +326,7 @@ Stage 2 (python:3.12-slim)
 
 ### 12-2. セキュリティ要件
 - 打刻用 URL は社内配布 URL のみに限定する。
+- 登録された有効なデバイストークン（JWT）を保持するブラウザ（端末）のみが未ログイン用の打刻ページを開けるように制限する。
 - ブラウザのデバイス権限は運用手順に従って管理し、不要時は解除する。
 - 打刻 API は既存認証・監査ログ要件を維持する。
 

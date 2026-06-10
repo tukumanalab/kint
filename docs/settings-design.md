@@ -325,16 +325,18 @@ src/kint/services/settings.py
 | ファイル | 役割 |
 |---|---|
 | `frontend/src/components/Settings/SettingsPage.tsx` | 設定画面の親コンポーネント |
+| `frontend/src/components/Settings/PunchDeviceManager.tsx` | 打刻端末の登録・解除を管理するコンポーネント |
 | `frontend/src/components/Settings/SettingsPage.css` | スタイル |
 | `frontend/src/components/Settings/index.ts` | エクスポート |
 | `frontend/src/api/settings.ts` | API クライアント（GET / PATCH / export / import） |
+| `frontend/src/api/punch_device.ts` | 打刻端末用の API クライアント (登録/検証) |
 | `frontend/src/types/settings.ts` | TypeScript 型定義 |
 
 既存ファイルへの変更:
 
 | ファイル | 変更内容 |
 |---|---|
-| `frontend/src/App.tsx` | `page=settings` ルート追加、ナビゲーションに「設定」追加（admin のみ表示） |
+| `frontend/src/App.tsx` | `page=settings` ルート追加、ナビゲーションに「設定」追加（admin のみ表示）、一般ユーザー用の打刻画面制限とリダイレクト制御 |
 
 ### 7-2. 画面構成
 
@@ -376,6 +378,21 @@ src/kint/services/settings.py
 │ ▼ バックアップ                               │
 │                                             │
 │  [ ↑ 設定をエクスポート ]  [ ↓ インポート... ] │
+├─────────────────────────────────────────────┤
+│                                             │
+│ ▼ 打刻端末管理                               │
+│                                             │
+│  ※ この端末が未登録の場合:                    │
+│  この端末は打刻用端末として登録されていません。      │
+│  端末名: ┌─────────────────────────┐        │
+│          │ 例: 1F受付iPad            │        │
+│          └─────────────────────────┘        │
+│  [ この端末を登録する ]                       │
+│                                             │
+│  ※ この端末が登録済みの場合:                  │
+│  この端末は打刻用端末として登録されています。        │
+│  登録名: 1F受付iPad                         │
+│  [ 登録を取り消す ] (赤ボタン)                │
 │                                             │
 └─────────────────────────────────────────────┘
 

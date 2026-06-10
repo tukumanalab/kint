@@ -454,6 +454,67 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /punch-devices/token:
+    post:
+      tags: [Settings]
+      summary: 打刻用デバイストークンを発行（管理者）
+      description: >-
+        管理者としてログインし、指定された端末名のデバイストークン（署名付きJWT）を発行します。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: 端末識別名（例：「受付iPad」）
+      responses:
+        '200':
+          description: 発行成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_token:
+                    type: string
+                  name:
+                    type: string
+        '401':
+          description: 未認証
+        '403':
+          description: 権限不足（管理者以外）
+
+  /punch-devices/verify:
+    get:
+      tags: [Punch]
+      summary: デバイストークンの有効性検証（認証不要）
+      description: >-
+        ヘッダー X-Punch-Device-Token に付与されたデバイストークンが有効（管理者が発行したもの）か検証します。
+      security: []
+      parameters:
+        - in: header
+          name: X-Punch-Device-Token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 検証結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  name:
+                    type: string
+                    nullable: true
+
   /cards/registrations:
     post:
       tags: [Card]

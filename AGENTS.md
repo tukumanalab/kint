@@ -51,16 +51,19 @@ kint/
 │       │   ├── card.py
 │       │   └── attendance.py
 │       ├── schemas/             # Pydantic schemas
+│       │   └── punch_device.py  # 打刻端末管理スキーマ
 │       ├── routers/             # APIルーター
 │       │   ├── __init__.py
 │       │   ├── auth.py
 │       │   ├── attendance.py
 │       │   ├── admin.py
-│       │   └── calendar.py
+│       │   ├── calendar.py
+│       │   └── punch_device.py  # 打刻端末制限・管理ルーター
 │       ├── services/            # ビジネスロジック
 │       │   ├── attendance.py
 │       │   ├── calendar.py      # Google Calendar 連携
-│       │   └── user.py
+│       │   ├── user.py
+│       │   └── punch_device.py  # 打刻端末サービス
 │       └── static/              # Vite ビルド成果物配信用
 ├── frontend/                    # React SPA — Web管理画面
 │   ├── package.json
@@ -71,11 +74,14 @@ kint/
 │       ├── main.tsx
 │       ├── App.tsx
 │       ├── api/                 # API クライアント
+│       │   └── punch_device.ts  # 打刻端末 API クライアント
 │       ├── components/          # React コンポーネント
 │       │   ├── Dashboard.tsx
 │       │   ├── ShiftCalendar.tsx
 │       │   ├── AttendanceList.tsx
-│       │   └── Admin/
+│       │   ├── Admin/
+│       │   └── Settings/
+│       │       └── PunchDeviceManager.tsx # 打刻端末管理コンポーネント
 │       ├── hooks/               # カスタムフック
 │       │   ├── useAuth.ts
 │       │   └── useNfcReader.ts
@@ -83,10 +89,11 @@ kint/
 │       ├── pages/               # ページコンポーネント
 │       └── types/               # TypeScript 型定義
 ├── tests/                       # Backend テスト
-│   ├── conftest.py
-│   ├── test_attendance.py
-│   ├── test_calendar.py
-│   └── test_auth.py
+│       ├── conftest.py
+│       ├── test_attendance.py
+│       ├── test_calendar.py
+│       ├── test_auth.py
+│       └── test_punch_device.py # 打刻端末制限テスト
 └── .github/
 ```
 
@@ -195,6 +202,18 @@ cp .env.example .env
 - Google Calendar API v3 でシフトカレンダーの予定を取得
 - サービスアカウントまたは OAuth2 で認証
 - シフト予定と実際の出退勤を照合してレポート生成
+
+## 打刻端末制限と登録機能
+
+- **デバイス制限の仕組み**:
+  - セキュリティと運用の簡便化のため、登録された端末のみ打刻ページ（未ログイン用待ち受け画面）を開くことができます。
+  - データベースに端末情報は保存しません。代わりに、管理者が端末を登録する際にバックエンドが署名した長期有効な **Device Punch Token (JWT)** を発行し、ブラウザの `localStorage` に保存します。
+  - バックエンドは `X-Punch-Device-Token` ヘッダーから受け取ったトークンの署名が正しいか（管理者が作成した有効なトークンか）を検証するだけでデバイスを特定・許可します。
+- **画面遷移の制御**:
+  - 一般ユーザー (employee) でログインしている場合、ナビゲーションの「打刻」リンクは非表示となります。また、直接アクセスされた場合は自動で「勤怠一覧」にリダイレクトされます。
+  - 初めてその端末で打刻を開いた場合（未登録状態）は、「未登録の端末です」というエラー画面と、管理者ログインへの導線が表示されます。
+  - 管理者がログインし、「設定」画面の最下部にある「打刻端末管理」セクションから端末名を入力して登録を行うことで、その端末で誰でも打刻画面を開けるようになります。
+  - 管理者は「設定」画面から現在の端末の登録を取り消す（`localStorage` からクリアする）ことができます。
 
 ## マルチエージェント構成
 
