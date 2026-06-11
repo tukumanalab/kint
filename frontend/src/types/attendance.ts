@@ -25,6 +25,8 @@ export interface PunchPeriod {
   attendance_id?: string | null;
   check_in: string | null;
   check_out: string | null;
+  calculated_check_in?: string | null;
+  calculated_check_out?: string | null;
 }
 
 export interface DailyAttendanceDetail {
@@ -36,6 +38,8 @@ export interface DailyAttendanceDetail {
   shift_end: string | null; // ISO 8601
   check_in: string | null; // ISO 8601
   check_out: string | null; // ISO 8601
+  calculated_check_in: string | null; // ISO 8601
+  calculated_check_out: string | null; // ISO 8601
   working_hours: number | null;
   overtime_hours: number | null;
   status: DailyAttendanceStatus;

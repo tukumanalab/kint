@@ -278,3 +278,27 @@
   font-size: 0.8rem;
   color: #b71c1c;
 }
+
+/* ---- 結果の追加情報 ---- */
+.punch-result__extra {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #81c784;
+  font-size: 0.95rem;
+  color: #1b5e20;
+}
+.punch-result__extra-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.punch-result__extra-row:last-child {
+  margin-bottom: 0;
+}
+.punch-result__extra-label {
+  color: #2e7d32;
+}
+.punch-result__extra-value {
+  font-weight: 700;
+  color: #1b5e20;
+}

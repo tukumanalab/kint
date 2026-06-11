@@ -401,6 +401,29 @@ export function PunchPage() {
           <p className="punch-result__name">{punchResult.user_name}</p>
           <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
           <p className="punch-result__message">{punchResult.message}</p>
+          
+          {punchResult.action === 'check_in' && punchResult.calculated_time && (
+            <div className="punch-result__extra">
+              <span className="punch-result__extra-label">勤務出勤時刻 (丸め後): </span>
+              <strong className="punch-result__extra-value">{formatTimeOnly(punchResult.calculated_time)}</strong>
+            </div>
+          )}
+          {punchResult.action === 'check_out' && (
+            <div className="punch-result__extra">
+              {punchResult.current_working_hours !== undefined && punchResult.current_working_hours !== null && (
+                <div className="punch-result__extra-row">
+                  <span className="punch-result__extra-label">今回の勤務時間: </span>
+                  <strong className="punch-result__extra-value">{punchResult.current_working_hours.toFixed(2)} 時間</strong>
+                </div>
+              )}
+              {punchResult.daily_working_hours_total !== undefined && punchResult.daily_working_hours_total !== null && (
+                <div className="punch-result__extra-row" style={{ marginTop: '4px' }}>
+                  <span className="punch-result__extra-label">本日の合計勤務時間: </span>
+                  <strong className="punch-result__extra-value">{punchResult.daily_working_hours_total.toFixed(2)} 時間</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -427,5 +450,13 @@ function formatDateTime(isoString: string): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+  });
+}
+
+function formatTimeOnly(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }

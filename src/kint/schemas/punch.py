@@ -39,6 +39,9 @@ class PunchResponse(BaseModel):
     occurred_at: datetime
     method: Literal["card_idm", "user_id"]
     message: str
+    calculated_time: datetime | None = None
+    current_working_hours: float | None = None
+    daily_working_hours_total: float | None = None
 
 
 class PunchUserCandidate(BaseModel):

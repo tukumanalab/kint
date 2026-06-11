@@ -93,6 +93,8 @@ class PunchPeriod(BaseModel):
     attendance_id: str | None = None
     check_in: datetime | None = None
     check_out: datetime | None = None
+    calculated_check_in: datetime | None = None
+    calculated_check_out: datetime | None = None
 
 
 class DailyAttendanceDetail(BaseModel):
@@ -106,6 +108,8 @@ class DailyAttendanceDetail(BaseModel):
     shift_end: datetime | None = None
     check_in: datetime | None = None
     check_out: datetime | None = None
+    calculated_check_in: datetime | None = None
+    calculated_check_out: datetime | None = None
     working_hours: float | None = None
     overtime_hours: float | None = None
     status: Literal[

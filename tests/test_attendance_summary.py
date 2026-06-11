@@ -209,12 +209,15 @@ class TestAttendanceDetailAPI:
         day1 = next(d for d in data["days"] if d["work_date"] == "2026-05-01")
         assert day1["has_shift"] is True
         assert day1["status"] == "normal"
-        assert day1["working_hours"] == 9.33  # 18:10 - 08:50 => 9.33h
-        assert day1["overtime_hours"] == 0.17  # 18:10 - 18:00 => 10min (0.17h)
+        assert day1["working_hours"] == 9.0  # 丸め後: 18:00 - 09:00 => 9.0h
+        assert day1["overtime_hours"] == 0.0  # 丸め後: 18:00 - 18:00 => 0.0h
+        assert "09:00:00" in day1["calculated_check_in"]
+        assert "18:00:00" in day1["calculated_check_out"]
 
         day2 = next(d for d in data["days"] if d["work_date"] == "2026-05-02")
         assert day2["has_shift"] is True
         assert day2["status"] == "late"
+        assert "09:05:00" in day2["calculated_check_in"]
 
         day3 = next(d for d in data["days"] if d["work_date"] == "2026-05-03")
         assert day3["has_shift"] is True
@@ -357,16 +360,17 @@ class TestMultiplePunchesInSameDay:
         day_data = next(d for d in data["days"] if d["work_date"] == "2026-05-10")
         assert day_data["has_shift"] is True
         assert day_data["status"] == "normal"
-        # 3.5h + 5.0h = 8.50h
-        assert day_data["working_hours"] == 8.5
+        # 丸め後: 3.25h + 5.0h = 8.25h
+        assert day_data["working_hours"] == 8.25
         # 最初出退勤が正しく取得できているか
         assert "08:45:00" in day_data["check_in"]
         assert "18:00:00" in day_data["check_out"]
-        # 出勤が08:45(<=09:00)かつ退勤が18:00(>=18:00)なので遅刻・早退なしであることを検証
+        assert "09:00:00" in day_data["calculated_check_in"]
+        assert "18:00:00" in day_data["calculated_check_out"]
 
         # 2. サマリーの合計時間が合算されているか検証
         summary = data["summary"]
-        assert summary["total_working_hours"] == 8.5
+        assert summary["total_working_hours"] == 8.25
         assert summary["working_days"] == 1
         assert summary["late_count"] == 0
         assert summary["early_leave_count"] == 0
@@ -378,8 +382,12 @@ class TestMultiplePunchesInSameDay:
         p2 = day_data["punches"][1]
         assert "08:45:00" in p1["check_in"]
         assert "12:15:00" in p1["check_out"]
+        assert "09:00:00" in p1["calculated_check_in"]
+        assert "12:15:00" in p1["calculated_check_out"]
         assert "13:00:00" in p2["check_in"]
         assert "18:00:00" in p2["check_out"]
+        assert "13:00:00" in p2["calculated_check_in"]
+        assert "18:00:00" in p2["calculated_check_out"]
 
         # 管理者のトークンを使って CSV で複数打刻が出力されているか検証する
         await _create_user(
@@ -412,12 +420,16 @@ class TestMultiplePunchesInSameDay:
 
         # 1行目: 1回目の打刻（08:45 〜 12:15 UTC）が JST 換算されて出力されている
         row1 = target_rows[0]
-        assert "17:45:00" in row1[5]
-        assert "21:15:00" in row1[6]
-        assert row1[7] == "3.50"  # 3.5時間
+        assert "17:45:00" in row1[5]  # 打刻出勤 JST
+        assert "21:15:00" in row1[6]  # 打刻退勤 JST
+        assert "18:00:00" in row1[7]  # 勤務出勤 JST (丸め後)
+        assert "21:15:00" in row1[8]  # 勤務退勤 JST (丸め後)
+        assert row1[9] == "3.25"  # 丸め後 3.25時間
 
         # 2行目: 2回目の打刻（13:00 〜 18:00 UTC）が JST 換算されて出力されている
         row2 = target_rows[1]
-        assert "22:00:00" in row2[5]
-        assert "03:00:00" in row2[6]
-        assert row2[7] == "5.00"  # 5.0時間
+        assert "22:00:00" in row2[5]  # 打刻出勤 JST
+        assert "03:00:00" in row2[6]  # 打刻退勤 JST
+        assert "22:00:00" in row2[7]  # 勤務出勤 JST (丸め後)
+        assert "03:00:00" in row2[8]  # 勤務退勤 JST (丸め後)
+        assert row2[9] == "5.00"  # 5.0時間

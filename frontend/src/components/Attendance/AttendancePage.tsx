@@ -836,6 +836,8 @@ export function AttendancePage({ auth }: Props) {
                       <th>シフト予定</th>
                       <th>打刻出勤</th>
                       <th>打刻退勤</th>
+                      <th>勤務出勤</th>
+                      <th>勤務退勤</th>
                       <th>労働時間</th>
                       <th>時間外</th>
                       <th>状態</th>
@@ -888,6 +890,32 @@ export function AttendancePage({ auth }: Props) {
                               </div>
                             ) : (
                               formatTime(day.check_out)
+                            )}
+                          </td>
+                          <td>
+                            {day.punches && day.punches.length > 0 ? (
+                              <div className="att-multiple-punches">
+                                {day.punches.map((p, idx) => (
+                                  <div key={idx} className="att-punch-item">
+                                    {p.calculated_check_in ? formatTime(p.calculated_check_in) : '-'}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              day.calculated_check_in ? formatTime(day.calculated_check_in) : '-'
+                            )}
+                          </td>
+                          <td>
+                            {day.punches && day.punches.length > 0 ? (
+                              <div className="att-multiple-punches">
+                                {day.punches.map((p, idx) => (
+                                  <div key={idx} className="att-punch-item">
+                                    {p.calculated_check_out ? formatTime(p.calculated_check_out) : '-'}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              day.calculated_check_out ? formatTime(day.calculated_check_out) : '-'
                             )}
                           </td>
                           <td>{formatHours(day.working_hours)}</td>

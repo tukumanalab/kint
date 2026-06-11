@@ -26,6 +26,9 @@ export interface PunchResponse {
   occurred_at: string;
   method: 'card_idm' | 'user_id';
   message: string;
+  calculated_time?: string | null;
+  current_working_hours?: number | null;
+  daily_working_hours_total?: number | null;
 }
 
 export interface PunchUserCandidate {

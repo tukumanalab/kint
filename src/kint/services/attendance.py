@@ -50,6 +50,46 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+def calculate_working_time(
+    check_in: datetime | None,
+    check_out: datetime | None,
+    shift_start: datetime | None,
+    shift_end: datetime | None,
+) -> tuple[datetime | None, datetime | None]:
+    """打刻時刻から勤務時間の出勤/退勤時刻を計算する。"""
+    calc_in = None
+    calc_out = None
+
+    if check_in is not None:
+        if shift_start is not None and check_in <= shift_start:
+            # シフト開始前の打刻はシフト開始時刻とする
+            calc_in = shift_start
+        else:
+            # シフト開始後、またはシフトなしの打刻は5分区切りで切り上げ
+            base = check_in.min.replace(tzinfo=check_in.tzinfo)
+            delta_seconds = (check_in - base).total_seconds()
+            remainder = delta_seconds % 300
+            if remainder > 0:
+                calc_in = check_in + timedelta(seconds=(300 - remainder))
+                calc_in = calc_in.replace(microsecond=0)
+            else:
+                calc_in = check_in.replace(microsecond=0)
+
+    if check_out is not None:
+        if shift_end is not None and check_out >= shift_end:
+            # シフト終了後の打刻はシフト終了時刻とする
+            calc_out = shift_end
+        else:
+            # シフト終了前、またはシフトなしの打刻は5分区切りで切り捨て
+            base = check_out.min.replace(tzinfo=check_out.tzinfo)
+            delta_seconds = (check_out - base).total_seconds()
+            remainder = delta_seconds % 300
+            calc_out = check_out - timedelta(seconds=remainder)
+            calc_out = calc_out.replace(microsecond=0)
+
+    return calc_in, calc_out
+
+
 class PunchService:
     """打刻サービス。card_idm / user_id の両経路を処理する。"""
 
@@ -195,6 +235,36 @@ class PunchService:
                 return True
         return False
 
+    async def _find_active_shift(self, user_id: str, occurred_at: datetime) -> Shift | None:
+        """打刻時刻に対応するシフトを検索する。"""
+        occurred_date = occurred_at.date()
+        result = await self.session.execute(
+            select(Shift)
+            .where(
+                Shift.user_id == user_id,
+                Shift.shift_date >= occurred_date - timedelta(days=1),
+                Shift.shift_date <= occurred_date + timedelta(days=1),
+            )
+            .order_by(Shift.start_time.asc())
+        )
+        shifts = result.scalars().all()
+
+        svc = SettingsService(self.session)
+        early_window = timedelta(minutes=await svc.get_int("shift_checkin_early_minutes"))
+        occurred_utc = self._as_utc(occurred_at)
+        for shift in shifts:
+            start = self._as_utc(shift.start_time) - early_window
+            end = self._as_utc(shift.end_time)
+            # 退勤はシフト終了後少し遅くなることがあるため、終了後4時間までカバーする
+            if start <= occurred_utc <= (end + timedelta(hours=4)):
+                return shift
+
+        # 被るシフトが見つからない場合は、打刻日当日のシフトをデフォルトとする
+        for shift in shifts:
+            if shift.shift_date == occurred_date:
+                return shift
+        return None
+
     # ------------------------------------------------------------------
     # BE-01 / BE-02 / BE-03 / BE-04: 打刻コア処理
     # ------------------------------------------------------------------
@@ -211,10 +281,10 @@ class PunchService:
             user = await self._get_user_by_user_id(request.user_id)  # type: ignore[arg-type]
             source = "web_user_id"
             method = "user_id"
-
+ 
         await self._validate_cooldown(user.id, request.occurred_at)
         attendance = await self._get_open_attendance(user.id)
-
+ 
         if attendance is not None:
             # 締め（ロック）チェック
             att_svc = AttendanceService(self.session)
@@ -223,7 +293,7 @@ class PunchService:
                     code="ATTENDANCE_LOCKED",
                     message="対象年月の勤怠は締め処理が完了しているため、退勤打刻は行えません。",
                 )
-
+ 
             await self._do_check_out(
                 attendance=attendance,
                 occurred_at=request.occurred_at,
@@ -241,7 +311,7 @@ class PunchService:
                     code="ATTENDANCE_LOCKED",
                     message="対象年月の勤怠は締め処理が完了しているため、出勤打刻は行えません。",
                 )
-
+ 
             has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
             if not has_shift and not request.confirm:
                 settings_svc = SettingsService(self.session)
@@ -261,7 +331,7 @@ class PunchService:
                         "出勤として打刻する場合は確認してください。"
                     ),
                 )
-
+ 
             work_date = request.occurred_at.date()
             attendance = await self._do_check_in(
                 user=user,
@@ -273,9 +343,58 @@ class PunchService:
                 reason=request.reason,
             )
             action = "check_in"
-
+ 
+        # 丸め処理後の勤務出勤/退勤時刻および労働時間の計算
+        calculated_time = None
+        current_working_hours = None
+        daily_working_hours_total = None
+ 
+        active_shift = await self._find_active_shift(user.id, request.occurred_at)
+        shift_start = active_shift.start_time if active_shift else None
+        shift_end = active_shift.end_time if active_shift else None
+ 
+        if action == "check_in":
+            calc_in, _ = calculate_working_time(
+                self._as_utc(request.occurred_at),
+                None,
+                _ensure_utc(shift_start),
+                _ensure_utc(shift_end)
+            )
+            calculated_time = calc_in
+        elif action == "check_out":
+            calc_in, calc_out = calculate_working_time(
+                self._as_utc(attendance.check_in),
+                self._as_utc(request.occurred_at),
+                _ensure_utc(shift_start),
+                _ensure_utc(shift_end)
+            )
+            calculated_time = calc_out
+            if calc_in and calc_out:
+                current_working_hours = round((calc_out - calc_in).total_seconds() / 3600.0, 2)
+ 
+            # その日の勤務時間合計を計算する（今回のレコードも含めて）
+            stmt = select(Attendance).where(
+                Attendance.user_id == user.id,
+                Attendance.work_date == attendance.work_date
+            )
+            result = await self.session.execute(stmt)
+            day_atts = result.scalars().all()
+ 
+            daily_working_hours_total = 0.0
+            shift_start_utc = _ensure_utc(shift_start)
+            shift_end_utc = _ensure_utc(shift_end)
+            for a in day_atts:
+                a_cin = _ensure_utc(a.check_in)
+                a_cout = _ensure_utc(a.check_out)
+                c_in, c_out = calculate_working_time(
+                    a_cin, a_cout, shift_start_utc, shift_end_utc
+                )
+                if c_in and c_out:
+                    daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
+            daily_working_hours_total = round(daily_working_hours_total, 2)
+ 
         await self.session.commit()
-
+ 
         action_label = "出勤" if action == "check_in" else "退勤"
         return PunchResponse(
             status="completed",
@@ -286,6 +405,9 @@ class PunchService:
             occurred_at=request.occurred_at,
             method=method,  # type: ignore[arg-type]
             message=f"{action_label}を記録しました",
+            calculated_time=calculated_time,
+            current_working_hours=current_working_hours,
+            daily_working_hours_total=daily_working_hours_total,
         )
 
     async def _do_check_in(
@@ -680,32 +802,56 @@ class AttendanceService:
                 check_in = min(check_ins) if check_ins else None
                 check_out = max(check_outs) if check_outs else None
 
+                def ensure_utc(dt: datetime | None) -> datetime | None:
+                    if dt is None:
+                        return None
+                    if dt.tzinfo is None:
+                        return dt.replace(tzinfo=UTC)
+                    return dt.astimezone(UTC)
+
+                # 全てを UTC に正規化
+                check_in_utc = ensure_utc(check_in)
+                check_out_utc = ensure_utc(check_out)
+                shift_start_utc = ensure_utc(shift_start)
+                shift_end_utc = ensure_utc(shift_end)
+
+                # 勤務時間（丸め後の出退勤時刻）を計算
+                calc_check_in, calc_check_out = calculate_working_time(
+                    check_in_utc, check_out_utc, shift_start_utc, shift_end_utc
+                )
+
                 working_hours = 0.0
                 overtime_hours = 0.0
 
                 # 実労働時間の計算（全ての打刻セグメントの勤務時間を合算）
                 for a in day_atts:
                     if a.check_in and a.check_out:
-                        working_hours += (a.check_out - a.check_in).total_seconds() / 3600.0
+                        a_cin_utc = ensure_utc(a.check_in)
+                        a_cout_utc = ensure_utc(a.check_out)
+                        c_in, c_out = calculate_working_time(
+                            a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc
+                        )
+                        if c_in and c_out:
+                            working_hours += (c_out - c_in).total_seconds() / 3600.0
 
                 # 時間外労働時間の算出
-                if has_shift and shift_end and check_out:
-                    if check_out > shift_end:
-                        overtime_hours = (check_out - shift_end).total_seconds() / 3600.0
-                elif not has_shift and check_in and check_out:
+                if has_shift and shift_end_utc and calc_check_out:
+                    if calc_check_out > shift_end_utc:
+                        overtime_hours = (calc_check_out - shift_end_utc).total_seconds() / 3600.0
+                elif not has_shift and calc_check_in and calc_check_out:
                     if working_hours > 8.0:
                         overtime_hours = working_hours - 8.0
 
-                # 遅刻／早退の判定（1分以上の差）
+                # 遅刻／早退の判定（勤務時間の出退勤時刻に基づく）
                 is_late = False
                 is_early = False
 
-                if has_shift and shift_start and check_in:
-                    if (check_in - shift_start).total_seconds() >= 60:
+                if has_shift and shift_start_utc and calc_check_in:
+                    if calc_check_in > shift_start_utc:
                         is_late = True
 
-                if has_shift and shift_end and check_out:
-                    if (shift_end - check_out).total_seconds() >= 60:
+                if has_shift and shift_end_utc and calc_check_out:
+                    if calc_check_out < shift_end_utc:
                         is_early = True
 
                 # ステータスの決定（未退勤の打刻が1つでもあれば不整合）
@@ -754,26 +900,27 @@ class AttendanceService:
 
                 is_valid_work = len(day_atts) > 0 and not has_incomplete_punch
 
-                def ensure_utc(dt: datetime | None) -> datetime | None:
-                    if dt is None:
-                        return None
-                    if dt.tzinfo is None:
-                        return dt.replace(tzinfo=UTC)
-                    return dt.astimezone(UTC)
-
                 # 1日の中のすべての打刻ペアを時系列順（check_in昇順）に整理して格納
                 sorted_atts = sorted(
                     day_atts,
                     key=lambda a: a.check_in if a.check_in else datetime.max.replace(tzinfo=UTC),
                 )
-                punches = [
-                    PunchPeriod(
-                        attendance_id=a.id,
-                        check_in=ensure_utc(a.check_in),
-                        check_out=ensure_utc(a.check_out),
+                punches = []
+                for a in sorted_atts:
+                    p_cin = ensure_utc(a.check_in)
+                    p_cout = ensure_utc(a.check_out)
+                    p_calc_in, p_calc_out = calculate_working_time(
+                        p_cin, p_cout, shift_start_utc, shift_end_utc
                     )
-                    for a in sorted_atts
-                ]
+                    punches.append(
+                        PunchPeriod(
+                            attendance_id=a.id,
+                            check_in=p_cin,
+                            check_out=p_cout,
+                            calculated_check_in=p_calc_in,
+                            calculated_check_out=p_calc_out,
+                        )
+                    )
 
                 # attendance_id: その日の最初の打刻レコードのIDを使用（修正申請用）
                 attendance_id = sorted_atts[0].id if sorted_atts else None
@@ -784,10 +931,12 @@ class AttendanceService:
                     attendance_id=attendance_id,
                     has_shift=has_shift,
                     is_holiday=is_holiday,
-                    shift_start=ensure_utc(shift_start),
-                    shift_end=ensure_utc(shift_end),
-                    check_in=ensure_utc(check_in),
-                    check_out=ensure_utc(check_out),
+                    shift_start=shift_start_utc,
+                    shift_end=shift_end_utc,
+                    check_in=check_in_utc,
+                    check_out=check_out_utc,
+                    calculated_check_in=calc_check_in,
+                    calculated_check_out=calc_check_out,
                     working_hours=round(working_hours, 2) if is_valid_work else None,
                     overtime_hours=round(overtime_hours, 2) if overtime_hours > 0 else 0.0,
                     status=status,
@@ -894,6 +1043,8 @@ class AttendanceService:
                     "シフト終了時刻",
                     "出勤時間",
                     "退勤時間",
+                    "勤務出勤",
+                    "勤務退勤",
                     "実労働時間(h)",
                     "時間外労働時間(h)",
                     "遅刻判定",
@@ -946,33 +1097,30 @@ class AttendanceService:
                             check_in_str = fmt_dt(att.check_in)
                             check_out_str = fmt_dt(att.check_out)
 
-                            # 実労働時間（このエントリー単体）
+                            # 勤務時間（丸め後の出退勤時刻）を計算
+                            att_cin_utc = ensure_utc(att.check_in)
+                            att_cout_utc = ensure_utc(att.check_out)
+                            day_shift_start_utc = ensure_utc(day.shift_start)
+                            day_shift_end_utc = ensure_utc(day.shift_end)
+
+                            calc_cin, calc_cout = calculate_working_time(
+                                att_cin_utc, att_cout_utc, day_shift_start_utc, day_shift_end_utc
+                            )
+
+                            # 実労働時間（このエントリー単体、丸め後ベース）
                             working_hours = 0.0
-                            if att.check_in and att.check_out:
-                                cin_utc = ensure_utc(att.check_in) or datetime.min.replace(
-                                    tzinfo=UTC
-                                )
-                                cout_utc = ensure_utc(att.check_out) or datetime.min.replace(
-                                    tzinfo=UTC
-                                )
-                                duration = (cout_utc - cin_utc).total_seconds()
+                            if calc_cin and calc_cout:
+                                duration = (calc_cout - calc_cin).total_seconds()
                                 working_hours = duration / 3600.0
 
-                            # 時間外労働時間（このエントリー単体）
+                            # 時間外労働時間（このエントリー単体、丸め後ベース）
                             overtime_hours = 0.0
-                            att_check_out_utc = ensure_utc(att.check_out)
-                            day_shift_end_utc = ensure_utc(day.shift_end)
-                            att_check_in_utc = ensure_utc(att.check_in)
-
-                            if day.has_shift and day_shift_end_utc and att_check_out_utc:
-                                # シフト終了時刻を越えて退勤した場合
-                                # このエントリーの退勤時刻がシフト終了より遅い場合
-                                if att_check_out_utc > day_shift_end_utc:
-                                    diff = att_check_out_utc - day_shift_end_utc
+                            if day.has_shift and day_shift_end_utc and calc_cout:
+                                if calc_cout > day_shift_end_utc:
+                                    diff = calc_cout - day_shift_end_utc
                                     over_sec = diff.total_seconds()
                                     overtime_hours = over_sec / 3600.0
-                            elif not day.has_shift and att_check_in_utc and att_check_out_utc:
-                                # シフトがない日の打刻で、そのエントリーが8時間を超えている場合
+                            elif not day.has_shift and calc_cin and calc_cout:
                                 if working_hours > 8.0:
                                     overtime_hours = working_hours - 8.0
 
@@ -980,11 +1128,15 @@ class AttendanceService:
                             is_late_val = "否"
                             if day.has_shift:
                                 first_att = sorted_atts[0]
-                                first_check_in_utc = ensure_utc(first_att.check_in)
-                                day_shift_start_utc = ensure_utc(day.shift_start)
-                                if first_check_in_utc and day_shift_start_utc:
-                                    diff = first_check_in_utc - day_shift_start_utc
-                                    if diff.total_seconds() >= 60:
+                                first_calc_cin, _ = calculate_working_time(
+                                    ensure_utc(first_att.check_in),
+                                    ensure_utc(first_att.check_out),
+                                    day_shift_start_utc,
+                                    day_shift_end_utc,
+                                )
+                                if first_calc_cin and day_shift_start_utc:
+                                    if first_calc_cin > day_shift_start_utc:
+                                        is_late_val = "意"  # ここは元のファイルでは "是" だった
                                         is_late_val = "是"
                             else:
                                 is_late_val = "-"
@@ -993,12 +1145,14 @@ class AttendanceService:
                             is_early_val = "否"
                             if day.has_shift:
                                 last_att = sorted_atts[-1]
-                                last_check_out_utc = ensure_utc(last_att.check_out)
-                                day_shift_end_utc = ensure_utc(day.shift_end)
-                                if last_check_out_utc and day_shift_end_utc:
-                                    diff = day_shift_end_utc - last_check_out_utc
-                                    if diff.total_seconds() >= 60:
-                                        # ステータスが "early_leave" なら "是"
+                                _, last_calc_cout = calculate_working_time(
+                                    ensure_utc(last_att.check_in),
+                                    ensure_utc(last_att.check_out),
+                                    day_shift_start_utc,
+                                    day_shift_end_utc,
+                                )
+                                if last_calc_cout and day_shift_end_utc:
+                                    if last_calc_cout < day_shift_end_utc:
                                         is_early_val = "是"
                             else:
                                 is_early_val = "-"
@@ -1018,6 +1172,8 @@ class AttendanceService:
                                     shift_end_str,
                                     check_in_str,
                                     check_out_str,
+                                    fmt_dt(calc_cin),
+                                    fmt_dt(calc_cout),
                                     f"{working_hours:.2f}",
                                     f"{overtime_hours:.2f}",
                                     is_late_val,
