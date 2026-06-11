@@ -97,11 +97,16 @@ uv run alembic upgrade head
 
 ---
 
-## 本番デプロイ (Docker)
+## 本番デプロイ (PM2 + Nginx)
 
 ### 前提
 
-- Docker Engine / Docker Compose V2 がインストール済みであること。
+- Linux サーバーに以下がインストールされていること:
+  - Node.js (v20.x 推奨)
+  - PM2
+  - Python (3.12+)
+  - uv (パッケージマネージャ)
+  - Nginx
 - Google Cloud Console でアプリの **公開 URL** を承認済みリダイレクト URI に追加していること。
   例: `https://your-domain.com/`
 
@@ -121,58 +126,79 @@ cp .env.example .env
 | `GOOGLE_CLIENT_ID` | バックエンド用 Google Client ID |
 | `VITE_GOOGLE_CLIENT_ID` | フロントエンドビルド用 Google Client ID（同じ値）|
 | `APP_BASE_URL` | 公開 URL（例: `https://your-domain.com`）|
-| `DATABASE_URL` | コンテナ内 SQLite パス（既定: `sqlite+aiosqlite:////data/kint.db`）|
+| `DATABASE_URL` | SQLite のデータベースURL（例: `sqlite+aiosqlite:///kint.db`）|
 
 ```bash
 # SECRET_KEY の生成例
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-### 2. ビルド & 起動
+### 2. フロントエンドのビルド
+
+フロントエンドをビルドし、生成された静的ファイルを Nginx で配信できるように配置します。
 
 ```bash
-# イメージをビルドしてコンテナを起動
-docker compose up -d --build
+# 依存関係のインストールとビルド
+cd frontend
+npm ci
+VITE_GOOGLE_CLIENT_ID=<Google Client ID> npm run build
+```
+ビルド完了後、`frontend/dist` ディレクトリが生成されます。これを Nginx が参照する静的ファイルの公開ディレクトリ（例: `/var/www/kint/frontend/dist`）にコピーまたはシンボリックリンクを張ります。
+
+### 3. バックエンドの起動
+
+PM2 を使ってバックエンド（FastAPI）をデーモンとして起動します。
+
+```bash
+# 依存関係のインストール
+uv sync --frozen --no-dev
+
+# データベースマイグレーションの実行
+uv run alembic upgrade head
+
+# PM2 による起動
+pm2 start ecosystem.config.js
+
+# 起動状態の確認
+pm2 status
 
 # ログ確認
-docker compose logs -f api
-
-# ヘルスチェック確認
-curl http://localhost:8000/health
+pm2 logs kint-backend
 ```
 
-起動時に `alembic upgrade head` が自動実行されるため、初回起動時のマイグレーションは不要。
+### 4. Nginx の設定
 
-### 3. 停止 / 再起動
+`/etc/nginx/sites-available/kint` などに設定を作成し、有効化します（具体的な設定は [nginx/kint.conf](file:///Users/ky/Documents/workspace/kint/nginx/kint.conf) を参照）。
 
 ```bash
+# 設定ファイルのシンボリックリンクを作成して有効化
+sudo ln -s /path/to/kint/nginx/kint.conf /etc/nginx/sites-enabled/kint
+
+# 設定のテストと再起動
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### 5. 管理コマンド (PM2)
+
+```bash
+# 再起動
+pm2 restart kint-backend
+
 # 停止
-docker compose down
+pm2 stop kint-backend
 
-# データを保持したまま停止 (volume は残る)
-docker compose down --volumes
-
-# イメージごと削除
-docker compose down --rmi all
+# 登録解除
+pm2 delete kint-backend
 ```
 
-### 4. DB バックアップ
+### 6. DB バックアップ
 
-SQLite ファイルは `kint_data` Docker volume 内の `/data/kint.db` に格納される。
-
-```bash
-# バックアップ
-docker run --rm -v kint_kint_data:/data -v "$(pwd)":/backup alpine \
-  cp /data/kint.db /backup/kint.$(date +%Y%m%d).db
-```
-
-### 5. フロントエンドの Google Client ID
-
-`VITE_GOOGLE_CLIENT_ID` は `npm run build` 時に HTML/JS に埋め込まれる。
-ビルド後に変更するにはイメージの再ビルドが必要。
+SQLite のデータベースファイルを直接バックアップします。
 
 ```bash
-docker compose build --build-arg VITE_GOOGLE_CLIENT_ID=<新しいID>
+# バックアップ (kint.db をコピー)
+cp kint.db backups/kint.$(date +%Y%m%d).db
 ```
 
 ---
