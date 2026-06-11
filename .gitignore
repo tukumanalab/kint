@@ -82,3 +82,6 @@ logs/
 
 # ===== Playwright =====
 .playwright-*/*
+
+# ===== reference =====
+ref/
