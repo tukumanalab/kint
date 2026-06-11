@@ -1232,7 +1232,7 @@ export function AttendancePage({ auth }: Props) {
                   </div>
 
                   {/* 修正前後の比較プレビュー */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
+                  <div className="att-approval-grid" style={{ marginBottom: '16px' }}>
                     
                     {/* 修正前 */}
                     <div className="att-section-box">

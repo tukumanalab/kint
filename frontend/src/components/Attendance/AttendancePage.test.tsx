@@ -75,6 +75,8 @@ const mockDetail = {
       shift_end: '2026-06-09T18:00:00Z',
       check_in: '2026-06-09T09:00:00Z',
       check_out: '2026-06-09T18:00:00Z',
+      calculated_check_in: '2026-06-09T09:00:00Z',
+      calculated_check_out: '2026-06-09T18:00:00Z',
       working_hours: 8,
       overtime_hours: 0,
       status: 'normal' as const,
