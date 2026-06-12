@@ -62,13 +62,17 @@ async def patch_user(
 @router.delete("/{user_id}", status_code=204)
 async def delete_user(
     user_id: str,
+    hard: bool = False,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> Response:
-    """ユーザーを論理削除する。管理者専用。既に無効な場合も 204 を返す。"""
+    """ユーザーを論理削除または物理（完全）削除する。管理者専用。"""
     _require_admin(current_user)
     service = UserService(session)
-    await service.delete_user(user_id)
+    if hard:
+        await service.hard_delete_user(user_id)
+    else:
+        await service.delete_user(user_id)
     return Response(status_code=204)
 
 

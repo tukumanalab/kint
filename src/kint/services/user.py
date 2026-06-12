@@ -196,6 +196,114 @@ class UserService:
         await self.session.commit()
         return True
 
+    async def hard_delete_user(self, user_id: str) -> bool:
+        """ユーザーとそれに関連するすべてのデータ（出退勤履歴、カード、ログなど）をDBから完全に物理削除する。
+        最後の有効な admin の削除は KintConflictError。
+        存在しないユーザーは KintNotFoundError。
+        """
+        result = await self.session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message=f"ユーザー '{user_id}' が見つかりません",
+            )
+
+        # 最後の有効な admin は削除不可
+        if user.role == "admin" and user.is_active == 1:
+            remaining = await _count_active_admins(self.session, exclude_user_id=user_id)
+            if remaining < _MIN_ACTIVE_ADMINS:
+                raise KintConflictError(
+                    code="LAST_ADMIN",
+                    message="最後の有効な管理者を削除することはできません",
+                )
+
+        from sqlalchemy import delete, update
+
+        from kint.models.attendance import (
+            Attendance,
+            AttendanceChangeLog,
+            AttendanceCorrectionRequest,
+            AttendanceLock,
+        )
+        from kint.models.card import Card
+        from kint.models.email_verification import EmailVerificationRequest
+        from kint.models.shift import Shift
+        from kint.models.user_profile_change_log import UserProfileChangeLog
+
+        # 1. ユーザーの勤怠レコードIDを収集
+        att_stmt = select(Attendance.id).where(Attendance.user_id == user_id)
+        att_result = await self.session.execute(att_stmt)
+        attendance_ids = att_result.scalars().all()
+
+        if attendance_ids:
+            # 2. 収集した勤怠レコードに紐づく変更ログを削除 (attendance_id が RESTRICT なので先に消す)
+            await self.session.execute(
+                delete(AttendanceChangeLog).where(
+                    AttendanceChangeLog.attendance_id.in_(attendance_ids)
+                )
+            )
+            # 3. 収集した勤怠レコードに紐づく修正申請を削除
+            await self.session.execute(
+                delete(AttendanceCorrectionRequest).where(
+                    AttendanceCorrectionRequest.attendance_id.in_(attendance_ids)
+                )
+            )
+
+        # 4. ユーザーが actor (変更実行者) である勤怠変更ログを削除 (actor_user_id が RESTRICT なので先に消す)
+        await self.session.execute(
+            delete(AttendanceChangeLog).where(AttendanceChangeLog.actor_user_id == user_id)
+        )
+
+        # 5. ユーザーが作成した/承認した勤怠修正申請のクリーンアップ
+        # ユーザー本人の申請を削除 (user_id が RESTRICT)
+        await self.session.execute(
+            delete(AttendanceCorrectionRequest).where(AttendanceCorrectionRequest.user_id == user_id)
+        )
+        # ユーザーが承認した申請を NULL クリア
+        await self.session.execute(
+            update(AttendanceCorrectionRequest)
+            .where(AttendanceCorrectionRequest.approved_by_user_id == user_id)
+            .values(approved_by_user_id=None)
+        )
+
+        # 6. ユーザー本人の勤怠を削除 (user_id が RESTRICT)
+        if attendance_ids:
+            await self.session.execute(delete(Attendance).where(Attendance.id.in_(attendance_ids)))
+
+        # 7. ユーザー（管理者）が実行した締め処理（ロック）の削除 (locked_by_user_id が RESTRICT)
+        await self.session.execute(
+            delete(AttendanceLock).where(AttendanceLock.locked_by_user_id == user_id)
+        )
+
+        # 8. プロフィール変更ログの削除 (user_id / actor_user_id が RESTRICT)
+        await self.session.execute(
+            delete(UserProfileChangeLog).where(
+                (UserProfileChangeLog.user_id == user_id)
+                | (UserProfileChangeLog.actor_user_id == user_id)
+            )
+        )
+
+        # 9. メール確認トークンの requested_by_user_id を NULL にする、またはユーザーのトークンを削除
+        await self.session.execute(
+            delete(EmailVerificationRequest).where(EmailVerificationRequest.user_id == user_id)
+        )
+        await self.session.execute(
+            update(EmailVerificationRequest)
+            .where(EmailVerificationRequest.requested_by_user_id == user_id)
+            .values(requested_by_user_id=None)
+        )
+
+        # 10. カードとシフト情報を物理削除（CASCADE 定義されているが明示的に実行）
+        await self.session.execute(delete(Card).where(Card.user_id == user_id))
+        await self.session.execute(delete(Shift).where(Shift.user_id == user_id))
+
+        # 11. 最後にユーザーを物理削除
+        await self.session.delete(user)
+
+        await self.session.commit()
+        return True
+
     # ------------------------------------------------------------------
     # BE-09: マイページ API (本人プロフィール編集)
     # ------------------------------------------------------------------

@@ -57,8 +57,9 @@ export async function patchUser(
   );
 }
 
-export async function deleteUser(token: string, userId: string): Promise<void> {
-  return request<void>(`/users/${userId}`, { method: 'DELETE' }, token);
+export async function deleteUser(token: string, userId: string, hard = false): Promise<void> {
+  const query = hard ? '?hard=true' : '';
+  return request<void>(`/users/${userId}${query}`, { method: 'DELETE' }, token);
 }
 
 export async function exportUsers(token: string): Promise<any[]> {

@@ -214,12 +214,13 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
 
 interface DeleteModalProps {
   user: UserResponse;
+  hard?: boolean;
   onClose: () => void;
-  onDeleted: (userId: string) => void;
+  onDeleted: (userId: string, hard: boolean) => void;
   token: string;
 }
 
-function DeleteConfirmModal({ user, onClose, onDeleted, token }: DeleteModalProps) {
+function DeleteConfirmModal({ user, hard = false, onClose, onDeleted, token }: DeleteModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,8 +228,8 @@ function DeleteConfirmModal({ user, onClose, onDeleted, token }: DeleteModalProp
     setError(null);
     setSubmitting(true);
     try {
-      await deleteUser(token, user.id);
-      onDeleted(user.id);
+      await deleteUser(token, user.id, hard);
+      onDeleted(user.id, hard);
     } catch (err) {
       setError(err instanceof ApiError ? apiErrorMessage(err) : '削除に失敗しました。');
     } finally {
@@ -239,11 +240,20 @@ function DeleteConfirmModal({ user, onClose, onDeleted, token }: DeleteModalProp
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="削除確認">
       <div className="modal-box">
-        <h2 className="modal-title">ユーザー削除</h2>
-        <p className="modal-message">
-          <strong>{user.full_name}</strong>（{user.id} / {user.email}）を無効化します。<br />
-          この操作は論理削除です。後から有効化できます。
-        </p>
+        <h2 className="modal-title">{hard ? 'ユーザー完全削除' : 'ユーザー削除'}</h2>
+        {hard ? (
+          <p className="modal-message">
+            <strong>{user.full_name}</strong>（{user.id} / {user.email}）を<strong>完全に削除</strong>します。<br />
+            <span className="text-danger" style={{ color: '#e53e3e', fontWeight: 'bold', display: 'block', marginTop: '0.5rem' }}>
+              警告: この操作は取り消せません。出退勤履歴、シフト、カード情報などのすべての関連データもデータベースから完全に削除されます。
+            </span>
+          </p>
+        ) : (
+          <p className="modal-message">
+            <strong>{user.full_name}</strong>（{user.id} / {user.email}）を無効化します。<br />
+            この操作は論理削除です。後から有効化できます。
+          </p>
+        )}
         {error && <div className="form-error" role="alert">{error}</div>}
         <div className="modal-actions">
           <button
@@ -260,7 +270,7 @@ function DeleteConfirmModal({ user, onClose, onDeleted, token }: DeleteModalProp
             onClick={handleDelete}
             disabled={submitting}
           >
-            {submitting ? '削除中...' : '削除する'}
+            {submitting ? '削除中...' : hard ? '完全に削除する' : '削除する'}
           </button>
         </div>
       </div>
@@ -349,6 +359,7 @@ export function UserManagementPage({ auth }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [modal, setModal] = useState<ModalMode>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
+  const [isHardDelete, setIsHardDelete] = useState(false);
 
   const token = auth.token!;
 
@@ -377,7 +388,7 @@ export function UserManagementPage({ auth }: Props) {
       a.download = `users_backup_${dateStr}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch {
       setActionError('エクスポートに失敗しました。');
     } finally {
       setIsExporting(false);
@@ -455,11 +466,16 @@ export function UserManagementPage({ auth }: Props) {
     setModal(null);
   }
 
-  function handleDeleted(userId: string) {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)),
-    );
+  function handleDeleted(userId: string, hard: boolean) {
+    if (hard) {
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } else {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)),
+      );
+    }
     setDeleteTarget(null);
+    setIsHardDelete(false);
   }
 
   return (
@@ -556,13 +572,27 @@ export function UserManagementPage({ auth }: Props) {
                     >
                       編集
                     </button>
-                    {user.is_active && (
+                    {user.is_active ? (
                       <button
                         type="button"
                         className="btn btn--small btn--danger"
-                        onClick={() => setDeleteTarget(user)}
+                        onClick={() => {
+                          setDeleteTarget(user);
+                          setIsHardDelete(false);
+                        }}
                       >
                         削除
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--small btn--danger"
+                        onClick={() => {
+                          setDeleteTarget(user);
+                          setIsHardDelete(true);
+                        }}
+                      >
+                        完全削除
                       </button>
                     )}
                   </td>
@@ -584,7 +614,11 @@ export function UserManagementPage({ auth }: Props) {
       {deleteTarget && (
         <DeleteConfirmModal
           user={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
+          hard={isHardDelete}
+          onClose={() => {
+            setDeleteTarget(null);
+            setIsHardDelete(false);
+          }}
           onDeleted={handleDeleted}
           token={token}
         />

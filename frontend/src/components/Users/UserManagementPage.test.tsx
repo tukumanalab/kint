@@ -82,7 +82,7 @@ describe('UserManagementPage', () => {
     });
   });
 
-  it('無効ユーザーには削除ボタンが表示されない', async () => {
+  it('無効ユーザーには削除ボタンの代わりに完全削除ボタンが表示される', async () => {
     vi.spyOn(userApi, 'getUsers').mockResolvedValue({
       users: [mockInactiveUser],
     });
@@ -92,7 +92,9 @@ describe('UserManagementPage', () => {
 
     const rows = screen.getAllByRole('row');
     const inactiveRow = rows.find((r) => r.textContent?.includes('鈴木 花子'));
-    expect(inactiveRow?.querySelector('[class*="btn--danger"]')).toBeNull();
+    const deleteBtn = inactiveRow?.querySelector('[class*="btn--danger"]');
+    expect(deleteBtn).not.toBeNull();
+    expect(deleteBtn?.textContent).toBe('完全削除');
   });
 
   it('ユーザー登録フォームを開いて送信できる', async () => {
@@ -168,10 +170,31 @@ describe('UserManagementPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '削除する' }));
 
     await waitFor(() => {
-      expect(userApi.deleteUser).toHaveBeenCalledWith(mockToken, 'employee.taro');
+      expect(userApi.deleteUser).toHaveBeenCalledWith(mockToken, 'employee.taro', false);
       expect(screen.queryByRole('dialog')).toBeNull();
       // is_active=false になったことを状態バッジで確認
       expect(screen.getByText('無効')).toBeInTheDocument();
+    });
+  });
+
+  it('削除確認モーダルで完全削除できる', async () => {
+    vi.spyOn(userApi, 'getUsers').mockResolvedValue({ users: [mockInactiveUser] });
+    vi.spyOn(userApi, 'deleteUser').mockResolvedValue(undefined);
+
+    render(<UserManagementPage auth={makeAuth()} />);
+    await waitFor(() => screen.getByText('鈴木 花子'));
+
+    fireEvent.click(screen.getByRole('button', { name: '完全削除' }));
+    expect(screen.getByRole('dialog', { name: '削除確認' })).toBeInTheDocument();
+    expect(screen.getByText(/警告: この操作は取り消せません。/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '完全に削除する' }));
+
+    await waitFor(() => {
+      expect(userApi.deleteUser).toHaveBeenCalledWith(mockToken, 'employee.hanako', true);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      // ユーザー一覧から完全に削除されていること
+      expect(screen.queryByText('鈴木 花子')).toBeNull();
     });
   });
 
