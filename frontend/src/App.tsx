@@ -94,6 +94,11 @@ function App() {
 
   // 未ログイン → 打刻ページ（ログイン不要）・ログイン画面・トップページ
   if (!auth.token || !auth.user) {
+    // pendingIdToken がある場合は、常に登録画面を最優先で表示する
+    if (auth.pendingIdToken) {
+      return <RegisterPage auth={auth} />;
+    }
+
     if (guestPage === 'punch') {
       if (!deviceStatus.isChecked) {
         return <div className="app-loading">読み込み中...</div>;

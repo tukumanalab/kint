@@ -51,14 +51,6 @@ export function useAuth(): UseAuth {
       });
   }, []);
 
-  // Google redirect モード: sessionStorage に保存された credential を自動ログイン処理する
-  useEffect(() => {
-    const credential = sessionStorage.getItem('google_credential');
-    if (!credential) return;
-    sessionStorage.removeItem('google_credential');
-    loginWithGoogle(credential).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const loginWithGoogle = useCallback(async (idToken: string): Promise<void> => {
     setState((s) => ({ ...s, isLoading: true, error: null }));
     try {
@@ -67,7 +59,28 @@ export function useAuth(): UseAuth {
       pendingIdTokenRef.current = null;
       setState({ token: res.access_token, user: res.user, isLoading: false, error: null, pendingIdToken: null });
     } catch (err) {
+      let isUnregistered = false;
       if (err instanceof ApiError && err.status === 401 && err.body.code === 'USER_NOT_REGISTERED') {
+        isUnregistered = true;
+      } else if (
+        err &&
+        typeof err === 'object' &&
+        'status' in err &&
+        (err as Record<string, unknown>).status === 401 &&
+        'body' in err
+      ) {
+        const body = (err as Record<string, unknown>).body;
+        if (
+          body &&
+          typeof body === 'object' &&
+          'code' in body &&
+          (body as Record<string, unknown>).code === 'USER_NOT_REGISTERED'
+        ) {
+          isUnregistered = true;
+        }
+      }
+
+      if (isUnregistered) {
         // 未登録 → 登録画面へ遷移
         pendingIdTokenRef.current = idToken;
         setState((s) => ({ ...s, isLoading: false, error: null, pendingIdToken: idToken }));
@@ -78,6 +91,16 @@ export function useAuth(): UseAuth {
       throw err;
     }
   }, []);
+
+  // Google redirect モード: sessionStorage に保存された credential を自動ログイン処理する
+  useEffect(() => {
+    const credential = sessionStorage.getItem('google_credential');
+    if (!credential) return;
+    sessionStorage.removeItem('google_credential');
+    Promise.resolve().then(() => {
+      loginWithGoogle(credential).catch(() => {});
+    });
+  }, [loginWithGoogle]);
 
   const register = useCallback(async (adminPassword?: string): Promise<void> => {
     const idToken = pendingIdTokenRef.current;

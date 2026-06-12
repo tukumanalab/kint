@@ -27,7 +27,7 @@ function googleOAuthCallbackPlugin(): Plugin {
           const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>
 sessionStorage.setItem('google_credential',${JSON.stringify(credential)});
 window.location.href='/';
-<\/script></head><body>Redirecting...</body></html>`
+</script></head><body>Redirecting...</body></html>`
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
           res.end(html)
         })
