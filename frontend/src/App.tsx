@@ -22,10 +22,29 @@ function getEmailVerificationToken(): string | null {
   return null;
 }
 
+function isPunchPath(): boolean {
+  const path = window.location.pathname.replace(/\/$/, '');
+  return path === '/kint/punch' || path === '/punch';
+}
+
+function getInitialGuestPage(): GuestPage {
+  if (isPunchPath()) {
+    return 'punch';
+  }
+  return 'home';
+}
+
+function getInitialPage(): Page {
+  if (isPunchPath()) {
+    return 'punch';
+  }
+  return 'attendance';
+}
+
 function App() {
   const auth = useAuth();
-  const [page, setPage] = useState<Page>('punch');
-  const [guestPage, setGuestPage] = useState<GuestPage>('home');
+  const [page, setPage] = useState<Page>(getInitialPage);
+  const [guestPage, setGuestPage] = useState<GuestPage>(getInitialGuestPage);
   const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
 
   // 打刻デバイストークンの検証状態
@@ -64,15 +83,59 @@ function App() {
     };
   }, [checkDeviceToken, auth.token]);
 
-  // ログイン後のハンドリング: 一般ユーザーは打刻ページを表示させず勤怠一覧にする
   const isAdmin = auth.user?.role === 'admin';
+
+  // ステートと URL の同期
   useEffect(() => {
-    if (auth.user && !isAdmin && page === 'punch') {
-      Promise.resolve().then(() => {
-        setPage('attendance');
-      });
+    if (!auth.token || !auth.user) {
+      if (guestPage === 'punch') {
+        if (!isPunchPath()) {
+          window.history.pushState({}, '', '/kint/punch');
+        }
+      } else {
+        const path = window.location.pathname.replace(/\/$/, '');
+        if (path !== '/kint/' && path !== '/kint' && path !== '/') {
+          window.history.pushState({}, '', '/kint/');
+        }
+      }
+    } else {
+      if (page === 'punch') {
+        if (!isPunchPath()) {
+          window.history.pushState({}, '', '/kint/punch');
+        }
+      } else {
+        if (isPunchPath()) {
+          window.history.pushState({}, '', '/kint/');
+        }
+      }
     }
-  }, [auth.user, isAdmin, page]);
+  }, [guestPage, page, auth.token, auth.user]);
+
+  // popstate イベントハンドラー
+  useEffect(() => {
+    const handlePopState = () => {
+      const isPunch = isPunchPath();
+
+      if (!auth.token || !auth.user) {
+        if (isPunch) {
+          setGuestPage('punch');
+        } else {
+          setGuestPage('home');
+        }
+      } else {
+        if (isPunch) {
+          setPage('punch');
+        } else {
+          setPage(prev => prev === 'punch' ? 'attendance' : prev);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [auth.token, auth.user]);
 
   // メール確認ページはログイン不要・認証状態問わず表示
   if (window.location.pathname === '/email-verifications/confirm') {
@@ -123,7 +186,7 @@ function App() {
               <h2 style={{ marginBottom: '1rem', color: '#e53e3e' }}>未登録の端末です</h2>
               <p style={{ marginBottom: '0.5rem', fontSize: '1.05rem' }}>この端末は打刻用端末として登録されていません。</p>
               <p style={{ marginBottom: '2rem', color: '#718096', fontSize: '0.95rem' }}>
-                管理者がログインし、設定画面からこの端末を登録する必要があります。
+                管理者による端末の登録が必要です。
               </p>
               <button
                 type="button"
@@ -185,18 +248,18 @@ function App() {
             <button
               type="button"
               className="top-page__btn top-page__btn--primary"
-              onClick={() => setGuestPage('punch')}
-            >
-              打刻
-            </button>
-            <button
-              type="button"
-              className="top-page__btn top-page__btn--secondary"
               onClick={() => setGuestPage('login')}
             >
               ログイン
             </button>
           </div>
+          <button
+            type="button"
+            className="top-page__punch-link"
+            onClick={() => setGuestPage('punch')}
+          >
+            打刻端末として使用する
+          </button>
         </div>
       </div>
     );
@@ -207,15 +270,7 @@ function App() {
       <nav className="app-nav">
         <span className="app-nav__brand">Kint</span>
         <div className="app-nav__links">
-          {isAdmin && (
-            <button
-              type="button"
-              className={`app-nav__link ${page === 'punch' ? 'app-nav__link--active' : ''}`}
-              onClick={() => setPage('punch')}
-            >
-              打刻
-            </button>
-          )}
+          {/* 管理者向け打刻リンクはメニューバーから非表示 */}
           <button
             type="button"
             className={`app-nav__link ${page === 'attendance' ? 'app-nav__link--active' : ''}`}
