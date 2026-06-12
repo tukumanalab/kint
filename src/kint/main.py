@@ -214,7 +214,7 @@ async def google_oauth_callback(credential: str = Form(...)) -> HTMLResponse:
         "let path = window.location.pathname;\n"
         "if (!path.endsWith('/')) { path += '/'; }\n"
         "window.location.href = path;\n"
-        "<\\/script></head><body>Redirecting...</body></html>"
+        "</script></head><body>Redirecting...</body></html>"
     )
     return HTMLResponse(content=html)
 
