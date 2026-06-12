@@ -7,7 +7,16 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
-from kint.schemas.user import UserCreateRequest, UserPatchRequest, UserResponse, UsersListResponse
+from kint.schemas.user import (
+    UserCreateRequest,
+    UserPatchRequest,
+    UserResponse,
+    UsersListResponse,
+    MeCardListItem,
+    MeCardRegistrationRequest,
+    MeCardRegistrationResponse,
+    MeCardPatchRequest,
+)
 from kint.schemas.user_backup import ImportResultSchema, UserBackupSchema
 from kint.services.user import UserService
 
@@ -98,3 +107,56 @@ async def import_users(
     service = UserService(session)
     res = await service.import_users(body)
     return ImportResultSchema(**res)
+
+
+@router.get("/{user_id}/cards", response_model=list[MeCardListItem])
+async def list_user_cards(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[MeCardListItem]:
+    """対象ユーザーのNFCカード一覧を返す。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    return await service.get_user_cards(user_id)
+
+
+@router.post("/{user_id}/cards", response_model=MeCardRegistrationResponse, status_code=201)
+async def register_user_card(
+    user_id: str,
+    body: MeCardRegistrationRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MeCardRegistrationResponse:
+    """対象ユーザーにNFCカードを登録する。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    return await service.register_user_card(user_id, body)
+
+
+@router.patch("/{user_id}/cards/{card_id}", response_model=MeCardListItem)
+async def rename_user_card(
+    user_id: str,
+    card_id: str,
+    body: MeCardPatchRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MeCardListItem:
+    """対象ユーザーのNFCカード名を変更する。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    return await service.rename_user_card(user_id, card_id, body)
+
+
+@router.delete("/{user_id}/cards/{card_id}", status_code=204)
+async def delete_user_card(
+    user_id: str,
+    card_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """対象ユーザーのNFCカードを削除する。管理者専用。"""
+    _require_admin(current_user)
+    service = UserService(session)
+    await service.delete_user_card(user_id, card_id)
+    return Response(status_code=204)

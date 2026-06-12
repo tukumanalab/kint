@@ -1,10 +1,24 @@
 import { useEffect, useState, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { getUsers, createUser, patchUser, deleteUser, exportUsers, importUsers } from '../../api/user';
+import {
+  getUsers,
+  createUser,
+  patchUser,
+  deleteUser,
+  exportUsers,
+  importUsers,
+  fetchUserCards,
+  registerUserCard,
+  renameUserCard,
+  deleteUserCard,
+} from '../../api/user';
 import { ApiError } from '../../types/error';
-import type { UserResponse, UserCreateRequest, UserPatchRequest } from '../../types/user';
+import type { UserResponse, UserCreateRequest, UserPatchRequest, MeCardListItem } from '../../types/user';
 import type { UseAuth } from '../../hooks/useAuth';
+import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
+import { isWebUSBSupported } from '../../utils/browser';
 import './UserManagementPage.css';
+import '../MyProfile/MyProfilePage.css';
 
 interface Props {
   auth: UseAuth;
@@ -360,6 +374,7 @@ export function UserManagementPage({ auth }: Props) {
   const [modal, setModal] = useState<ModalMode>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
+  const [nfcTargetUser, setNfcTargetUser] = useState<UserResponse | null>(null);
 
   const token = auth.token!;
 
@@ -572,6 +587,13 @@ export function UserManagementPage({ auth }: Props) {
                     >
                       編集
                     </button>
+                    <button
+                      type="button"
+                      className="btn btn--small btn--secondary"
+                      onClick={() => setNfcTargetUser(user)}
+                    >
+                      カード
+                    </button>
                     {user.is_active ? (
                       <button
                         type="button"
@@ -629,6 +651,367 @@ export function UserManagementPage({ auth }: Props) {
           onClose={() => setImportResult(null)}
         />
       )}
+      {nfcTargetUser && (
+        <UserNfcCardsModal
+          user={nfcTargetUser}
+          onClose={() => setNfcTargetUser(null)}
+          token={token}
+        />
+      )}
     </main>
+  );
+}
+
+// ===== 管理者用 NFCカード管理ダイアログ =====
+
+interface UserNfcCardsModalProps {
+  user: UserResponse;
+  token: string;
+  onClose: () => void;
+}
+
+function UserNfcCardsModal({ user, token, onClose }: UserNfcCardsModalProps) {
+  const [cards, setCards] = useState<MeCardListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [deletingCardId, setDeletingCardId] = useState<string | null>(null);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editingCardName, setEditingCardName] = useState('');
+  const [renamingCardId, setRenamingCardId] = useState<string | null>(null);
+
+  const webUSBSupported = isWebUSBSupported();
+  const { status, idm, errorMessage, connect, readIdm, disconnect, reset } = useWebUSBFeliCa();
+  const [cardName, setCardName] = useState('');
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const alreadyRegistered =
+    status === 'success' && idm ? (cards.find((c) => c.card_idm === idm) ?? null) : null;
+
+  // カード一覧ロード
+  useEffect(() => {
+    fetchUserCards(token, user.id)
+      .then((c) => {
+        setCards(c);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError('カード情報の取得に失敗しました。');
+        setLoading(false);
+      });
+  }, [token, user.id]);
+
+  useEffect(() => {
+    dialogRef.current?.showModal();
+    return () => {
+      disconnect();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // PaSoRi 接続完了後、自動でカード読み取り開始
+  useEffect(() => {
+    if (status === 'connected') {
+      setRegisterError(null);
+      setRegisterSuccess(null);
+      readIdm();
+    }
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleConnect() {
+    reset();
+    setRegisterError(null);
+    setRegisterSuccess(null);
+    await connect();
+  }
+
+  async function handleRegister() {
+    if (!idm) return;
+    setRegisterError(null);
+    setRegisterSuccess(null);
+    setRegistering(true);
+    try {
+      const res = await registerUserCard(token, user.id, {
+        card_idm: idm,
+        name: cardName.trim() || undefined,
+      });
+      const newCard: MeCardListItem = {
+        card_id: res.card_id,
+        card_idm: res.card_idm,
+        name: res.name,
+        is_active: res.is_active,
+        created_at: new Date().toISOString(),
+      };
+      setCards((prev) => [...prev, newCard]);
+      setRegisterSuccess(`カードを登録しました。`);
+      setCardName('');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          setRegisterError('このカードはすでに登録されています。');
+          return;
+        }
+      }
+      setRegisterError('カードの登録に失敗しました。もう一度お試しください。');
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
+    if (e.target === dialogRef.current) onClose();
+  }
+
+  const nfcStatusLabel: Record<string, string> = {
+    idle: '未接続',
+    connecting: '接続中...',
+    connected: '接続済み',
+    reading: 'カードをかざしてください（最大5秒）...',
+    success: '読み取り成功',
+    error: 'エラー',
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="myprofile-dialog"
+      onCancel={onClose}
+      onClick={handleBackdropClick}
+    >
+      <div className="myprofile-dialog__inner">
+        <div className="myprofile-dialog__header">
+          <h2 className="myprofile-dialog__title">{user.full_name} のNFCカード管理</h2>
+          <button
+            type="button"
+            className="myprofile-dialog__close"
+            aria-label="閉じる"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* 既存カード一覧 */}
+        <div className="nfc-card-dialog__body" style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>登録済みのカード</h3>
+          {loading && <p>読み込み中...</p>}
+          {error && <div className="form-alert form-alert--error" role="alert">{error}</div>}
+          {!loading && !error && cards.length === 0 && (
+            <p className="myprofile-section__desc" style={{ color: '#718096', fontSize: '0.9rem' }}>登録済みのカードはありません。</p>
+          )}
+          {!loading && !error && cards.length > 0 && (
+            <ul className="myprofile-card-list" style={{ padding: 0, margin: 0, listStyle: 'none' }}>
+              {cards.map((card) => (
+                <li key={card.card_id} className="myprofile-card-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #edf2f7' }}>
+                  <div className="myprofile-card-item__info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    {editingCardId === card.card_id ? (
+                      <form
+                        className="myprofile-card-item__rename-form"
+                        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setRenamingCardId(card.card_id);
+                          try {
+                            const updated = await renameUserCard(token, user.id, card.card_id, {
+                              name: editingCardName.trim() || null,
+                            });
+                            setCards((prev) =>
+                              prev.map((c) => (c.card_id === card.card_id ? updated : c)),
+                            );
+                            setEditingCardId(null);
+                          } catch {
+                            // ignore
+                          } finally {
+                            setRenamingCardId(null);
+                          }
+                        }}
+                      >
+                        <input
+                          type="text"
+                          className="form-input form-input--sm"
+                          value={editingCardName}
+                          onChange={(e) => setEditingCardName(e.target.value)}
+                          maxLength={50}
+                          placeholder="カード名（空欄で削除）"
+                          autoFocus
+                          disabled={renamingCardId === card.card_id}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
+                        />
+                        <button
+                          type="submit"
+                          className="btn btn--primary btn--sm"
+                          disabled={renamingCardId === card.card_id}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn--sm"
+                          onClick={() => setEditingCardId(null)}
+                          disabled={renamingCardId === card.card_id}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                        >
+                          キャンセル
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <span className="myprofile-card-item__name" style={{ fontWeight: '500', fontSize: '0.9rem' }}>
+                          {card.name || '（名前なしカード）'}
+                        </span>
+                        <code className="myprofile-card-item__idm" style={{ fontSize: '0.8rem', color: '#4a5568' }}>{card.card_idm}</code>
+                      </>
+                    )}
+                  </div>
+                  {editingCardId !== card.card_id && (
+                    <div style={{ display: 'flex', gap: '0.3rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        disabled={deletingCardId === card.card_id}
+                        onClick={() => {
+                          setEditingCardId(card.card_id);
+                          setEditingCardName(card.name ?? '');
+                        }}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                      >
+                        名前変更
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger btn--sm"
+                        disabled={deletingCardId === card.card_id}
+                        onClick={async () => {
+                          if (!window.confirm(`カード (IDm: ${card.card_idm}) を削除しますか？`)) return;
+                          setDeletingCardId(card.card_id);
+                          try {
+                            await deleteUserCard(token, user.id, card.card_id);
+                            setCards((prev) => prev.filter((c) => c.card_id !== card.card_id));
+                          } catch {
+                            // ignore
+                          } finally {
+                            setDeletingCardId(null);
+                          }
+                        }}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 新規登録セクション */}
+        <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>カードを新規登録</h3>
+        {!webUSBSupported ? (
+          <div className="form-alert form-alert--warn" role="alert">
+            このブラウザは WebUSB に対応していません。Chrome または Edge をご利用ください。
+          </div>
+        ) : (
+          <div className="nfc-card-dialog__body">
+            <p className="nfc-card-dialog__hint" style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '1rem' }}>
+              「接続」ボタンを押して PaSoRi を選択すると、自動的にカードの読み取りを開始します。
+            </p>
+
+            <div className={`nfc-status nfc-status--${status}`} style={{ marginBottom: '1rem' }}>
+              {nfcStatusLabel[status] ?? status}
+            </div>
+
+            {idm && (
+              <div className="nfc-card-dialog__idm" style={{ marginBottom: '1rem' }}>
+                <span className="nfc-card-dialog__idm-label">読み取り IDm:</span>
+                <code className="nfc-card-dialog__idm-value">{idm}</code>
+              </div>
+            )}
+
+            {status === 'success' && alreadyRegistered && (
+              <div className="form-alert form-alert--warn" role="status" style={{ marginBottom: '1rem' }}>
+                {alreadyRegistered.name
+                  ? `「${alreadyRegistered.name}」としてすでに登録されています。`
+                  : 'このカードはすでにこのユーザーに登録されています。'}
+              </div>
+            )}
+
+            {status === 'success' && idm && !alreadyRegistered && !registerSuccess && (
+              <div className="form-field" style={{ marginBottom: '1rem' }}>
+                <label htmlFor="nfc-card-name" className="form-label">
+                  カード名 <span className="form-hint">（任意）</span>
+                </label>
+                <input
+                  id="nfc-card-name"
+                  type="text"
+                  className="form-input"
+                  placeholder="例: 社員証、交通系IC"
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value)}
+                  maxLength={50}
+                  disabled={registering}
+                />
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="form-alert form-alert--error" role="alert" style={{ marginBottom: '1rem' }}>
+                {errorMessage}
+              </div>
+            )}
+            {registerError && (
+              <div className="form-alert form-alert--error" role="alert" style={{ marginBottom: '1rem' }}>
+                {registerError}
+              </div>
+            )}
+            {registerSuccess && (
+              <div className="form-alert form-alert--success" role="status" style={{ marginBottom: '1rem' }}>
+                {registerSuccess}
+              </div>
+            )}
+
+            <div className="nfc-card-dialog__buttons" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              {(status === 'idle' || status === 'error') && (
+                <button type="button" className="btn btn--primary" onClick={handleConnect}>
+                  接続
+                </button>
+              )}
+              {status === 'success' && idm && !alreadyRegistered && (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handleRegister}
+                  disabled={registering || registerSuccess !== null}
+                >
+                  {registering ? '登録中...' : 'このカードを登録'}
+                </button>
+              )}
+              {(status === 'success' || status === 'error') && (
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => {
+                    reset();
+                    setRegisterError(null);
+                    setRegisterSuccess(null);
+                  }}
+                >
+                  やり直す
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="myprofile-dialog__actions myprofile-dialog__actions--right" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
+            閉じる
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 }

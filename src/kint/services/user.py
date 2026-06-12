@@ -436,6 +436,114 @@ class UserService:
             is_active=bool(card.is_active),
         )
 
+    async def get_user_cards(self, user_id: str) -> list[MeCardListItem]:
+        """指定ユーザーに紐付く NFC カード一覧を返す。ユーザーが存在しない場合は KintNotFoundError。"""
+        user = await self.session.get(User, user_id)
+        if user is None:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message=f"ユーザー '{user_id}' が見つかりません",
+            )
+        result = await self.session.execute(
+            select(Card).where(Card.user_id == user_id).order_by(Card.created_at)
+        )
+        cards = result.scalars().all()
+        return [
+            MeCardListItem(
+                card_id=card.id,
+                card_idm=card.card_idm,
+                name=card.name,
+                is_active=bool(card.is_active),
+                created_at=card.created_at,
+            )
+            for card in cards
+        ]
+
+    async def register_user_card(
+        self, user_id: str, data: MeCardRegistrationRequest
+    ) -> MeCardRegistrationResponse:
+        """指定ユーザーの NFC カード (card_idm) を登録する。ユーザーが存在しない場合は KintNotFoundError、IDm 重複時は KintConflictError。"""
+        user = await self.session.get(User, user_id)
+        if user is None:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message=f"ユーザー '{user_id}' が見つかりません",
+            )
+        dup = await self.session.execute(select(Card).where(Card.card_idm == data.card_idm))
+        if dup.scalar_one_or_none() is not None:
+            raise KintConflictError(
+                code="CARD_IDM_CONFLICT",
+                message=f"カード IDm '{data.card_idm}' はすでに登録されています",
+                detail={"card_idm": data.card_idm},
+            )
+
+        card = Card(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            card_idm=data.card_idm,
+            name=data.name,
+            is_active=1,
+        )
+        self.session.add(card)
+        await self.session.commit()
+        await self.session.refresh(card)
+        return MeCardRegistrationResponse(
+            card_id=card.id,
+            card_idm=card.card_idm,
+            name=card.name,
+            is_active=bool(card.is_active),
+        )
+
+    async def rename_user_card(
+        self, user_id: str, card_id: str, data: MeCardPatchRequest
+    ) -> MeCardListItem:
+        """指定ユーザーのカード名を変更する。ユーザーまたはカードが存在しない場合は KintNotFoundError。"""
+        user = await self.session.get(User, user_id)
+        if user is None:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message=f"ユーザー '{user_id}' が見つかりません",
+            )
+        result = await self.session.execute(
+            select(Card).where(Card.id == card_id, Card.user_id == user_id)
+        )
+        card = result.scalar_one_or_none()
+        if card is None:
+            raise KintNotFoundError(
+                code="CARD_NOT_FOUND",
+                message=f"カード '{card_id}' が見つかりません",
+            )
+        card.name = data.name
+        await self.session.commit()
+        await self.session.refresh(card)
+        return MeCardListItem(
+            card_id=card.id,
+            card_idm=card.card_idm,
+            name=card.name,
+            is_active=bool(card.is_active),
+            created_at=card.created_at,
+        )
+
+    async def delete_user_card(self, user_id: str, card_id: str) -> None:
+        """指定ユーザーの NFC カードを削除する。ユーザーまたはカードが存在しない場合は KintNotFoundError。"""
+        user = await self.session.get(User, user_id)
+        if user is None:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message=f"ユーザー '{user_id}' が見つかりません",
+            )
+        result = await self.session.execute(
+            select(Card).where(Card.id == card_id, Card.user_id == user_id)
+        )
+        card = result.scalar_one_or_none()
+        if card is None:
+            raise KintNotFoundError(
+                code="CARD_NOT_FOUND",
+                message=f"カード '{card_id}' が見つかりません",
+            )
+        await self.session.delete(card)
+        await self.session.commit()
+
     async def request_email_change(
         self,
         current_user: User,
