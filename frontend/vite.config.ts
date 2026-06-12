@@ -38,6 +38,7 @@ window.location.href='/';
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/kint/',
   plugins: [react(), googleOAuthCallbackPlugin()],
   server: {
     proxy: {

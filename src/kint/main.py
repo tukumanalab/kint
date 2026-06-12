@@ -211,7 +211,7 @@ async def google_oauth_callback(credential: str = Form(...)) -> HTMLResponse:
     html = (
         '<!DOCTYPE html><html><head><meta charset="utf-8"><script>\n'
         f"sessionStorage.setItem('google_credential',{safe_credential});\n"
-        "window.location.href='/';\n"
+        "window.location.href='./';\n"
         "<\\/script></head><body>Redirecting...</body></html>"
     )
     return HTMLResponse(content=html)
