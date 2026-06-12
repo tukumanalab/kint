@@ -6,7 +6,14 @@ import './RegisterPage.css';
 function decodeGoogleIdToken(token: string): { email: string; name: string } {
   try {
     const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(b64)) as { email?: string; name?: string };
+    const binStr = atob(b64);
+    const len = binStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binStr.charCodeAt(i);
+    }
+    const decoder = new TextDecoder('utf-8');
+    const payload = JSON.parse(decoder.decode(bytes)) as { email?: string; name?: string };
     return { email: payload.email ?? '', name: payload.name ?? '' };
   } catch {
     return { email: '', name: '' };
