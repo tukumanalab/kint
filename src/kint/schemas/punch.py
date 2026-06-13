@@ -35,7 +35,7 @@ class PunchResponse(BaseModel):
     attendance_id: str | None = None
     user_id: str
     user_name: str
-    action: Literal["check_in", "check_out"] | None = None
+    action: Literal["check_in", "check_out", "cancelled"] | None = None
     occurred_at: datetime
     method: Literal["card_idm", "user_id"]
     message: str

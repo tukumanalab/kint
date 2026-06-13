@@ -302,3 +302,20 @@
   font-weight: 700;
   color: #1b5e20;
 }
+
+.punch-result--cancelled {
+  background: #e3f2fd;
+  border-color: #2196f3;
+}
+.punch-result--cancelled .punch-result__action {
+  color: #1565c0;
+}
+.punch-result--cancelled .punch-result__name {
+  color: #0d47a1;
+}
+.punch-result--cancelled .punch-result__time {
+  color: #1565c0;
+}
+.punch-result--cancelled .punch-result__message {
+  color: #1976d2;
+}

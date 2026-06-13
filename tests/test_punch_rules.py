@@ -430,4 +430,100 @@ class TestPunchRules:
         res_out_data = response_out.json()
         assert res_out_data["calculated_time"].startswith("2026-06-04T17:45:00")
 
+    async def test_punch_cancel_within_5_minutes(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """出勤打刻から5分以内の退勤打刻で、出退勤記録が削除（取り消し）されること。"""
+        user_id = "user-cancel-1"
+        user = await _create_user(session, user_id=user_id)
+        await _create_card(session, user.id, card_idm="9999999999999999")
 
+        # 9:00〜18:00 のシフトを作成
+        shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
+        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-1")
+
+        # 1. 出勤打刻 (9:01:00)
+        punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)
+        response_in = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "9999999999999999",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+        assert response_in.status_code == 200
+        assert response_in.json()["action"] == "check_in"
+
+        # レコードが1つ作られていることを確認
+        result_pre = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
+        assert len(result_pre.scalars().all()) == 1
+
+        # 2. 退勤打刻 (2分後の 9:03:00) - クールダウン期間(60秒以上)は過ぎているが、5分以内
+        punch_out_time = punch_in_time + timedelta(minutes=2)
+        response_out = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "9999999999999999",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+            },
+        )
+        assert response_out.status_code == 200
+        res_data = response_out.json()
+        assert res_data["action"] == "cancelled"
+        assert "取り消しました" in res_data["message"]
+
+        # レコードが削除されている（0件）であることを確認
+        session.expire_all()
+        result_post = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
+        assert len(result_post.scalars().all()) == 0
+
+    async def test_punch_cancel_respects_cooldown(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """出勤打刻から5分以内であっても、クールダウン期間内の打刻は409で拒否されること。"""
+        user_id = "user-cancel-2"
+        user = await _create_user(session, user_id=user_id)
+        await _create_card(session, user.id, card_idm="8888888888888888")
+
+        # 9:00〜18:00 のシフト
+        shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
+        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-2")
+
+        # 1. 出勤打刻 (9:01:00)
+        punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)
+        response_in = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "8888888888888888",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+        assert response_in.status_code == 200
+
+        # 2. 退勤打刻 (15秒後) - 5分以内だが、クールダウン期間(60秒)未満
+        punch_out_time = punch_in_time + timedelta(seconds=15)
+        response_out = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "8888888888888888",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+            },
+        )
+        # クールダウンエラーになること
+        assert response_out.status_code == 409
+        assert response_out.json()["code"] == "PUNCH_COOLDOWN_ACTIVE"
+
+        # レコードはまだ削除されていないことを確認
+        session.expire_all()
+        result = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
+        assert len(result.scalars().all()) == 1

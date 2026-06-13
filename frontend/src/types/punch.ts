@@ -22,7 +22,7 @@ export interface PunchResponse {
   attendance_id: string | null;
   user_id: string;
   user_name: string;
-  action: 'check_in' | 'check_out' | null;
+  action: 'check_in' | 'check_out' | 'cancelled' | null;
   occurred_at: string;
   method: 'card_idm' | 'user_id';
   message: string;

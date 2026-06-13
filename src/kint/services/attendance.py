@@ -6,7 +6,7 @@ import io
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -285,7 +285,41 @@ class PunchService:
  
         await self._validate_cooldown(user.id, request.occurred_at)
         attendance = await self._get_open_attendance(user.id)
- 
+
+        # 5分以内の退勤打刻の場合、出勤記録を取り消す（削除する）
+        is_cancelled = False
+        if attendance is not None and attendance.check_in is not None:
+            diff_seconds = (self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)).total_seconds()
+            if diff_seconds <= 300:
+                is_cancelled = True
+
+        if is_cancelled and attendance is not None:
+            # 締め（ロック）チェック
+            att_svc = AttendanceService(self.session)
+            if await att_svc.is_date_locked(attendance.work_date):
+                raise KintBadRequestError(
+                    code="ATTENDANCE_LOCKED",
+                    message="対象年月の勤怠は締め処理が完了しているため、打刻取り消しは行えません。",
+                )
+            # 関連するチェンジログを削除
+            await self.session.execute(
+                delete(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance.id)
+            )
+            # 勤怠レコードを削除
+            await self.session.delete(attendance)
+            await self.session.commit()
+
+            return PunchResponse(
+                status="completed",
+                attendance_id=None,
+                user_id=user.id,
+                user_name=user.name,
+                action="cancelled",
+                occurred_at=request.occurred_at,
+                method=method,  # type: ignore[arg-type]
+                message="出勤打刻を取り消しました（5分以内の退勤）",
+            )
+
         if attendance is not None:
             # 締め（ロック）チェック
             att_svc = AttendanceService(self.session)
@@ -294,7 +328,7 @@ class PunchService:
                     code="ATTENDANCE_LOCKED",
                     message="対象年月の勤怠は締め処理が完了しているため、退勤打刻は行えません。",
                 )
- 
+
             await self._do_check_out(
                 attendance=attendance,
                 occurred_at=request.occurred_at,

@@ -37,8 +37,10 @@ function statusLabel(status: string): { label: string; className: string } {
 }
 
 /** 打刻アクションを日本語に変換する */
-function actionLabel(action: 'check_in' | 'check_out'): string {
-  return action === 'check_in' ? '出勤' : '退勤';
+function actionLabel(action: 'check_in' | 'check_out' | 'cancelled'): string {
+  if (action === 'check_in') return '出勤';
+  if (action === 'check_out') return '退勤';
+  return '打刻取消';
 }
 
 /** エラーコードをユーザー向けメッセージに変換する */
@@ -396,8 +398,10 @@ export function PunchPage() {
 
       {/* ===== 打刻結果 ===== */}
       {punchResult?.status === 'completed' && punchResult.action && (
-        <div className="punch-result" role="status" aria-live="polite">
-          <p className="punch-result__action">{actionLabel(punchResult.action)}しました</p>
+        <div className={`punch-result ${punchResult.action === 'cancelled' ? 'punch-result--cancelled' : ''}`} role="status" aria-live="polite">
+          <p className="punch-result__action">
+            {punchResult.action === 'cancelled' ? '打刻を取り消しました' : `${actionLabel(punchResult.action)}しました`}
+          </p>
           <p className="punch-result__name">{punchResult.user_name}</p>
           <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
           <p className="punch-result__message">{punchResult.message}</p>
