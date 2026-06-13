@@ -61,33 +61,34 @@ def calculate_working_time(
     calc_out = None
 
     if check_in is not None:
-        if shift_start is not None and check_in <= shift_start:
+        dt_in = check_in.replace(microsecond=0)
+        if shift_start is not None and dt_in <= shift_start:
             # シフト開始前の打刻はシフト開始時刻とする
             calc_in = shift_start
         else:
             # シフト開始後、またはシフトなしの打刻は5分区切りで切り上げ
-            base = check_in.min.replace(tzinfo=check_in.tzinfo)
-            delta_seconds = (check_in - base).total_seconds()
+            base = dt_in.replace(hour=0, minute=0, second=0)
+            delta_seconds = int((dt_in - base).total_seconds())
             remainder = delta_seconds % 300
             if remainder > 0:
-                calc_in = check_in + timedelta(seconds=(300 - remainder))
-                calc_in = calc_in.replace(microsecond=0)
+                calc_in = dt_in + timedelta(seconds=(300 - remainder))
             else:
-                calc_in = check_in.replace(microsecond=0)
+                calc_in = dt_in
 
     if check_out is not None:
-        if shift_end is not None and check_out >= shift_end:
+        dt_out = check_out.replace(microsecond=0)
+        if shift_end is not None and dt_out >= shift_end:
             # シフト終了後の打刻はシフト終了時刻とする
             calc_out = shift_end
         else:
             # シフト終了前、またはシフトなしの打刻は5分区切りで切り捨て
-            base = check_out.min.replace(tzinfo=check_out.tzinfo)
-            delta_seconds = (check_out - base).total_seconds()
+            base = dt_out.replace(hour=0, minute=0, second=0)
+            delta_seconds = int((dt_out - base).total_seconds())
             remainder = delta_seconds % 300
-            calc_out = check_out - timedelta(seconds=remainder)
-            calc_out = calc_out.replace(microsecond=0)
+            calc_out = dt_out - timedelta(seconds=remainder)
 
     return calc_in, calc_out
+
 
 
 class PunchService:

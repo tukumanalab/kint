@@ -382,3 +382,52 @@ class TestPunchRules:
         assert res_out_data["current_working_hours"] == 8.92
         assert res_out_data["daily_working_hours_total"] == 8.92
 
+    async def test_punch_calculated_fields_with_microseconds(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """打刻時刻にマイクロ秒が含まれていても、丸め後の退勤時刻が正しく計算されること。"""
+        user = await _create_user(session, user_id="user-005")
+        await _create_card(session, user.id, card_idm="5555555555555555")
+
+        # シフトを作成（9:00〜18:00）
+        shift_start = datetime(2026, 6, 4, 9, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 6, 4, 18, 0, tzinfo=UTC)
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-005",
+        )
+
+        # 1. 出勤打刻 (9:00:00.123456) -> 9:00:00 に丸められるはず
+        punch_in_time = datetime(2026, 6, 4, 9, 0, 0, 123456, tzinfo=UTC)
+        response_in = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "5555555555555555",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+        assert response_in.status_code == 200
+        res_in_data = response_in.json()
+        assert res_in_data["calculated_time"].startswith("2026-06-04T09:00:00")
+
+        # 2. 退勤打刻 (17:47:32.440000) -> 17:45:00 に丸められるはず
+        punch_out_time = datetime(2026, 6, 4, 17, 47, 32, 440000, tzinfo=UTC)
+        response_out = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "5555555555555555",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+            },
+        )
+        assert response_out.status_code == 200
+        res_out_data = response_out.json()
+        assert res_out_data["calculated_time"].startswith("2026-06-04T17:45:00")
+
+
