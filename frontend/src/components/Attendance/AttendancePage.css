@@ -310,9 +310,27 @@
 }
 
 .att-punch-item {
-  height: 28px;
+  min-height: 28px;
+  height: auto;
   display: flex;
   align-items: center;
+}
+
+.att-punch-time-combined {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.att-punch-time-calc {
+  font-weight: 500;
+  color: #24292e;
+}
+
+.att-punch-time-raw {
+  font-size: 11px;
+  color: #6a737d;
 }
 
 /* Modals */

@@ -477,6 +477,18 @@ export function AttendancePage({ auth }: Props) {
     }
   };
 
+  const formatPunchTime = (calcTime: string | null, rawTime: string | null) => {
+    if (!calcTime && !rawTime) return '-';
+    const calcStr = calcTime ? formatTime(calcTime) : '-';
+    const rawStr = rawTime ? formatTime(rawTime) : '-';
+    return (
+      <span className="att-punch-time-combined">
+        <span className="att-punch-time-calc">{calcStr}</span>
+        <span className="att-punch-time-raw">({rawStr})</span>
+      </span>
+    );
+  };
+
   const formatHours = (hours: number | null) => {
     if (hours === null || hours === undefined) return '-';
     return `${hours.toFixed(2)}h`;
@@ -621,12 +633,12 @@ export function AttendancePage({ auth }: Props) {
               <div className="att-multiple-punches">
                 {day.punches.map((p, idx) => (
                   <div key={idx} className="att-punch-item">
-                    {formatTime(p.check_in)}
+                    {formatPunchTime(p.calculated_check_in, p.check_in)}
                   </div>
                 ))}
               </div>
             ) : (
-              formatTime(day.check_in)
+              formatPunchTime(day.calculated_check_in, day.check_in)
             )}
           </td>
           <td>
@@ -634,38 +646,12 @@ export function AttendancePage({ auth }: Props) {
               <div className="att-multiple-punches">
                 {day.punches.map((p, idx) => (
                   <div key={idx} className="att-punch-item">
-                    {formatTime(p.check_out)}
+                    {formatPunchTime(p.calculated_check_out, p.check_out)}
                   </div>
                 ))}
               </div>
             ) : (
-              formatTime(day.check_out)
-            )}
-          </td>
-          <td>
-            {day.punches && day.punches.length > 0 ? (
-              <div className="att-multiple-punches">
-                {day.punches.map((p, idx) => (
-                  <div key={idx} className="att-punch-item">
-                    {p.calculated_check_in ? formatTime(p.calculated_check_in) : '-'}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              day.calculated_check_in ? formatTime(day.calculated_check_in) : '-'
-            )}
-          </td>
-          <td>
-            {day.punches && day.punches.length > 0 ? (
-              <div className="att-multiple-punches">
-                {day.punches.map((p, idx) => (
-                  <div key={idx} className="att-punch-item">
-                    {p.calculated_check_out ? formatTime(p.calculated_check_out) : '-'}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              day.calculated_check_out ? formatTime(day.calculated_check_out) : '-'
+              formatPunchTime(day.calculated_check_out, day.check_out)
             )}
           </td>
           <td>{formatHours(day.working_hours)}</td>
@@ -810,7 +796,7 @@ export function AttendancePage({ auth }: Props) {
       if (isSunday || isLastDay) {
         rows.push(
           <tr key={`weekly-${day.work_date}`} className="att-table__weekly-summary">
-            <td colSpan={6} style={{ textAlign: 'right' }}>週次集計:</td>
+            <td colSpan={4} style={{ textAlign: 'right' }}>週次集計:</td>
             <td>{weeklyWorkingHours > 0 ? `${weeklyWorkingHours.toFixed(2)}h` : '-'}</td>
             <td>-</td>
             <td>
@@ -1172,10 +1158,8 @@ export function AttendancePage({ auth }: Props) {
                     <tr>
                       <th>日付</th>
                       <th>シフト予定</th>
-                      <th>打刻出勤</th>
-                      <th>打刻退勤</th>
-                      <th>勤務出勤</th>
-                      <th>勤務退勤</th>
+                      <th>出勤(打刻)</th>
+                      <th>退勤(打刻)</th>
                       <th>労働時間</th>
                       <th>時間外</th>
                       <th>状態</th>
