@@ -260,8 +260,14 @@ export function AttendancePage({ auth }: Props) {
     const isoOut = toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
 
     if (isoIn && isoOut) {
-      if (new Date(isoIn) >= new Date(isoOut)) {
+      const inTime = new Date(isoIn).getTime();
+      const outTime = new Date(isoOut).getTime();
+      if (inTime >= outTime) {
         alert('退勤時刻は出勤時刻より後の日時を指定してください');
+        return;
+      }
+      if (outTime - inTime <= 5 * 60 * 1000) {
+        alert('出勤時刻から5分以内の退勤時刻への修正申請は受け付けられません。');
         return;
       }
     }

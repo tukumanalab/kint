@@ -406,3 +406,71 @@ async def test_overlapping_attendance_not_allowed(
     assert resp.status_code == 400
     data = resp.json()
     assert data["code"] == "ATTENDANCE_OVERLAP"
+
+
+@pytest.mark.asyncio
+async def test_short_attendance_correction_not_allowed(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """出勤打刻から5分以内に退勤打刻を行ったことになる修正申請は受け付けないことをテストする。"""
+    await _create_user(
+        session, id="short_user", name="短時間太郎", email="short@example.com", role="employee"
+    )
+    user_token = await _login(client, "short_user", "Password123")
+
+    # 2026-06-01 の勤怠レコード
+    att = Attendance(
+        id="att_short_test",
+        user_id="short_user",
+        work_date=date(2026, 6, 1),
+        check_in=datetime(2026, 6, 1, 9, 0, tzinfo=UTC),
+        check_out=None,
+        source="web_user_id",
+    )
+    session.add(att)
+    await session.commit()
+
+    # 1. ちょうど5分（300秒）の差での申請 -> エラー
+    resp = await client.post(
+        "/api/v1/attendance/requests",
+        json={
+            "attendance_id": "att_short_test",
+            "requested_check_in": "2026-06-01T09:00:00Z",
+            "requested_check_out": "2026-06-01T09:05:00Z",
+            "reason": "5分丁度の申請テスト",
+        },
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data["code"] == "INVALID_DATETIME_RANGE"
+    assert "5分以内" in data["message"]
+
+    # 2. 5分未満（299秒）の差での申請 -> エラー
+    resp = await client.post(
+        "/api/v1/attendance/requests",
+        json={
+            "attendance_id": "att_short_test",
+            "requested_check_in": "2026-06-01T09:00:00Z",
+            "requested_check_out": "2026-06-01T09:04:59Z",
+            "reason": "5分未満の申請テスト",
+        },
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data["code"] == "INVALID_DATETIME_RANGE"
+
+    # 3. 5分超（301秒）の差での申請 -> 正常作成
+    resp = await client.post(
+        "/api/v1/attendance/requests",
+        json={
+            "attendance_id": "att_short_test",
+            "requested_check_in": "2026-06-01T09:00:00Z",
+            "requested_check_out": "2026-06-01T09:05:01Z",
+            "reason": "5分超の申請テスト",
+        },
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert resp.status_code == 201
+

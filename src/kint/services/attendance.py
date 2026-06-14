@@ -1351,6 +1351,18 @@ class AttendanceService:
             check_out=body.requested_check_out,
         )
 
+        # 5分以内チェック
+        if body.requested_check_in is not None and body.requested_check_out is not None:
+            req_in = _ensure_utc(body.requested_check_in)
+            req_out = _ensure_utc(body.requested_check_out)
+            if req_in is not None and req_out is not None:
+                diff = (req_out - req_in).total_seconds()
+                if 0 <= diff <= 300:
+                    raise KintBadRequestError(
+                        code="INVALID_DATETIME_RANGE",
+                        message="出勤時刻から5分以内の退勤時刻への修正申請は受け付けられません。",
+                    )
+
         # 申請作成
         now = datetime.now(tz=UTC)
         request = AttendanceCorrectionRequest(
