@@ -11,6 +11,8 @@ import {
   rejectCorrectionRequest,
   cancelCorrectionRequest,
   getAttendanceHistory,
+  createAttendance,
+  deleteAttendance,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
@@ -77,6 +79,17 @@ export function AttendancePage({ auth }: Props) {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyWorkDate, setHistoryWorkDate] = useState('');
 
+  // 手動勤怠追加関連 (管理者用)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    workDate: '',
+    checkInDate: '',
+    checkInTime: '',
+    checkOutDate: '',
+    checkOutTime: '',
+    reason: '',
+  });
+
   const isAdmin = auth.user?.role === 'admin';
 
   const handleViewHistory = async (attendanceId: string, workDate: string) => {
@@ -92,6 +105,77 @@ export function AttendancePage({ auth }: Props) {
       setHistoryError(err instanceof Error ? err.message : '変更履歴の取得に失敗しました');
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenAddModal = (workDate: string) => {
+    setAddFormData({
+      workDate,
+      checkInDate: workDate,
+      checkInTime: '',
+      checkOutDate: workDate,
+      checkOutTime: '',
+      reason: '',
+    });
+    setShowAddModal(true);
+  };
+
+  const handleSubmitAdd = async () => {
+    if (!auth.token) return;
+    const targetUserId = selectedUser?.user_id || auth.user?.id;
+    if (!targetUserId) return;
+
+    if (!addFormData.reason.trim()) {
+      alert('理由を入力してください。');
+      return;
+    }
+
+    let checkInStr: string | null = null;
+    if (addFormData.checkInDate && addFormData.checkInTime) {
+      checkInStr = new Date(`${addFormData.checkInDate}T${addFormData.checkInTime}:00`).toISOString();
+    }
+
+    let checkOutStr: string | null = null;
+    if (addFormData.checkOutDate && addFormData.checkOutTime) {
+      checkOutStr = new Date(`${addFormData.checkOutDate}T${addFormData.checkOutTime}:00`).toISOString();
+    }
+
+    try {
+      await createAttendance(auth.token, {
+        user_id: targetUserId,
+        work_date: addFormData.workDate,
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        reason: addFormData.reason,
+      });
+      setShowAddModal(false);
+      // 再読み込み
+      await fetchSummary();
+      if (selectedUser) {
+        const updatedDetail = await getMonthlyAttendanceDetail(auth.token, yearMonth, selectedUser.user_id);
+        setDetailData(updatedDetail);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '勤怠記録の追加に失敗しました');
+    }
+  };
+
+  const handleDeleteAttendance = async (attendanceId: string) => {
+    if (!auth.token) return;
+    if (!window.confirm('この勤怠記録を削除してもよろしいですか？\n削除すると、この記録に関連する変更履歴や申請情報も削除されます。')) {
+      return;
+    }
+
+    try {
+      await deleteAttendance(auth.token, attendanceId);
+      // 再読み込み
+      await fetchSummary();
+      if (selectedUser) {
+        const updatedDetail = await getMonthlyAttendanceDetail(auth.token, yearMonth, selectedUser.user_id);
+        setDetailData(updatedDetail);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '勤怠記録の削除に失敗しました');
     }
   };
 
@@ -114,6 +198,7 @@ export function AttendancePage({ auth }: Props) {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.token, yearMonth, isAdmin]);
 
   useEffect(() => {
@@ -587,77 +672,132 @@ export function AttendancePage({ auth }: Props) {
           <td>{formatHours(day.overtime_hours)}</td>
           <td>{getStatusBadge(day.status)}</td>
           <td>
-            {getSourceLabel(day.source)}
-            {day.is_auto_completed && (
-              <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
-                自動補完
-              </span>
-            )}
-          </td>
-          <td>
             {day.punches && day.punches.length > 0 ? (
-              <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div className="att-multiple-punches">
                 {day.punches.map((p, idx) => (
-                  <div key={idx} className="att-punch-item" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {detailData && !detailData.is_locked && p.attendance_id && (
-                      <button
-                        type="button"
-                        className="att-btn att-btn--small"
-                        onClick={() =>
-                          handleOpenRequestModal(
-                            p.attendance_id!,
-                            day.work_date,
-                            p.check_in,
-                            p.check_out
-                          )
-                        }
-                      >
-                        修正申請
-                      </button>
-                    )}
-                    {p.attendance_id && (
-                      <button
-                        type="button"
-                        className="att-btn att-btn--small att-btn--secondary"
-                        onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
-                      >
-                        履歴
-                      </button>
-                    )}
-                    {!p.attendance_id && <span className="att-text--muted">-</span>}
+                  <div key={idx} className="att-punch-item">
+                    {getSourceLabel(p.source ?? null)}
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                {detailData && !detailData.is_locked && day.attendance_id && (
+              <>
+                {getSourceLabel(day.source)}
+                {day.is_auto_completed && (
+                  <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
+                    自動補完
+                  </span>
+                )}
+              </>
+            )}
+          </td>
+          <td>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {day.punches && day.punches.length > 0 ? (
+                <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {day.punches.map((p, idx) => (
+                    <div key={idx} className="att-punch-item" style={{ display: 'flex', gap: '4px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                      {detailData && !detailData.is_locked && p.attendance_id && (
+                        <>
+                          <button
+                            type="button"
+                            className="att-btn att-btn--small"
+                            onClick={() =>
+                              handleOpenRequestModal(
+                                p.attendance_id!,
+                                day.work_date,
+                                p.check_in,
+                                p.check_out
+                              )
+                            }
+                          >
+                            {isAdmin ? '修正' : '修正申請'}
+                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="att-btn att-btn--small"
+                              style={{ background: '#d73a49', color: '#fff' }}
+                              onClick={() => handleDeleteAttendance(p.attendance_id!)}
+                            >
+                              削除
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {p.attendance_id && (
+                        <button
+                          type="button"
+                          className="att-btn att-btn--small att-btn--secondary"
+                          onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
+                        >
+                          履歴
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                day.attendance_id && (
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                    {detailData && !detailData.is_locked && (
+                      <>
+                        <button
+                          type="button"
+                          className="att-btn att-btn--small"
+                          onClick={() =>
+                            handleOpenRequestModal(
+                              day.attendance_id!,
+                              day.work_date,
+                              day.check_in,
+                              day.check_out
+                            )
+                          }
+                        >
+                          {isAdmin ? '修正' : '修正申請'}
+                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="att-btn att-btn--small"
+                            style={{ background: '#d73a49', color: '#fff' }}
+                            onClick={() => handleDeleteAttendance(day.attendance_id!)}
+                          >
+                            削除
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="att-btn att-btn--small att-btn--secondary"
+                      onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
+                    >
+                      履歴
+                    </button>
+                  </div>
+                )
+              )}
+
+              {/* 管理者用：勤怠追加ボタンを常に表示 */}
+              {detailData && !detailData.is_locked && isAdmin && (
+                <div style={{ display: 'flex', marginTop: '2px' }}>
                   <button
                     type="button"
                     className="att-btn att-btn--small"
-                    onClick={() =>
-                      handleOpenRequestModal(
-                        day.attendance_id!,
-                        day.work_date,
-                        day.check_in,
-                        day.check_out
-                      )
-                    }
+                    style={{ background: '#2ea44f', color: '#fff' }}
+                    onClick={() => handleOpenAddModal(day.work_date)}
                   >
-                    修正申請
+                    追加
                   </button>
-                )}
-                {day.attendance_id && (
-                  <button
-                    type="button"
-                    className="att-btn att-btn--small att-btn--secondary"
-                    onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
-                  >
-                    履歴
-                  </button>
-                )}
-                {!day.attendance_id && <span className="att-text--muted">-</span>}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* 一般ユーザーでレコードがない場合 */}
+              {!day.attendance_id && (!day.punches || day.punches.length === 0) && !isAdmin && (
+                <span className="att-text--muted">-</span>
+              )}
+            </div>
           </td>
         </tr>
       );
@@ -1040,7 +1180,7 @@ export function AttendancePage({ auth }: Props) {
                       <th>時間外</th>
                       <th>状態</th>
                       <th>打刻元</th>
-                      <th>操作</th>
+                      <th style={{ minWidth: '180px' }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1435,6 +1575,118 @@ export function AttendancePage({ auth }: Props) {
                 onClick={() => setShowHistoryModal(false)}
               >
                 閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 勤怠レコード手動追加モーダル (管理者用) */}
+      {showAddModal && (
+        <div className="att-modal" onClick={() => setShowAddModal(false)}>
+          <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
+            <h3 className="att-modal__title">勤怠手動追加</h3>
+
+            <div className="att-form-group">
+              <label>対象日</label>
+              <input type="text" value={addFormData.workDate} disabled style={{ backgroundColor: '#f6f8fa', cursor: 'not-allowed' }} />
+            </div>
+
+            <div className="att-section-box" style={{ marginTop: '16px' }}>
+              <h4 className="att-section-box__title">打刻時刻（ローカル時刻）</h4>
+              
+              <div className="att-form-group">
+                <label className="att-sub-label">出勤日時</label>
+                <div className="att-datetime-picker-row">
+                  <input
+                    type="date"
+                    value={addFormData.checkInDate}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, checkInDate: e.target.value })
+                    }
+                    className="att-date-input"
+                  />
+                  <input
+                    type="time"
+                    value={addFormData.checkInTime}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, checkInTime: e.target.value })
+                    }
+                    className="att-time-input"
+                  />
+                  <button
+                    type="button"
+                    className="att-btn att-btn--link-danger"
+                    onClick={() =>
+                      setAddFormData({ ...addFormData, checkInDate: '', checkInTime: '' })
+                    }
+                    title="出勤日時をクリア"
+                  >
+                    クリア
+                  </button>
+                </div>
+              </div>
+
+              <div className="att-form-group" style={{ marginTop: '12px' }}>
+                <label className="att-sub-label">退勤日時</label>
+                <div className="att-datetime-picker-row">
+                  <input
+                    type="date"
+                    value={addFormData.checkOutDate}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, checkOutDate: e.target.value })
+                    }
+                    className="att-date-input"
+                  />
+                  <input
+                    type="time"
+                    value={addFormData.checkOutTime}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, checkOutTime: e.target.value })
+                    }
+                    className="att-time-input"
+                  />
+                  <button
+                    type="button"
+                    className="att-btn att-btn--link-danger"
+                    onClick={() =>
+                      setAddFormData({ ...addFormData, checkOutDate: '', checkOutTime: '' })
+                    }
+                    title="退勤日時をクリア"
+                  >
+                    クリア
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="att-form-group" style={{ marginTop: '16px' }}>
+              <label>
+                追加理由 <span style={{ color: '#d73a49' }}>*</span>
+              </label>
+              <textarea
+                value={addFormData.reason}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, reason: e.target.value })
+                }
+                placeholder="手動で勤怠を追加する理由を入力してください"
+              />
+            </div>
+
+            <div className="att-modal__buttons">
+              <button
+                type="button"
+                className="att-btn att-btn--secondary"
+                onClick={() => setShowAddModal(false)}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="att-btn att-btn--primary"
+                onClick={handleSubmitAdd}
+              >
+                追加する
               </button>
             </div>
           </div>

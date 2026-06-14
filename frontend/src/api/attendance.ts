@@ -5,6 +5,7 @@ import type {
   AttendanceCorrectionRequestListResponse,
   AttendanceLock,
   AttendanceHistoryResponse,
+  AttendanceRecord,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -200,6 +201,37 @@ export async function getAttendanceHistory(
   return request<AttendanceHistoryResponse>(
     `/attendance/${attendanceId}/history`,
     { method: 'GET' },
+    token,
+  );
+}
+
+export async function createAttendance(
+  token: string,
+  body: {
+    user_id: string;
+    work_date: string;
+    check_in: string | null;
+    check_out: string | null;
+    reason: string;
+  },
+): Promise<AttendanceRecord> {
+  return request<AttendanceRecord>(
+    '/attendance',
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+    token,
+  );
+}
+
+export async function deleteAttendance(
+  token: string,
+  attendanceId: string,
+): Promise<void> {
+  return request<void>(
+    `/attendance/${attendanceId}`,
+    { method: 'DELETE' },
     token,
   );
 }

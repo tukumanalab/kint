@@ -25,6 +25,16 @@ class AttendanceRecord(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AttendanceCreateRequest(BaseModel):
+    """管理者による勤怠記録追加リクエスト。"""
+
+    user_id: str
+    work_date: date
+    check_in: datetime | None = None
+    check_out: datetime | None = None
+    reason: str
+
+
 class AttendancePatchRequest(BaseModel):
     """勤怠修正リクエスト。reason は必須。"""
 
@@ -95,6 +105,7 @@ class PunchPeriod(BaseModel):
     check_out: datetime | None = None
     calculated_check_in: datetime | None = None
     calculated_check_out: datetime | None = None
+    source: str | None = None
 
 
 class DailyAttendanceDetail(BaseModel):

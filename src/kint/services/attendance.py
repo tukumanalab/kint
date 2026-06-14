@@ -27,6 +27,7 @@ from kint.models.shift import Shift
 from kint.models.user import User
 from kint.schemas.attendance import (
     AttendanceCorrectionRequestCreate,
+    AttendanceCreateRequest,
     AttendanceHistoryEntry,
     AttendanceHistoryResponse,
     AttendanceHistorySnapshot,
@@ -615,9 +616,14 @@ class AttendanceService:
                 overlap = True
 
             if overlap:
-                # ユーザーフレンドリーなエラーメッセージ
-                in_str = other_in.strftime("%Y-%m-%d %H:%M:%S")
-                out_str = other_out.strftime("%H:%M:%S") if other_out else "未退勤"
+                # ユーザーフレンドリーなエラーメッセージ（ローカル時刻 JST +09:00 に変換）
+                from datetime import timezone, timedelta
+                JST = timezone(timedelta(hours=9))
+                local_in = other_in.astimezone(JST)
+                local_out = other_out.astimezone(JST) if other_out else None
+
+                in_str = local_in.strftime("%Y-%m-%d %H:%M:%S")
+                out_str = local_out.strftime("%H:%M:%S") if local_out else "未退勤"
                 raise KintBadRequestError(
                     code="ATTENDANCE_OVERLAP",
                     message=(
@@ -972,6 +978,7 @@ class AttendanceService:
                             check_out=p_cout,
                             calculated_check_in=p_calc_in,
                             calculated_check_out=p_calc_out,
+                            source=a.source,
                         )
                     )
 
@@ -1719,3 +1726,88 @@ class AttendanceService:
             await self.session.commit()
 
         return {"processed": processed, "skipped": skipped}
+
+    async def create_attendance_manually(
+        self,
+        request: AttendanceCreateRequest,
+        actor: User,
+    ) -> AttendanceRecord:
+        """管理者が手動で従業員の勤怠記録を追加する。"""
+        # ロックチェック
+        if await self.is_date_locked(request.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、追加できません。",
+            )
+
+        # 重複チェック
+        await self._check_overlap(
+            user_id=request.user_id,
+            attendance_id=None,
+            check_in=request.check_in,
+            check_out=request.check_out,
+        )
+
+        now = datetime.now(tz=UTC)
+        attendance = Attendance(
+            id=str(uuid.uuid4()),
+            user_id=request.user_id,
+            work_date=request.work_date,
+            check_in=request.check_in,
+            check_out=request.check_out,
+            source="admin_manual",
+            updated_reason=request.reason,
+            last_updated_by_user_id=actor.id,
+            last_updated_at=now,
+        )
+        self.session.add(attendance)
+        await self.session.flush()
+
+        # 監査ログを記録
+        log = AttendanceChangeLog(
+            id=str(uuid.uuid4()),
+            attendance_id=attendance.id,
+            actor_user_id=actor.id,
+            actor_role=actor.role,
+            before_check_in=None,
+            before_check_out=None,
+            after_check_in=attendance.check_in,
+            after_check_out=attendance.check_out,
+            reason=request.reason,
+            changed_at=now,
+        )
+        self.session.add(log)
+        await self.session.commit()
+
+        return AttendanceRecord.model_validate(attendance)
+
+    async def delete_attendance(
+        self,
+        attendance_id: str,
+        actor: User,
+    ) -> None:
+        """管理者が勤怠記録を削除する。"""
+        result = await self.session.execute(
+            select(Attendance).where(Attendance.id == attendance_id)
+        )
+        attendance = result.scalar_one_or_none()
+        if attendance is None:
+            raise KintNotFoundError(
+                code="ATTENDANCE_NOT_FOUND",
+                message=f"勤怠記録 '{attendance_id}' が見つかりません",
+            )
+
+        # ロックチェック
+        if await self.is_date_locked(attendance.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、削除できません。",
+            )
+
+        # 関連するチェンジログを削除
+        await self.session.execute(
+            delete(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance.id)
+        )
+        # 勤怠レコードを削除
+        await self.session.delete(attendance)
+        await self.session.commit()

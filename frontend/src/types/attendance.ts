@@ -27,6 +27,7 @@ export interface PunchPeriod {
   check_out: string | null;
   calculated_check_in?: string | null;
   calculated_check_out?: string | null;
+  source?: string | null;
 }
 
 export interface DailyAttendanceDetail {
@@ -106,5 +107,20 @@ export interface AttendanceHistoryEntry {
 export interface AttendanceHistoryResponse {
   items: AttendanceHistoryEntry[];
   total: number;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  user_id: string;
+  card_idm: string | null;
+  work_date: string;
+  check_in: string | null;
+  check_out: string | null;
+  source: 'webusb_nfc' | 'web_user_id' | 'admin_manual' | 'self_service';
+  updated_reason: string | null;
+  is_auto_completed: boolean;
+  auto_completed_at: string | null;
+  last_updated_at: string | null;
+  last_updated_by_user_id: string | null;
 }
 

@@ -17,6 +17,7 @@ from kint.schemas.attendance import (
     AttendanceCorrectionRequestListResponse,
     AttendanceCorrectionRequestReject,
     AttendanceCorrectionRequestResponse,
+    AttendanceCreateRequest,
     AttendanceHistoryResponse,
     AttendanceListResponse,
     AttendanceLockRequest,
@@ -360,3 +361,37 @@ async def list_locks(
     service = AttendanceService(session)
     locks = await service.list_locks()
     return [AttendanceLockResponse.model_validate(lock) for lock in locks]
+
+
+@router.post("", response_model=AttendanceRecord, status_code=201)
+async def create_attendance_manually(
+    body: AttendanceCreateRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceRecord:
+    """管理者が手動で従業員の勤怠記録を追加する。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    service = AttendanceService(session)
+    return await service.create_attendance_manually(body, current_user)
+
+
+@router.delete("/{attendance_id}", status_code=204)
+async def delete_attendance(
+    attendance_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """管理者が勤怠記録を削除する。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    service = AttendanceService(session)
+    await service.delete_attendance(attendance_id, current_user)
