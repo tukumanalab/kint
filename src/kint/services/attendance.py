@@ -38,6 +38,7 @@ from kint.schemas.attendance import (
     AttendanceRecord,
     DailyAttendanceDetail,
     PunchPeriod,
+    ShiftPeriod,
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
 from kint.services.settings import SettingsService
@@ -828,7 +829,10 @@ class AttendanceService:
 
         shift_map = {}
         for shift in shifts:
-            shift_map[(shift.user_id, shift.shift_date)] = shift
+            key = (shift.user_id, shift.shift_date)
+            if key not in shift_map:
+                shift_map[key] = []
+            shift_map[key].append(shift)
 
         results = []
         for user in users:
@@ -846,13 +850,14 @@ class AttendanceService:
             for d in range(1, last_day + 1):
                 cur_date = date(year, month, d)
                 day_atts = att_map.get((user.id, cur_date), [])
-                shift = shift_map.get((user.id, cur_date))
+                day_shifts = shift_map.get((user.id, cur_date), [])
+                day_shifts = sorted(day_shifts, key=lambda s: s.start_time)
 
-                has_shift = shift is not None
+                has_shift = len(day_shifts) > 0
                 is_holiday = not has_shift and len(day_atts) == 0
 
-                shift_start = shift.start_time if shift else None
-                shift_end = shift.end_time if shift else None
+                shift_start = day_shifts[0].start_time if day_shifts else None
+                shift_end = day_shifts[-1].end_time if day_shifts else None
 
                 # 全打刻中の最初出勤と最終退勤を抽出
                 check_ins = [a.check_in for a in day_atts if a.check_in is not None]
@@ -1003,6 +1008,13 @@ class AttendanceService:
                     source=source,
                     is_auto_completed=is_auto_completed,
                     punches=punches,
+                    shifts=[
+                        ShiftPeriod(
+                            start_time=ensure_utc(s.start_time),  # type: ignore[arg-type]
+                            end_time=ensure_utc(s.end_time),  # type: ignore[arg-type]
+                        )
+                        for s in day_shifts
+                    ],
                 )
                 daily_details.append(detail)
 

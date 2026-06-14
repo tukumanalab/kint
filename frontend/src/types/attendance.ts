@@ -47,6 +47,7 @@ export interface DailyAttendanceDetail {
   source: string | null;
   is_auto_completed?: boolean;
   punches?: PunchPeriod[];
+  shifts?: { start_time: string; end_time: string }[];
 }
 
 export interface AttendanceMonthlyDetailResponse {

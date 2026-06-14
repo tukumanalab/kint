@@ -316,6 +316,20 @@
   align-items: center;
 }
 
+/* 複数シフト */
+.att-multiple-shifts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.att-shift-item {
+  min-height: 28px;
+  height: auto;
+  display: flex;
+  align-items: center;
+}
+
 .att-punch-time-combined {
   display: inline-flex;
   gap: 4px;

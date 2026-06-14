@@ -1706,3 +1706,19 @@ components:
           type: boolean
           description: システム自動補完フラグ
           default: false
+        shifts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftPeriod'
+          description: その日の全シフト予定時間リスト
+
+    ShiftPeriod:
+      type: object
+      required: [start_time, end_time]
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time

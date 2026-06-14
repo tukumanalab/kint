@@ -390,6 +390,22 @@ components:
           nullable: true
           description: 打刻ソース
           example: "webusb_nfc"
+        shifts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftPeriod'
+          description: その日の全シフト予定時間リスト
+
+    ShiftPeriod:
+      type: object
+      required: [start_time, end_time]
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
 ```
 
 ---

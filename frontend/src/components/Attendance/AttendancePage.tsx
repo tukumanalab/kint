@@ -620,7 +620,15 @@ export function AttendancePage({ auth }: Props) {
             {day.work_date} {getDayOfWeek(day.work_date)}
           </td>
           <td>
-            {day.has_shift && day.shift_start && day.shift_end ? (
+            {day.shifts && day.shifts.length > 0 ? (
+              <div className="att-multiple-shifts">
+                {day.shifts.map((s, idx) => (
+                  <div key={idx} className="att-shift-item">
+                    {formatTime(s.start_time)} 〜 {formatTime(s.end_time)}
+                  </div>
+                ))}
+              </div>
+            ) : day.has_shift && day.shift_start && day.shift_end ? (
               <span>
                 {formatTime(day.shift_start)} 〜 {formatTime(day.shift_end)}
               </span>

@@ -108,6 +108,13 @@ class PunchPeriod(BaseModel):
     source: str | None = None
 
 
+class ShiftPeriod(BaseModel):
+    """1回分のシフト予定時間。"""
+
+    start_time: datetime
+    end_time: datetime
+
+
 class DailyAttendanceDetail(BaseModel):
     """日次勤怠詳細。"""
 
@@ -135,6 +142,7 @@ class DailyAttendanceDetail(BaseModel):
     source: str | None = None
     is_auto_completed: bool = False
     punches: list[PunchPeriod] = []
+    shifts: list[ShiftPeriod] = []
 
 
 class AttendanceMonthlyDetailResponse(BaseModel):
