@@ -29,6 +29,7 @@ export interface PunchResponse {
   calculated_time?: string | null;
   current_working_hours?: number | null;
   daily_working_hours_total?: number | null;
+  has_unread_notifications?: boolean;
 }
 
 export interface PunchUserCandidate {

@@ -1,0 +1,219 @@
+.notification-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  width: 320px;
+  max-height: 400px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow: hidden;
+  animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-popover__header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #edf2f7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fafbfd;
+}
+
+.notification-popover__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.notification-popover__read-all-btn {
+  background: none;
+  border: none;
+  color: #3182ce;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.notification-popover__read-all-btn:hover {
+  background-color: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.notification-popover__content {
+  overflow-y: auto;
+  flex-grow: 1;
+  max-height: 350px;
+}
+
+.notification-popover__empty {
+  padding: 2rem;
+  text-align: center;
+  color: #a0aec0;
+  font-size: 0.85rem;
+}
+
+.notification-popover__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-popover__item {
+  display: flex;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #edf2f7;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.notification-popover__item:last-child {
+  border-bottom: none;
+}
+
+.notification-popover__item:hover {
+  background-color: #f7fafc;
+}
+
+.notification-popover__item--unread {
+  background-color: #f7faff;
+}
+
+.notification-popover__item--unread:hover {
+  background-color: #edf2f9;
+}
+
+/* カテゴリごとの装飾（左端のボーダー） */
+.notification-popover__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: transparent;
+}
+
+.notification-popover__item--correction_rejected::before {
+  background-color: #e53e3e; /* 却下は赤 */
+}
+
+.notification-popover__item-body {
+  flex-grow: 1;
+  padding-right: 0.5rem;
+}
+
+.notification-popover__item-text {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #4a5568;
+  word-break: break-all;
+}
+
+.notification-popover__item--unread .notification-popover__item-text {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.notification-popover__item-time {
+  font-size: 0.7rem;
+  color: #a0aec0;
+  display: block;
+}
+
+.notification-popover__item-read-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  align-self: center;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
+}
+
+.notification-popover__item-read-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.notification-popover__read-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #3182ce;
+  display: block;
+}
+
+/* ナビゲーションバーの通知ベルボタン */
+.app-nav__notification-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.app-nav__notification-btn {
+  background: none;
+  border: none;
+  color: #4a5568;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.app-nav__notification-btn:hover {
+  background-color: #edf2f7;
+  color: #2d3748;
+}
+
+.app-nav__notification-btn--active {
+  background-color: #edf2f7;
+  color: #3182ce;
+}
+
+.app-nav__notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: #e53e3e;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid white;
+}
+

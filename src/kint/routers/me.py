@@ -7,6 +7,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.models.user import User
 from kint.schemas.auth import UserProfile
+from kint.schemas.notification import NotificationListResponse, NotificationResponse
 from kint.schemas.user import (
     EmailChangeAcceptedResponse,
     EmailChangeRequestCreate,
@@ -17,7 +18,9 @@ from kint.schemas.user import (
     MeProfileUpdateRequest,
 )
 from kint.services.gmail import GmailAdapter
+from kint.services.notification import NotificationService
 from kint.services.user import UserService
+
 
 router = APIRouter(prefix="/me", tags=["User"])
 
@@ -95,3 +98,41 @@ async def register_my_card(
     """本人の NFC カード (card_idm) を登録する。"""
     service = UserService(session)
     return await service.register_my_card(current_user, body)
+
+
+@router.get("/notifications", response_model=NotificationListResponse)
+async def get_my_notifications(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> NotificationListResponse:
+    """現在のログインユーザー宛てのお知らせ一覧を取得する。"""
+    service = NotificationService(session)
+    items, unread_count = await service.list_notifications(current_user.id)
+    return NotificationListResponse(
+        items=[NotificationResponse.model_validate(x) for x in items],
+        unread_count=unread_count,
+    )
+
+
+@router.patch("/notifications/{notification_id}/read", response_model=NotificationResponse)
+async def read_notification(
+    notification_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> NotificationResponse:
+    """指定したお知らせを既読にする。"""
+    service = NotificationService(session)
+    updated = await service.mark_as_read(current_user.id, notification_id)
+    return NotificationResponse.model_validate(updated)
+
+
+@router.patch("/notifications/read-all", status_code=204)
+async def read_all_notifications(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """ユーザー宛てのすべてのお知らせを既読にする。"""
+    service = NotificationService(session)
+    await service.mark_all_as_read(current_user.id)
+    return Response(status_code=204)
+

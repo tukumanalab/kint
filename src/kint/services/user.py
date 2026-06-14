@@ -228,8 +228,10 @@ class UserService:
         )
         from kint.models.card import Card
         from kint.models.email_verification import EmailVerificationRequest
+        from kint.models.notification import Notification
         from kint.models.shift import Shift
         from kint.models.user_profile_change_log import UserProfileChangeLog
+
 
         # 1. ユーザーの勤怠レコードIDを収集
         att_stmt = select(Attendance.id).where(Attendance.user_id == user_id)
@@ -294,12 +296,14 @@ class UserService:
             .values(requested_by_user_id=None)
         )
 
-        # 10. カードとシフト情報を物理削除（CASCADE 定義されているが明示的に実行）
+        # 10. カードとお知らせ、シフト情報を物理削除（CASCADE 定義されているが明示的に実行）
         await self.session.execute(delete(Card).where(Card.user_id == user_id))
+        await self.session.execute(delete(Notification).where(Notification.user_id == user_id))
         await self.session.execute(delete(Shift).where(Shift.user_id == user_id))
 
         # 11. 最後にユーザーを物理削除
         await self.session.delete(user)
+
 
         await self.session.commit()
         return True

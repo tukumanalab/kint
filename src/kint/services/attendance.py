@@ -309,6 +309,10 @@ class PunchService:
             await self.session.delete(attendance)
             await self.session.commit()
 
+            from kint.services.notification import NotificationService
+            notif_svc = NotificationService(self.session)
+            has_unread = await notif_svc.has_unread_notifications(user.id)
+
             return PunchResponse(
                 status="completed",
                 attendance_id=None,
@@ -318,7 +322,9 @@ class PunchService:
                 occurred_at=request.occurred_at,
                 method=method,  # type: ignore[arg-type]
                 message="出勤打刻を取り消しました（5分以内の退勤）",
+                has_unread_notifications=has_unread,
             )
+
 
         if attendance is not None:
             # 締め（ロック）チェック
@@ -352,6 +358,10 @@ class PunchService:
                 settings_svc = SettingsService(self.session)
                 ical_url = await settings_svc.get_str("shift_ical_url")
                 sync_hint = "シフト同期設定あり" if ical_url else "SHIFT_ICAL_URL 未設定"
+                from kint.services.notification import NotificationService
+                notif_svc = NotificationService(self.session)
+                has_unread = await notif_svc.has_unread_notifications(user.id)
+
                 return PunchResponse(
                     status="requires_confirmation",
                     attendance_id=None,
@@ -365,7 +375,9 @@ class PunchService:
                         f"（{sync_hint}）"
                         "出勤として打刻する場合は確認してください。"
                     ),
+                    has_unread_notifications=has_unread,
                 )
+
  
             work_date = request.occurred_at.date()
             attendance = await self._do_check_in(
@@ -430,6 +442,10 @@ class PunchService:
  
         await self.session.commit()
  
+        from kint.services.notification import NotificationService
+        notif_svc = NotificationService(self.session)
+        has_unread = await notif_svc.has_unread_notifications(user.id)
+
         action_label = "出勤" if action == "check_in" else "退勤"
         return PunchResponse(
             status="completed",
@@ -443,7 +459,9 @@ class PunchService:
             calculated_time=calculated_time,
             current_working_hours=current_working_hours,
             daily_working_hours_total=daily_working_hours_total,
+            has_unread_notifications=has_unread,
         )
+
 
     async def _do_check_in(
         self,
@@ -1547,7 +1565,21 @@ class AttendanceService:
         request.approval_comment = comment
         request.updated_at = now
 
+        # 却下お知らせ（通知）の作成
+        from kint.services.notification import NotificationService
+        notif_svc = NotificationService(self.session)
+        work_date_str = attendance.work_date.strftime("%Y-%m-%d") if attendance else request.created_at.strftime("%Y-%m-%d")
+        reason_comment = comment.strip() if (comment and comment.strip()) else "（理由未記入）"
+        message = f"{work_date_str} の勤怠修正申請が却下されました。理由: {reason_comment}"
+        await notif_svc.create_notification(
+            user_id=request.user_id,
+            message=message,
+            category="correction_rejected",
+            reference_id=request.id,
+        )
+
         await self.session.commit()
+
 
         # 関連オブジェクトを明示的にロードした上で返却
         stmt_ref = (

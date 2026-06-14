@@ -13,6 +13,8 @@ scheduler = AsyncIOScheduler()
 
 CALENDAR_SYNC_JOB_ID = "calendar_sync_daily"
 AUTO_COMPLETE_JOB_ID = "missing_checkout_auto_complete_daily"
+NOTIFICATION_CLEANUP_JOB_ID = "notification_cleanup_daily"
+
 
 
 async def _run_calendar_sync() -> None:
@@ -41,6 +43,20 @@ async def _run_missing_checkout_auto_complete() -> None:
             logger.info("定期退勤自動補完完了: %s", stats)
         except Exception as exc:
             logger.exception("定期退勤自動補完で予期しないエラー: %s", exc)
+
+
+async def _run_notification_cleanup() -> None:
+    """スケジューラから呼ばれるお知らせ自動削除ジョブ。"""
+    from kint.services.notification import NotificationService
+
+    async with AsyncSessionLocal() as session:
+        service = NotificationService(session)
+        try:
+            rowcount = await service.cleanup_old_notifications(days=180)
+            logger.info("定期お知らせクリーンアップ完了: %d 件削除", rowcount)
+        except Exception as exc:
+            logger.exception("定期お知らせクリーンアップで予期しないエラー: %s", exc)
+
 
 
 def reschedule_calendar_sync(time_str: str | None) -> None:
@@ -88,6 +104,17 @@ async def init_scheduler() -> None:
             replace_existing=True,
         )
         logger.info("定期退勤自動補完ジョブを登録しました: 04:00")
+
+    # 毎日午前 4:05 にお知らせクリーンアップバッチを実行
+    if not scheduler.get_job(NOTIFICATION_CLEANUP_JOB_ID):
+        scheduler.add_job(
+            _run_notification_cleanup,
+            trigger=CronTrigger(hour=4, minute=5),
+            id=NOTIFICATION_CLEANUP_JOB_ID,
+            replace_existing=True,
+        )
+        logger.info("定期お知らせクリーンアップジョブを登録しました: 04:05")
+
 
     scheduler.start()
     logger.info("スケジューラを起動しました")

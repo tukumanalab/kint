@@ -1,6 +1,7 @@
 import type { UserProfile } from '../types/auth';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
+import type { Notification, NotificationListResponse } from '../types/notification';
 import type {
   MeCardListItem,
   MeCardPatchRequest,
@@ -101,3 +102,20 @@ export async function registerMyCard(
     token,
   );
 }
+
+export async function fetchMyNotifications(token: string): Promise<NotificationListResponse> {
+  return request<NotificationListResponse>('/me/notifications', { method: 'GET' }, token);
+}
+
+export async function readNotification(token: string, notificationId: string): Promise<Notification> {
+  return request<Notification>(
+    `/me/notifications/${encodeURIComponent(notificationId)}/read`,
+    { method: 'PATCH' },
+    token,
+  );
+}
+
+export async function readAllNotifications(token: string): Promise<void> {
+  return request<void>('/me/notifications/read-all', { method: 'PATCH' }, token);
+}
+

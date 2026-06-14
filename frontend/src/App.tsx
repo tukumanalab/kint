@@ -10,6 +10,9 @@ import { EmailVerificationPage } from './components/EmailVerification';
 import { LogsPage } from './components/Logs';
 import { SettingsPage } from './components/Settings';
 import { AttendancePage } from './components/Attendance';
+import { fetchMyNotifications, readNotification, readAllNotifications } from './api/me';
+import type { Notification } from './types/notification';
+import { NotificationPopover } from './components/Notification/NotificationPopover';
 import './App.css';
 
 type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs' | 'attendance';
@@ -46,6 +49,60 @@ function App() {
   const [page, setPage] = useState<Page>(getInitialPage);
   const [guestPage, setGuestPage] = useState<GuestPage>(getInitialGuestPage);
   const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
+
+  // お知らせ関連のステート
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
+
+  const loadNotifications = useCallback(async () => {
+    if (!auth.token) return;
+    try {
+      const res = await fetchMyNotifications(auth.token);
+      setNotifications(res.items);
+      setUnreadCount(res.unread_count);
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  }, [auth.token]);
+
+  // 定期ポーリング（60秒ごと）および初期読み込み
+  useEffect(() => {
+    if (auth.token && auth.user) {
+      Promise.resolve().then(() => {
+        loadNotifications();
+      });
+      const interval = setInterval(loadNotifications, 60000);
+      return () => clearInterval(interval);
+    } else {
+      Promise.resolve().then(() => {
+        setNotifications([]);
+        setUnreadCount(0);
+        setIsNotificationOpen(false);
+      });
+    }
+  }, [auth.token, auth.user, loadNotifications]);
+
+  const handleReadNotification = async (id: string) => {
+    if (!auth.token) return;
+    try {
+      await readNotification(auth.token, id);
+      await loadNotifications();
+    } catch (err) {
+      console.error('Failed to read notification:', err);
+    }
+  };
+
+  const handleReadAllNotifications = async () => {
+    if (!auth.token) return;
+    try {
+      await readAllNotifications(auth.token);
+      await loadNotifications();
+    } catch (err) {
+      console.error('Failed to read all notifications:', err);
+    }
+  };
+
 
   // 打刻デバイストークンの検証状態
   const [deviceStatus, setDeviceStatus] = useState<{
@@ -307,6 +364,40 @@ function App() {
           )}
         </div>
         <div className="app-nav__user">
+          <div className="app-nav__notification-container">
+            <button
+              type="button"
+              className={`app-nav__notification-btn ${isNotificationOpen ? 'app-nav__notification-btn--active' : ''}`}
+              onClick={() => setIsNotificationOpen(prev => !prev)}
+              title="お知らせ"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                style={{ width: '20px', height: '20px' }}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
+                />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="app-nav__notification-badge">{unreadCount}</span>
+              )}
+            </button>
+            <NotificationPopover
+              notifications={notifications}
+              unreadCount={unreadCount}
+              isOpen={isNotificationOpen}
+              onClose={() => setIsNotificationOpen(false)}
+              onRead={handleReadNotification}
+              onReadAll={handleReadAllNotifications}
+            />
+          </div>
           <button
             type="button"
             className={`app-nav__link ${page === 'myProfile' ? 'app-nav__link--active' : ''}`}

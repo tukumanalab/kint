@@ -42,6 +42,8 @@ class PunchResponse(BaseModel):
     calculated_time: datetime | None = None
     current_working_hours: float | None = None
     daily_working_hours_total: float | None = None
+    has_unread_notifications: bool = False
+
 
 
 class PunchUserCandidate(BaseModel):
