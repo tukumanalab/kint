@@ -50,8 +50,11 @@ def _verify_google_id_token(id_token: str) -> dict:
             id_token,
             google_requests.Request(),
             audience=settings.google_client_id or None,
+            clock_skew_in_seconds=10,
         )
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Google token verification failed: %s", str(e))
         raise KintUnauthorizedError(
             code="INVALID_GOOGLE_TOKEN",
             message="Google IDトークンが無効です",
@@ -64,35 +67,45 @@ async def google_login(
     session: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """Google ID Token を検証し、対応するユーザーの Kint JWT を返す。"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Starting Google login flow...")
     claims = _verify_google_id_token(body.id_token)
     sub: str = claims["sub"]
     email: str = claims.get("email", "")
+    logger.info("Token verified. sub: %s, email: %s", sub, email)
 
     # google_sub で既存ユーザーを検索（2回目以降ログイン）
     result = await session.execute(select(User).where(User.google_sub == sub, User.is_active == 1))
     user = result.scalar_one_or_none()
 
     if user is None:
+        logger.info("User with google_sub %s not found. Searching by email %s...", sub, email)
         # メールアドレスで初回ログインのユーザーを検索
         result = await session.execute(select(User).where(User.email == email, User.is_active == 1))
         user = result.scalar_one_or_none()
 
         if user is None:
+            logger.warning("No active user found with email %s", email)
             raise KintUnauthorizedError(
                 code="USER_NOT_REGISTERED",
                 message="このGoogleアカウントは登録されていません",
             )
 
         # 初回ログイン: google_sub を紐付けて保存
+        logger.info("Found user by email. Binding google_sub %s to user %s", sub, user.id)
         user.google_sub = sub
         await session.commit()
         await session.refresh(user)
 
     if user.is_active == 0:
+        logger.warning("User %s is inactive", user.id)
         raise KintUnauthorizedError(
             code="USER_INACTIVE",
             message="アカウントが無効化されています",
         )
+
+    logger.info("Login successful for user %s (%s)", user.name, user.email)
 
     token = _create_access_token(user.id, user.token_version or 1)
     return LoginResponse(
