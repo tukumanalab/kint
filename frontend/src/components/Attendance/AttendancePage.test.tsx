@@ -181,4 +181,19 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText('手動修正テスト')).toBeInTheDocument();
     });
   });
+
+  it('詳細カレンダーに1週間毎の週次集計行（勤務日数・勤務時間）が表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
+
+    // 従業員ログイン時は自動的に詳細が表示される
+    await waitFor(() => {
+      expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    });
+
+    // 週次集計が表示されていることを検証
+    expect(screen.getByText('週次集計:')).toBeInTheDocument();
+    expect(screen.getByText('勤務: 1日')).toBeInTheDocument();
+    expect(screen.getAllByText('8.00h')).toHaveLength(2);
+  });
 });
+

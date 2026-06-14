@@ -97,6 +97,10 @@
 
 .att-table-container {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 70vh;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
 }
 
 .att-table {
@@ -112,6 +116,9 @@
   font-weight: bold;
   color: #24292e;
   border-bottom: 2px solid #e1e4e8;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .att-table td {
@@ -795,4 +802,24 @@
     margin: 4px 0;
   }
 }
+
+/* 週次集計行 */
+.att-table__weekly-summary {
+  background-color: #f8fafc;
+  font-weight: bold;
+}
+
+.att-table__weekly-summary td {
+  border-top: 2px solid #e1e4e8;
+  border-bottom: 2px solid #e1e4e8;
+  color: #24292e;
+  padding: 10px 12px;
+}
+
+.att-badge--weekly {
+  background-color: #e1f5fe;
+  color: #0288d1;
+  border: 1px solid #b3e5fc;
+}
+
 

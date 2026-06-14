@@ -491,6 +491,198 @@ export function AttendancePage({ auth }: Props) {
     };
   };
 
+  const renderDetailDays = (days: DailyAttendanceDetail[]) => {
+    let weeklyWorkingDays = 0;
+    let weeklyWorkingHours = 0;
+    const rows: React.ReactNode[] = [];
+
+    days.forEach((day, index) => {
+      const hasPunch = (day.punches && day.punches.length > 0) || day.check_in !== null;
+      if (hasPunch) {
+        weeklyWorkingDays += 1;
+      }
+      if (day.working_hours) {
+        weeklyWorkingHours += day.working_hours;
+      }
+
+      const isAbsence = day.status === 'absence';
+      const isHighlight = day.is_holiday || !day.has_shift;
+
+      rows.push(
+        <tr
+          key={day.work_date}
+          className={`${isAbsence ? 'tr--absence' : ''} ${isHighlight ? 'tr--holiday' : ''}`}
+        >
+          <td>
+            {day.work_date} {getDayOfWeek(day.work_date)}
+          </td>
+          <td>
+            {day.has_shift && day.shift_start && day.shift_end ? (
+              <span>
+                {formatTime(day.shift_start)} 〜 {formatTime(day.shift_end)}
+              </span>
+            ) : (
+              <span className="att-text--muted">公休</span>
+            )}
+          </td>
+          <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item">
+                    {formatTime(p.check_in)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              formatTime(day.check_in)
+            )}
+          </td>
+          <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item">
+                    {formatTime(p.check_out)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              formatTime(day.check_out)
+            )}
+          </td>
+          <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item">
+                    {p.calculated_check_in ? formatTime(p.calculated_check_in) : '-'}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              day.calculated_check_in ? formatTime(day.calculated_check_in) : '-'
+            )}
+          </td>
+          <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item">
+                    {p.calculated_check_out ? formatTime(p.calculated_check_out) : '-'}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              day.calculated_check_out ? formatTime(day.calculated_check_out) : '-'
+            )}
+          </td>
+          <td>{formatHours(day.working_hours)}</td>
+          <td>{formatHours(day.overtime_hours)}</td>
+          <td>{getStatusBadge(day.status)}</td>
+          <td>
+            {getSourceLabel(day.source)}
+            {day.is_auto_completed && (
+              <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
+                自動補完
+              </span>
+            )}
+          </td>
+          <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {detailData && !detailData.is_locked && p.attendance_id && (
+                      <button
+                        type="button"
+                        className="att-btn att-btn--small"
+                        onClick={() =>
+                          handleOpenRequestModal(
+                            p.attendance_id!,
+                            day.work_date,
+                            p.check_in,
+                            p.check_out
+                          )
+                        }
+                      >
+                        修正申請
+                      </button>
+                    )}
+                    {p.attendance_id && (
+                      <button
+                        type="button"
+                        className="att-btn att-btn--small att-btn--secondary"
+                        onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
+                      >
+                        履歴
+                      </button>
+                    )}
+                    {!p.attendance_id && <span className="att-text--muted">-</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                {detailData && !detailData.is_locked && day.attendance_id && (
+                  <button
+                    type="button"
+                    className="att-btn att-btn--small"
+                    onClick={() =>
+                      handleOpenRequestModal(
+                        day.attendance_id!,
+                        day.work_date,
+                        day.check_in,
+                        day.check_out
+                      )
+                    }
+                  >
+                    修正申請
+                  </button>
+                )}
+                {day.attendance_id && (
+                  <button
+                    type="button"
+                    className="att-btn att-btn--small att-btn--secondary"
+                    onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
+                  >
+                    履歴
+                  </button>
+                )}
+                {!day.attendance_id && <span className="att-text--muted">-</span>}
+              </div>
+            )}
+          </td>
+        </tr>
+      );
+
+      // 週次集計の挿入判定 (日曜日、または月の最終日)
+      const d = new Date(day.work_date);
+      const isSunday = d.getDay() === 0;
+      const isLastDay = index === days.length - 1;
+
+      if (isSunday || isLastDay) {
+        rows.push(
+          <tr key={`weekly-${day.work_date}`} className="att-table__weekly-summary">
+            <td colSpan={6} style={{ textAlign: 'right' }}>週次集計:</td>
+            <td>{weeklyWorkingHours > 0 ? `${weeklyWorkingHours.toFixed(2)}h` : '-'}</td>
+            <td>-</td>
+            <td>
+              <span className="att-badge att-badge--weekly">
+                勤務: {weeklyWorkingDays}日
+              </span>
+            </td>
+            <td colSpan={2}>-</td>
+          </tr>
+        );
+        weeklyWorkingDays = 0;
+        weeklyWorkingHours = 0;
+      }
+    });
+
+    return rows;
+  };
+
   return (
     <div className="attendance-page">
       <div className="attendance-page__header">
@@ -846,157 +1038,7 @@ export function AttendancePage({ auth }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {detailData.days.map((day) => {
-                      const isAbsence = day.status === 'absence';
-                      const isHighlight = day.is_holiday || !day.has_shift;
-                      return (
-                        <tr
-                          key={day.work_date}
-                          className={`${isAbsence ? 'tr--absence' : ''} ${isHighlight ? 'tr--holiday' : ''}`}
-                        >
-                          <td>
-                            {day.work_date} {getDayOfWeek(day.work_date)}
-                          </td>
-                          <td>
-                            {day.has_shift && day.shift_start && day.shift_end ? (
-                              <span>
-                                {formatTime(day.shift_start)} 〜 {formatTime(day.shift_end)}
-                              </span>
-                            ) : (
-                              <span className="att-text--muted">公休</span>
-                            )}
-                          </td>
-                          <td>
-                            {day.punches && day.punches.length > 0 ? (
-                              <div className="att-multiple-punches">
-                                {day.punches.map((p, idx) => (
-                                  <div key={idx} className="att-punch-item">
-                                    {formatTime(p.check_in)}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              formatTime(day.check_in)
-                            )}
-                          </td>
-                          <td>
-                            {day.punches && day.punches.length > 0 ? (
-                              <div className="att-multiple-punches">
-                                {day.punches.map((p, idx) => (
-                                  <div key={idx} className="att-punch-item">
-                                    {formatTime(p.check_out)}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              formatTime(day.check_out)
-                            )}
-                          </td>
-                          <td>
-                            {day.punches && day.punches.length > 0 ? (
-                              <div className="att-multiple-punches">
-                                {day.punches.map((p, idx) => (
-                                  <div key={idx} className="att-punch-item">
-                                    {p.calculated_check_in ? formatTime(p.calculated_check_in) : '-'}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              day.calculated_check_in ? formatTime(day.calculated_check_in) : '-'
-                            )}
-                          </td>
-                          <td>
-                            {day.punches && day.punches.length > 0 ? (
-                              <div className="att-multiple-punches">
-                                {day.punches.map((p, idx) => (
-                                  <div key={idx} className="att-punch-item">
-                                    {p.calculated_check_out ? formatTime(p.calculated_check_out) : '-'}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              day.calculated_check_out ? formatTime(day.calculated_check_out) : '-'
-                            )}
-                          </td>
-                          <td>{formatHours(day.working_hours)}</td>
-                          <td>{formatHours(day.overtime_hours)}</td>
-                          <td>{getStatusBadge(day.status)}</td>
-                          <td>
-                            {getSourceLabel(day.source)}
-                            {day.is_auto_completed && (
-                              <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
-                                自動補完
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            {day.punches && day.punches.length > 0 ? (
-                              <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {day.punches.map((p, idx) => (
-                                  <div key={idx} className="att-punch-item" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                    {!detailData.is_locked && p.attendance_id && (
-                                      <button
-                                        type="button"
-                                        className="att-btn att-btn--small"
-                                        onClick={() =>
-                                          handleOpenRequestModal(
-                                            p.attendance_id!,
-                                            day.work_date,
-                                            p.check_in,
-                                            p.check_out
-                                          )
-                                        }
-                                      >
-                                        修正申請
-                                      </button>
-                                    )}
-                                    {p.attendance_id && (
-                                      <button
-                                        type="button"
-                                        className="att-btn att-btn--small att-btn--secondary"
-                                        onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
-                                      >
-                                        履歴
-                                      </button>
-                                    )}
-                                    {!p.attendance_id && <span className="att-text--muted">-</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                {!detailData.is_locked && day.attendance_id && (
-                                  <button
-                                    type="button"
-                                    className="att-btn att-btn--small"
-                                    onClick={() =>
-                                      handleOpenRequestModal(
-                                        day.attendance_id!,
-                                        day.work_date,
-                                        day.check_in,
-                                        day.check_out
-                                      )
-                                    }
-                                  >
-                                    修正申請
-                                  </button>
-                                )}
-                                {day.attendance_id && (
-                                  <button
-                                    type="button"
-                                    className="att-btn att-btn--small att-btn--secondary"
-                                    onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
-                                  >
-                                    履歴
-                                  </button>
-                                )}
-                                {!day.attendance_id && <span className="att-text--muted">-</span>}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {renderDetailDays(detailData.days)}
                   </tbody>
                 </table>
               </div>
