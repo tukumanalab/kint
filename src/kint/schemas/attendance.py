@@ -138,6 +138,7 @@ class DailyAttendanceDetail(BaseModel):
         "absence",
         "incomplete",
         "off_duty",
+        "scheduled",
     ]
     source: str | None = None
     is_auto_completed: bool = False

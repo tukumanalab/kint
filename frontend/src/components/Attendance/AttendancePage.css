@@ -255,6 +255,11 @@
   color: #cf222e;
 }
 
+.att-badge--scheduled {
+  background-color: #dbedff;
+  color: #0366d6;
+}
+
 .att-badge--incomplete {
   background-color: #fff0f6;
   color: #d11270;

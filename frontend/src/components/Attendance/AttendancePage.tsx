@@ -442,6 +442,8 @@ export function AttendancePage({ auth }: Props) {
         return <span className="att-badge att-badge--late-early">遅刻 & 早退</span>;
       case 'absence':
         return <span className="att-badge att-badge--absence">欠勤</span>;
+      case 'scheduled':
+        return <span className="att-badge att-badge--scheduled">出勤予定</span>;
       case 'incomplete':
         return <span className="att-badge att-badge--incomplete">打刻不整合</span>;
       case 'off_duty':

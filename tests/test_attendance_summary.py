@@ -433,3 +433,47 @@ class TestMultiplePunchesInSameDay:
         assert "22:00:00" in row2[7]  # 勤務出勤 JST (丸め後)
         assert "03:00:00" in row2[8]  # 勤務退勤 JST (丸め後)
         assert row2[9] == "5.00"  # 5.0時間
+
+    async def test_get_monthly_detail_future_shift(self, client: AsyncClient, session) -> None:
+        """未来のシフト予定日で打刻がない場合、ステータスが "scheduled" になることを検証する。"""
+        from datetime import date, datetime, timedelta, timezone
+        JST = timezone(timedelta(hours=9))
+        today = datetime.now(JST).date()
+        future_date = today + timedelta(days=5) # 5日後の未来
+
+        # ユーザーを作成
+        emp = await _create_user(
+            session,
+            id="future_user",
+            name="未来ユーザー",
+            full_name="Future User",
+            email="future@example.com",
+            role="employee",
+        )
+
+        # 未来のシフトを登録 (9:00 - 18:00)
+        shift = Shift(
+            id="s_future",
+            user_id="future_user",
+            shift_date=future_date,
+            start_time=datetime(future_date.year, future_date.month, future_date.day, 9, 0, 0),
+            end_time=datetime(future_date.year, future_date.month, future_date.day, 18, 0, 0),
+            google_event_id="evt_future",
+        )
+        session.add(shift)
+        await session.commit()
+
+        token = await _login(client, account_id="future_user", password="Password123")
+
+        # 月次詳細を取得して未来日の値を検証
+        year_month = future_date.strftime("%Y-%m")
+        resp = await client.get(
+            f"/api/v1/attendance/monthly?year_month={year_month}&user_id=future_user",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        day_data = next(d for d in data["days"] if d["work_date"] == future_date.isoformat())
+        assert day_data["has_shift"] is True
+        assert day_data["status"] == "scheduled"

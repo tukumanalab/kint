@@ -792,6 +792,11 @@ class AttendanceService:
         from_date = date(year, month, 1)
         to_date = date(year, month, last_day)
 
+        # JSTにおける今日の日付を取得（未来のシフトを「出勤予定」とする判定用）
+        from datetime import timezone, timedelta
+        JST = timezone(timedelta(hours=9))
+        today = datetime.now(JST).date()
+
         # 1. ユーザーの取得 (アクティブなユーザーのみ)
         user_query = select(User).where(User.is_active == 1)
         if user_id is not None:
@@ -926,7 +931,7 @@ class AttendanceService:
                 if len(day_atts) > 0 and has_incomplete_punch:
                     status = "incomplete"
                 elif has_shift and len(day_atts) == 0:
-                    status = "absence"
+                    status = "scheduled" if cur_date > today else "absence"
                 elif has_shift and is_late and is_early:
                     status = "late_and_early"
                 elif has_shift and is_late:
@@ -1156,6 +1161,7 @@ class AttendanceService:
                         "absence": "欠勤",
                         "incomplete": "打刻漏れ",
                         "off_duty": "休日",
+                        "scheduled": "出勤予定",
                     }
                     status_label = status_labels.get(day.status, day.status)
 
