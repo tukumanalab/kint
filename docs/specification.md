@@ -112,6 +112,8 @@
   - シフト開始前チェックイン許容時間（`shift_checkin_early_minutes`）: 0〜120 分
   - シフト iCal 同期 URL（`shift_ical_url`）
   - iCal 自動同期時刻（`shift_sync_time`）: HH:MM 形式。未設定で自動同期 OFF
+  - サイト名（`site_name`）: ヘッダーやログイン画面等に使用されるウェブアプリ全体の名称。1〜50文字。
+  - サイトのサブタイトル（`site_subtitle`）: トップページ等に表示されるサブタイトル。1〜100文字。
 - 設定値は DB に永続化し、サーバー再起動後も保持される。
 - DB に値がない場合は環境変数のデフォルト値にフォールバックする。
 - 変更は即時反映される（サーバー再起動不要）。
@@ -264,6 +266,8 @@
   - `shift_checkin_early_minutes` は 0 以上 120 以下の整数（422 で拒否）。
   - `shift_ical_url` は文字列 (URI 形式) または null / 空文字列（未設定として扱う）。
   - `shift_sync_time` は `HH:MM` 形式（24時間表記）または null / 空文字列（自動同期 OFF）。形式不正時は 422。
+  - `site_name` は 1〜50文字の文字列（形式不正または範囲外は 422）。
+  - `site_subtitle` は 1〜100文字の文字列（形式不正または範囲外は 422）。
 
 詳細は docs/api-contract.openapi.yaml を正とする。
 

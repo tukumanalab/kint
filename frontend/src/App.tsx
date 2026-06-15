@@ -53,12 +53,14 @@ function App() {
   
   // サイト名動的管理用のステート
   const [siteName, setSiteName] = useState<string>('Kint');
+  const [siteSubtitle, setSiteSubtitle] = useState<string>('NFC 勤怠管理システム');
 
   // サイト名の初期ロード
   useEffect(() => {
     getPublicSettings()
       .then((settings) => {
         setSiteName(settings.site_name);
+        setSiteSubtitle(settings.site_subtitle);
       })
       .catch((err) => {
         console.error('Failed to fetch public settings:', err);
@@ -320,7 +322,7 @@ function App() {
       <div className="top-page">
         <div className="top-page__content">
           <h1 className="top-page__title">{siteName}</h1>
-          <p className="top-page__subtitle">NFC 勤怠管理システム</p>
+          <p className="top-page__subtitle">{siteSubtitle}</p>
           <div className="top-page__buttons">
             <button
               type="button"
@@ -436,7 +438,7 @@ function App() {
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
       {page === 'myProfile' && <MyProfilePage auth={auth} />}
       {page === 'settings' && isAdmin && (
-        <SettingsPage auth={auth} onSiteNameChange={setSiteName} />
+        <SettingsPage auth={auth} onSiteNameChange={setSiteName} onSiteSubtitleChange={setSiteSubtitle} />
       )}
       {page === 'logs' && isAdmin && <LogsPage auth={auth} />}
     </div>

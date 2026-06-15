@@ -29,6 +29,7 @@ async function request<T>(path: string, init: RequestInit, token: string): Promi
 
 export interface PublicSettings {
   site_name: string;
+  site_subtitle: string;
 }
 
 export async function getPublicSettings(): Promise<PublicSettings> {

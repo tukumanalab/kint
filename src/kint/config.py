@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     punch_cooldown_seconds: int = 60
     shift_checkin_early_minutes: int = 15
     site_name: str = "Kint"
+    site_subtitle: str = "NFC 勤怠管理システム"
 
 
 settings = Settings()

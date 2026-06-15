@@ -22,6 +22,7 @@ ALLOWED_SETTING_KEYS = {
     "shift_ical_url",
     "shift_sync_time",
     "site_name",
+    "site_subtitle",
 }
 
 _KNOWN_VERSION = "1"
@@ -46,6 +47,7 @@ class SettingsService:
         ical_raw = db_map.get("shift_ical_url")
         sync_time_raw = db_map.get("shift_sync_time")
         site_name_raw = db_map.get("site_name")
+        site_subtitle_raw = db_map.get("site_subtitle")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -59,6 +61,7 @@ class SettingsService:
             ical = None
         sync_time = sync_time_raw if sync_time_raw else None
         site_name = site_name_raw if site_name_raw is not None else env_settings.site_name
+        site_subtitle = site_subtitle_raw if site_subtitle_raw is not None else env_settings.site_subtitle
 
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
@@ -66,6 +69,7 @@ class SettingsService:
             shift_ical_url=ical,
             shift_sync_time=sync_time,
             site_name=site_name,
+            site_subtitle=site_subtitle,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -111,6 +115,8 @@ class SettingsService:
             fields["shift_sync_time"] = ""
         if updates.site_name is not None:
             fields["site_name"] = updates.site_name
+        if updates.site_subtitle is not None:
+            fields["site_subtitle"] = updates.site_subtitle
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -178,6 +184,7 @@ class SettingsService:
             "shift_ical_url": current.shift_ical_url,
             "shift_sync_time": current.shift_sync_time,
             "site_name": current.site_name,
+            "site_subtitle": current.site_subtitle,
         }
 
         changes: list[SettingsImportChange] = []
@@ -190,7 +197,7 @@ class SettingsService:
                 continue
 
             # 値の正規化
-            if key in {"shift_ical_url", "shift_sync_time", "site_name"}:
+            if key in {"shift_ical_url", "shift_sync_time", "site_name", "site_subtitle"}:
                 new_value: int | str | None = raw_value if raw_value else None
             else:
                 new_value = int(raw_value)

@@ -847,6 +847,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /settings/public:
+    get:
+      tags: [Settings]
+      summary: 公開用システム設定を取得（認証不要）
+      description: >
+        ログイン不要で取得できる公開用設定（サイト名、サブタイトル）を返す。
+      security: []
+      responses:
+        '200':
+          description: 公開用設定取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSettingsResponse'
+
   /settings/export:
     get:
       tags: [Settings]
@@ -1436,7 +1451,7 @@ components:
 
     SettingsResponse:
       type: object
-      required: [punch_cooldown_seconds, shift_checkin_early_minutes]
+      required: [punch_cooldown_seconds, shift_checkin_early_minutes, site_name, site_subtitle]
       properties:
         punch_cooldown_seconds:
           type: integer
@@ -1456,6 +1471,14 @@ components:
           nullable: true
           description: iCal 自動同期の実行時刻（HH:MM 形式、24時間表記）。null / 未設定で自動同期 OFF
           example: "03:00"
+        site_name:
+          type: string
+          description: サイト名
+          example: "Kint"
+        site_subtitle:
+          type: string
+          description: サイトのサブタイトル
+          example: "NFC 勤怠管理システム"
 
     SettingsPatchRequest:
       type: object
@@ -1483,6 +1506,16 @@ components:
             iCal 自動同期の実行時刻（HH:MM、24時間表記）。
             null または空文字列で自動同期 OFF。形式不正は 422。
           example: "03:00"
+        site_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: サイト名
+        site_subtitle:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: サイトのサブタイトル
 
     SettingsExportFile:
       type: object
@@ -1573,6 +1606,19 @@ components:
         applied:
           $ref: '#/components/schemas/SettingsResponse'
           description: dry_run=false のときのみ包含。適用後の全設定値。
+
+    PublicSettingsResponse:
+      type: object
+      required: [site_name, site_subtitle]
+      properties:
+        site_name:
+          type: string
+          description: サイト名
+          example: "Kint"
+        site_subtitle:
+          type: string
+          description: サイトのサブタイトル
+          example: "NFC 勤怠管理システム"
 
     ErrorResponse:
       type: object

@@ -4,6 +4,7 @@ export interface SystemSettings {
   shift_ical_url: string | null;
   shift_sync_time: string | null;
   site_name: string;
+  site_subtitle: string;
 }
 
 export interface SettingsPatchRequest {
@@ -12,6 +13,7 @@ export interface SettingsPatchRequest {
   shift_ical_url?: string | null;
   shift_sync_time?: string | null;
   site_name?: string;
+  site_subtitle?: string;
 }
 
 export interface SettingsExportFile {

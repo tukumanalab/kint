@@ -18,6 +18,7 @@ import './SettingsPage.css';
 interface Props {
   auth: UseAuth;
   onSiteNameChange: (name: string) => void;
+  onSiteSubtitleChange: (subtitle: string) => void;
 }
 
 function apiErrorMessage(err: ApiError): string {
@@ -111,7 +112,7 @@ function ImportDialog({ file, preview, onClose, onApply, applying }: ImportDialo
 
 // ===== メインページ =====
 
-export function SettingsPage({ auth }: Props) {
+export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: Props) {
   const { token } = auth;
 
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -123,6 +124,7 @@ export function SettingsPage({ auth }: Props) {
   const [icalUrl, setIcalUrl] = useState('');
   const [syncTime, setSyncTime] = useState('');
   const [siteName, setSiteName] = useState('');
+  const [siteSubtitle, setSiteSubtitle] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -187,6 +189,8 @@ export function SettingsPage({ auth }: Props) {
       setSyncTime(s.shift_sync_time ?? '');
       setSiteName(s.site_name ?? 'Kint');
       onSiteNameChange(s.site_name ?? 'Kint');
+      setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
+      onSiteSubtitleChange(s.site_subtitle ?? 'NFC 勤怠管理システム');
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -205,6 +209,7 @@ export function SettingsPage({ auth }: Props) {
         setIcalUrl(s.shift_ical_url ?? '');
         setSyncTime(s.shift_sync_time ?? '');
         setSiteName(s.site_name ?? 'Kint');
+        setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
       })
       .catch((err: unknown) => {
         const msg =
@@ -218,6 +223,9 @@ export function SettingsPage({ auth }: Props) {
   function validateForm(): string | null {
     if (siteName.trim() === '') {
       return 'サイト名を入力してください';
+    }
+    if (siteSubtitle.trim() === '') {
+      return 'サイトのサブタイトルを入力してください';
     }
     const c = Number(cooldown);
     if (!Number.isInteger(c) || c < 0 || c > 3600) {
@@ -254,9 +262,11 @@ export function SettingsPage({ auth }: Props) {
         shift_ical_url: icalUrl || null,
         shift_sync_time: syncTime || null,
         site_name: siteName.trim(),
+        site_subtitle: siteSubtitle.trim(),
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
+      onSiteSubtitleChange(updated.site_subtitle);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -324,6 +334,8 @@ export function SettingsPage({ auth }: Props) {
         setSyncTime(result.applied.shift_sync_time ?? '');
         setSiteName(result.applied.site_name ?? 'Kint');
         onSiteNameChange(result.applied.site_name ?? 'Kint');
+        setSiteSubtitle(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
+        onSiteSubtitleChange(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
       }
       setImportFile(null);
       setImportPreview(null);
@@ -378,6 +390,20 @@ export function SettingsPage({ auth }: Props) {
               onChange={(e) => setSiteName(e.target.value)}
             />
             <p className="settings-field__hint">ヘッダーやログイン画面、ブラウザタブのタイトルに使用されます</p>
+          </div>
+          <div className="settings-field">
+            <label htmlFor="siteSubtitle" className="settings-field__label">
+              サイトのサブタイトル
+            </label>
+            <input
+              id="siteSubtitle"
+              type="text"
+              className="settings-field__input settings-field__input--wide"
+              placeholder="NFC 勤怠管理システム"
+              value={siteSubtitle}
+              onChange={(e) => setSiteSubtitle(e.target.value)}
+            />
+            <p className="settings-field__hint">トップページなどで使用されるサブタイトルです</p>
           </div>
         </section>
 
