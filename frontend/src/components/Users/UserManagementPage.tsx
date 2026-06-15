@@ -594,28 +594,30 @@ export function UserManagementPage({ auth }: Props) {
                     >
                       カード
                     </button>
-                    {user.is_active ? (
-                      <button
-                        type="button"
-                        className="btn btn--small btn--danger"
-                        onClick={() => {
-                          setDeleteTarget(user);
-                          setIsHardDelete(false);
-                        }}
-                      >
-                        削除
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn--small btn--danger"
-                        onClick={() => {
-                          setDeleteTarget(user);
-                          setIsHardDelete(true);
-                        }}
-                      >
-                        完全削除
-                      </button>
+                    {user.id !== 'system' && (
+                      user.is_active ? (
+                        <button
+                          type="button"
+                          className="btn btn--small btn--danger"
+                          onClick={() => {
+                            setDeleteTarget(user);
+                            setIsHardDelete(false);
+                          }}
+                        >
+                          削除
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn--small btn--danger"
+                          onClick={() => {
+                            setDeleteTarget(user);
+                            setIsHardDelete(true);
+                          }}
+                        >
+                          完全削除
+                        </button>
+                      )
                     )}
                   </td>
                 </tr>
