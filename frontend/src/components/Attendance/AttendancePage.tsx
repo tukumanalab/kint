@@ -477,7 +477,7 @@ export function AttendancePage({ auth }: Props) {
     }
   };
 
-  const formatPunchTime = (calcTime: string | null, rawTime: string | null) => {
+  const formatPunchTime = (calcTime: string | null | undefined, rawTime: string | null | undefined) => {
     if (!calcTime && !rawTime) return '-';
     const calcStr = calcTime ? formatTime(calcTime) : '-';
     const rawStr = rawTime ? formatTime(rawTime) : '-';
