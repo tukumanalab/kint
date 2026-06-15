@@ -1,9 +1,17 @@
 """システム設定 API ルーター。GET/PATCH /api/v1/settings および export/import を提供する。"""
 
 from datetime import UTC, datetime
+import os
+import shutil
+import sqlite3
+import tempfile
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
+import asyncio
+import anyio
+import inspect
+import aiosqlite
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.db import get_db
@@ -84,3 +92,138 @@ async def import_settings(
     if dry_run:
         return await service.import_preview(body)
     return await service.import_apply(body, actor_id=current_user.id)
+
+
+@router.get("/database/backup")
+async def backup_database_api(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FileResponse:
+    """データベース全体のバックアップファイルをダウンロードする。"""
+    _require_admin(current_user)
+
+    temp_dir = tempfile.gettempdir()
+    backup_file_path = os.path.join(
+        temp_dir, f"kint_backup_{datetime.now(tz=UTC).strftime('%Y%m%d%H%M%S')}.db"
+    )
+    conn = await session.connection()
+    raw_conn = await conn.get_raw_connection()
+
+    target_conn = None
+    candidates = [raw_conn]
+    for attr in ["dbapi_connection", "_connection"]:
+        val = getattr(raw_conn, attr, None)
+        if val is not None:
+            candidates.append(val)
+
+    for c in candidates:
+        if hasattr(c, "backup") and inspect.iscoroutinefunction(c.backup):
+            target_conn = c
+            break
+
+    if target_conn is not None:
+        with sqlite3.connect(backup_file_path) as dest:
+            await target_conn.backup(dest)
+    else:
+        real_conn = raw_conn
+        for attr in ["_connection", "dbapi_connection", "_conn", "connection"]:
+            val = getattr(real_conn, attr, None)
+            if val is not None:
+                real_conn = val
+        if hasattr(real_conn, "backup"):
+            with sqlite3.connect(backup_file_path) as dest:
+                real_conn.backup(dest)
+        else:
+            raise HTTPException(
+                status_code=500, detail="バックアップを実行できる SQLite 接続が見つかりませんでした"
+            )
+
+    filename = f"kint-backup-{datetime.now(tz=UTC).strftime('%Y%m%d%H%M%S')}.db"
+    background_tasks.add_task(
+        lambda: os.remove(backup_file_path) if os.path.exists(backup_file_path) else None
+    )
+
+    return FileResponse(
+        path=backup_file_path,
+        filename=filename,
+        media_type="application/x-sqlite3",
+        background=background_tasks,
+    )
+
+
+@router.post("/database/restore")
+async def restore_database_api(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """アップロードされたバックアップファイルでデータベースを復元する。"""
+    _require_admin(current_user)
+
+    temp_dir = tempfile.gettempdir()
+    temp_file_path = os.path.join(
+        temp_dir, f"kint_restore_{datetime.now(tz=UTC).strftime('%Y%m%d%H%M%S')}.db"
+    )
+
+    try:
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        async with aiosqlite.connect(temp_file_path) as src:
+            async with src.execute("PRAGMA integrity_check") as cursor:
+                res = await cursor.fetchone()
+                if not res or res[0] != "ok":
+                    raise ValueError("データベースファイルの整合性チェックに失敗しました")
+
+            async with src.execute("SELECT name FROM sqlite_master WHERE type='table'") as cursor:
+                tables = {r[0] for r in await cursor.fetchall()}
+                required_tables = {"users", "attendances", "cards"}
+                if not required_tables.issubset(tables):
+                    raise ValueError("有効なkintデータベースファイルではありません")
+
+            conn = await session.connection()
+            raw_conn = await conn.get_raw_connection()
+
+            dest_conn = None
+            candidates = [raw_conn]
+            for attr in ["dbapi_connection", "_connection"]:
+                val = getattr(raw_conn, attr, None)
+                if val is not None:
+                    candidates.append(val)
+
+            async_conn = None
+            for c in candidates:
+                if hasattr(c, "backup") and inspect.iscoroutinefunction(c.backup):
+                    async_conn = c
+                    break
+
+            if async_conn is not None:
+                dest_sqlite_conn = getattr(async_conn, "_conn", None)
+                if dest_sqlite_conn is not None:
+                    await src.backup(dest_sqlite_conn)
+                else:
+                    raise ValueError("復元先の生の SQLite 接続が見つかりませんでした")
+            else:
+                real_conn = raw_conn
+                for attr in ["_connection", "dbapi_connection", "_conn", "connection"]:
+                    val = getattr(real_conn, attr, None)
+                    if val is not None:
+                        real_conn = val
+                if hasattr(real_conn, "backup"):
+                    with sqlite3.connect(temp_file_path) as src_sync:
+                        src_sync.backup(real_conn)
+                else:
+                    raise ValueError("復元を実行できる SQLite 接続が見つかりませんでした")
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"復元処理中にエラーが発生しました: {str(e)}"
+        )
+    finally:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+    return {"message": "データベースを正常に復元しました"}

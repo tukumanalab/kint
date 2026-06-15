@@ -6,6 +6,8 @@ import {
   getSettings,
   patchSettings,
   previewImportSettings,
+  exportDatabaseBackup,
+  restoreDatabaseBackup,
 } from '../../api/settings';
 import { ApiError } from '../../types/error';
 import type { SettingsExportFile, SettingsImportResult, SystemSettings } from '../../types/settings';
@@ -132,6 +134,62 @@ export function SettingsPage({ auth }: Props) {
   const [importParseError, setImportParseError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // データベースのフルバックアップ用 state
+  const [dbExporting, setDbExporting] = useState(false);
+  const [dbRestoring, setDbRestoring] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [dbSuccess, setDbSuccess] = useState<string | null>(null);
+  const dbFileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleDbExport() {
+    if (!token) return;
+    setDbError(null);
+    setDbSuccess(null);
+    setDbExporting(true);
+    try {
+      await exportDatabaseBackup(token);
+      setDbSuccess('データベースのバックアップをダウンロードしました');
+      setTimeout(() => setDbSuccess(null), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? apiErrorMessage(err) : 'バックアップに失敗しました';
+      setDbError(msg);
+    } finally {
+      setDbExporting(false);
+    }
+  }
+
+  async function handleDbRestoreFileChange(e: ChangeEvent<HTMLInputElement>) {
+    setDbError(null);
+    setDbSuccess(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (e.target) e.target.value = '';
+
+    const confirmRestore = window.confirm(
+      '警告：データベースを復元すると、既存のすべてのデータ（ユーザー、勤怠、カード等）が完全に上書きされ、元に戻せません。本当に復元を実行しますか？'
+    );
+    if (!confirmRestore) return;
+
+    if (!token) return;
+    setDbRestoring(true);
+    try {
+      await restoreDatabaseBackup(token, file);
+      setDbSuccess('データベースを正常に復元しました。');
+      // 設定値をリロード
+      const s = await getSettings(token);
+      setCurrent(s);
+      setCooldown(String(s.punch_cooldown_seconds));
+      setEarlyMinutes(String(s.shift_checkin_early_minutes));
+      setIcalUrl(s.shift_ical_url ?? '');
+      setSyncTime(s.shift_sync_time ?? '');
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
+      setDbError(msg);
+    } finally {
+      setDbRestoring(false);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -385,7 +443,7 @@ export function SettingsPage({ auth }: Props) {
       </form>
 
       <section className="settings-section">
-        <h2 className="settings-section__title">バックアップ</h2>
+        <h2 className="settings-section__title">設定のインポート／エクスポート</h2>
         {exportError && <p className="settings-error">{exportError}</p>}
         {importParseError && <p className="settings-error">{importParseError}</p>}
         <div className="settings-backup-actions">
@@ -402,7 +460,7 @@ export function SettingsPage({ auth }: Props) {
             className="settings-btn settings-btn--secondary"
             onClick={() => fileInputRef.current?.click()}
           >
-            ↓ インポート...
+            ↓ 設定をインポート...
           </button>
           <input
             ref={fileInputRef}
@@ -410,6 +468,40 @@ export function SettingsPage({ auth }: Props) {
             accept="application/json,.json"
             style={{ display: 'none' }}
             onChange={handleFileChange}
+          />
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-section__title">データベースのフルバックアップ</h2>
+        <p className="settings-field__hint" style={{ marginBottom: '1rem' }}>
+          勤怠記録、ユーザー情報、NFCカード登録を含むデータベース全体（SQLiteファイル）をバックアップ・復元します。
+        </p>
+        {dbError && <p className="settings-error">{dbError}</p>}
+        {dbSuccess && <p className="settings-success">{dbSuccess}</p>}
+        <div className="settings-backup-actions">
+          <button
+            type="button"
+            className="settings-btn settings-btn--secondary"
+            onClick={handleDbExport}
+            disabled={dbExporting || dbRestoring}
+          >
+            {dbExporting ? 'ダウンロード中...' : '↑ データベースをダウンロード'}
+          </button>
+          <button
+            type="button"
+            className="settings-btn settings-btn--secondary"
+            onClick={() => dbFileInputRef.current?.click()}
+            disabled={dbExporting || dbRestoring}
+          >
+            {dbRestoring ? '復元中...' : '↓ データベースを復元...'}
+          </button>
+          <input
+            ref={dbFileInputRef}
+            type="file"
+            accept=".db,application/x-sqlite3"
+            style={{ display: 'none' }}
+            onChange={handleDbRestoreFileChange}
           />
         </div>
       </section>

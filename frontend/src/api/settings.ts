@@ -88,3 +88,47 @@ export async function applyImportSettings(
     token,
   );
 }
+
+/** データベースのフルバックアップをダウンロードする */
+export async function exportDatabaseBackup(token: string): Promise<void> {
+  const res = await fetch(`${BASE}/settings/database/backup`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body: ErrorResponse = await res.json().catch(() => ({
+      code: 'unknown',
+      message: res.statusText,
+    }));
+    throw new ApiError(res.status, body);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const filename = match?.[1] ?? 'kint-backup.db';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** データベースのフルバックアップを復元する */
+export async function restoreDatabaseBackup(token: string, file: File): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${BASE}/settings/database/restore`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const body: ErrorResponse = await res.json().catch(() => ({
+      code: 'unknown',
+      message: res.statusText,
+    }));
+    throw new ApiError(res.status, body);
+  }
+}
