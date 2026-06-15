@@ -749,6 +749,7 @@ function UserNfcCardsModal({ user, token, onClose }: UserNfcCardsModalProps) {
       setCards((prev) => [...prev, newCard]);
       setRegisterSuccess(`カードを登録しました。`);
       setCardName('');
+      reset();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {

@@ -263,6 +263,7 @@ function NfcCardDialog({ token, existingCards, onRegistered, onClose }: NfcCardD
       };
       onRegistered(newCard);
       setRegisterSuccess(`カードを登録しました。`);
+      reset();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
