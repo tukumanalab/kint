@@ -3,6 +3,7 @@ export interface SystemSettings {
   shift_checkin_early_minutes: number;
   shift_ical_url: string | null;
   shift_sync_time: string | null;
+  site_name: string;
 }
 
 export interface SettingsPatchRequest {
@@ -10,6 +11,7 @@ export interface SettingsPatchRequest {
   shift_checkin_early_minutes?: number;
   shift_ical_url?: string | null;
   shift_sync_time?: string | null;
+  site_name?: string;
 }
 
 export interface SettingsExportFile {

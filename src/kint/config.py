@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # 打刻判定ルール設定
     punch_cooldown_seconds: int = 60
     shift_checkin_early_minutes: int = 15
+    site_name: str = "Kint"
 
 
 settings = Settings()

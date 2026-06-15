@@ -15,6 +15,7 @@ class SettingsResponse(BaseModel):
     shift_checkin_early_minutes: int
     shift_ical_url: str | None
     shift_sync_time: str | None
+    site_name: str
 
 
 class SettingsPatchRequest(BaseModel):
@@ -24,6 +25,7 @@ class SettingsPatchRequest(BaseModel):
     shift_checkin_early_minutes: int | None = Field(default=None, ge=0, le=120)
     shift_ical_url: str | None = None
     shift_sync_time: str | None = None
+    site_name: str | None = Field(default=None, min_length=1, max_length=50)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -43,6 +45,7 @@ class SettingsPatchRequest(BaseModel):
             and self.shift_checkin_early_minutes is None
             and self.shift_ical_url is None
             and self.shift_sync_time is None
+            and self.site_name is None
             and "shift_sync_time" not in self.model_fields_set
         ):
             raise ValueError("少なくとも 1 つのフィールドを指定してください")
@@ -85,3 +88,9 @@ class SettingsImportResult(BaseModel):
     ignored_keys: list[str]
     warnings: list[str]
     applied: SettingsResponse | None = None
+
+
+class PublicSettingsResponse(BaseModel):
+    """認証不要の公開用設定レスポンス。"""
+
+    site_name: str

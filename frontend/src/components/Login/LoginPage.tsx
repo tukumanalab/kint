@@ -4,13 +4,14 @@ import './LoginPage.css';
 
 interface Props {
   auth: UseAuth;
+  siteName: string;
 }
 
-export function LoginPage({ auth }: Props) {
+export function LoginPage({ auth, siteName }: Props) {
   return (
     <main className="login-page">
       <div className="login-card">
-        <h1 className="login-title">Kint 管理画面</h1>
+        <h1 className="login-title">{siteName} 管理画面</h1>
         {auth.error && <p className="login-error">{auth.error}</p>}
         <div className="login-google-btn">
           <GoogleLogin

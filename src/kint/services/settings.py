@@ -21,6 +21,7 @@ ALLOWED_SETTING_KEYS = {
     "shift_checkin_early_minutes",
     "shift_ical_url",
     "shift_sync_time",
+    "site_name",
 }
 
 _KNOWN_VERSION = "1"
@@ -44,6 +45,7 @@ class SettingsService:
         early_raw = db_map.get("shift_checkin_early_minutes")
         ical_raw = db_map.get("shift_ical_url")
         sync_time_raw = db_map.get("shift_sync_time")
+        site_name_raw = db_map.get("site_name")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -56,12 +58,14 @@ class SettingsService:
         if ical == "":
             ical = None
         sync_time = sync_time_raw if sync_time_raw else None
+        site_name = site_name_raw if site_name_raw is not None else env_settings.site_name
 
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
             shift_ical_url=ical,
             shift_sync_time=sync_time,
+            site_name=site_name,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -105,6 +109,8 @@ class SettingsService:
             fields["shift_sync_time"] = updates.shift_sync_time
         elif "shift_sync_time" in updates.model_fields_set:
             fields["shift_sync_time"] = ""
+        if updates.site_name is not None:
+            fields["site_name"] = updates.site_name
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -171,6 +177,7 @@ class SettingsService:
             "shift_checkin_early_minutes": current.shift_checkin_early_minutes,
             "shift_ical_url": current.shift_ical_url,
             "shift_sync_time": current.shift_sync_time,
+            "site_name": current.site_name,
         }
 
         changes: list[SettingsImportChange] = []
@@ -183,7 +190,7 @@ class SettingsService:
                 continue
 
             # 値の正規化
-            if key in {"shift_ical_url", "shift_sync_time"}:
+            if key in {"shift_ical_url", "shift_sync_time", "site_name"}:
                 new_value: int | str | None = raw_value if raw_value else None
             else:
                 new_value = int(raw_value)

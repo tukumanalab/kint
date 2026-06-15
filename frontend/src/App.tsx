@@ -13,6 +13,7 @@ import { AttendancePage } from './components/Attendance';
 import { fetchMyNotifications, readNotification, readAllNotifications } from './api/me';
 import type { Notification } from './types/notification';
 import { NotificationPopover } from './components/Notification/NotificationPopover';
+import { getPublicSettings } from './api/settings';
 import './App.css';
 
 type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs' | 'attendance';
@@ -49,6 +50,25 @@ function App() {
   const [page, setPage] = useState<Page>(getInitialPage);
   const [guestPage, setGuestPage] = useState<GuestPage>(getInitialGuestPage);
   const [emailVerifToken] = useState<string | null>(getEmailVerificationToken);
+  
+  // サイト名動的管理用のステート
+  const [siteName, setSiteName] = useState<string>('Kint');
+
+  // サイト名の初期ロード
+  useEffect(() => {
+    getPublicSettings()
+      .then((settings) => {
+        setSiteName(settings.site_name);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch public settings:', err);
+      });
+  }, []);
+
+  // siteName に応じて document.title を更新
+  useEffect(() => {
+    document.title = siteName;
+  }, [siteName]);
 
   // お知らせ関連のステート
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -228,7 +248,7 @@ function App() {
         return (
           <div className="app">
             <nav className="app-nav">
-              <span className="app-nav__brand">Kint</span>
+              <span className="app-nav__brand">{siteName}</span>
               <div className="app-nav__links">
                 <button
                   type="button"
@@ -260,7 +280,7 @@ function App() {
       return (
         <div className="app">
           <nav className="app-nav">
-            <span className="app-nav__brand">Kint</span>
+            <span className="app-nav__brand">{siteName}</span>
             <div className="app-nav__links">
               <button
                 type="button"
@@ -292,14 +312,14 @@ function App() {
       if (auth.pendingIdToken) {
         return <RegisterPage auth={auth} />;
       }
-      return <LoginPage auth={auth} />;
+      return <LoginPage auth={auth} siteName={siteName} />;
     }
 
     // トップページ
     return (
       <div className="top-page">
         <div className="top-page__content">
-          <h1 className="top-page__title">Kint</h1>
+          <h1 className="top-page__title">{siteName}</h1>
           <p className="top-page__subtitle">NFC 勤怠管理システム</p>
           <div className="top-page__buttons">
             <button
@@ -325,7 +345,7 @@ function App() {
   return (
     <div className="app">
       <nav className="app-nav">
-        <span className="app-nav__brand">Kint</span>
+        <span className="app-nav__brand">{siteName}</span>
         <div className="app-nav__links">
           {/* 管理者向け打刻リンクはメニューバーから非表示 */}
           <button
@@ -415,7 +435,9 @@ function App() {
       {page === 'attendance' && <AttendancePage auth={auth} />}
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
       {page === 'myProfile' && <MyProfilePage auth={auth} />}
-      {page === 'settings' && isAdmin && <SettingsPage auth={auth} />}
+      {page === 'settings' && isAdmin && (
+        <SettingsPage auth={auth} onSiteNameChange={setSiteName} />
+      )}
       {page === 'logs' && isAdmin && <LogsPage auth={auth} />}
     </div>
   );

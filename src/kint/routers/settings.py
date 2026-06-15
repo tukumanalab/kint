@@ -24,10 +24,21 @@ from kint.schemas.settings import (
     SettingsImportResult,
     SettingsPatchRequest,
     SettingsResponse,
+    PublicSettingsResponse,
 )
 from kint.services.settings import SettingsService
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+@router.get("/public", response_model=PublicSettingsResponse)
+async def get_public_settings(
+    session: AsyncSession = Depends(get_db),
+) -> PublicSettingsResponse:
+    """認証不要で取得できる公開設定（サイト名など）を返す。"""
+    service = SettingsService(session)
+    site_name = await service.get_str("site_name")
+    return PublicSettingsResponse(site_name=site_name or "Kint")
 
 
 def _require_admin(current_user: User) -> User:

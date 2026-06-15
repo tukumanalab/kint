@@ -17,6 +17,7 @@ import './SettingsPage.css';
 
 interface Props {
   auth: UseAuth;
+  onSiteNameChange: (name: string) => void;
 }
 
 function apiErrorMessage(err: ApiError): string {
@@ -121,6 +122,7 @@ export function SettingsPage({ auth }: Props) {
   const [earlyMinutes, setEarlyMinutes] = useState('');
   const [icalUrl, setIcalUrl] = useState('');
   const [syncTime, setSyncTime] = useState('');
+  const [siteName, setSiteName] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -183,6 +185,8 @@ export function SettingsPage({ auth }: Props) {
       setEarlyMinutes(String(s.shift_checkin_early_minutes));
       setIcalUrl(s.shift_ical_url ?? '');
       setSyncTime(s.shift_sync_time ?? '');
+      setSiteName(s.site_name ?? 'Kint');
+      onSiteNameChange(s.site_name ?? 'Kint');
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -200,6 +204,7 @@ export function SettingsPage({ auth }: Props) {
         setEarlyMinutes(String(s.shift_checkin_early_minutes));
         setIcalUrl(s.shift_ical_url ?? '');
         setSyncTime(s.shift_sync_time ?? '');
+        setSiteName(s.site_name ?? 'Kint');
       })
       .catch((err: unknown) => {
         const msg =
@@ -211,6 +216,9 @@ export function SettingsPage({ auth }: Props) {
   // ----- バリデーション -----
 
   function validateForm(): string | null {
+    if (siteName.trim() === '') {
+      return 'サイト名を入力してください';
+    }
     const c = Number(cooldown);
     if (!Number.isInteger(c) || c < 0 || c > 3600) {
       return '連続打刻クールダウンは 0〜3600 の整数で入力してください';
@@ -245,8 +253,10 @@ export function SettingsPage({ auth }: Props) {
         shift_checkin_early_minutes: Number(earlyMinutes),
         shift_ical_url: icalUrl || null,
         shift_sync_time: syncTime || null,
+        site_name: siteName.trim(),
       });
       setCurrent(updated);
+      onSiteNameChange(updated.site_name);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -312,6 +322,8 @@ export function SettingsPage({ auth }: Props) {
         setEarlyMinutes(String(result.applied.shift_checkin_early_minutes));
         setIcalUrl(result.applied.shift_ical_url ?? '');
         setSyncTime(result.applied.shift_sync_time ?? '');
+        setSiteName(result.applied.site_name ?? 'Kint');
+        onSiteNameChange(result.applied.site_name ?? 'Kint');
       }
       setImportFile(null);
       setImportPreview(null);
@@ -351,6 +363,24 @@ export function SettingsPage({ auth }: Props) {
       <h1 className="settings-page__title">システム設定</h1>
 
       <form onSubmit={handleSave} noValidate>
+        <section className="settings-section">
+          <h2 className="settings-section__title">一般設定</h2>
+          <div className="settings-field">
+            <label htmlFor="siteName" className="settings-field__label">
+              サイト名
+            </label>
+            <input
+              id="siteName"
+              type="text"
+              className="settings-field__input settings-field__input--wide"
+              placeholder="Kint"
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+            />
+            <p className="settings-field__hint">ヘッダーやログイン画面、ブラウザタブのタイトルに使用されます</p>
+          </div>
+        </section>
+
         <section className="settings-section">
           <h2 className="settings-section__title">打刻規則</h2>
 

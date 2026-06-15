@@ -27,6 +27,27 @@ async function request<T>(path: string, init: RequestInit, token: string): Promi
   return res.json() as Promise<T>;
 }
 
+export interface PublicSettings {
+  site_name: string;
+}
+
+export async function getPublicSettings(): Promise<PublicSettings> {
+  const res = await fetch(`${BASE}/settings/public`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body: ErrorResponse = await res.json().catch(() => ({
+      code: 'unknown',
+      message: res.statusText,
+    }));
+    throw new ApiError(res.status, body);
+  }
+  return res.json() as Promise<PublicSettings>;
+}
+
 export async function getSettings(token: string): Promise<SystemSettings> {
   return request<SystemSettings>('/settings', { method: 'GET' }, token);
 }
