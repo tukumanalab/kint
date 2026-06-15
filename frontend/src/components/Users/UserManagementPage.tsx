@@ -119,7 +119,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
                 disabled={submitting}
                 autoComplete="username"
               />
-              <p className="form-hint">3〜50文字、英数字と記号 _.@+- が利用可能</p>
+              <p className="form-hint">システム内部で利用します。3〜50文字、英数字と記号 _.@+- が利用可能です。</p>
             </div>
           ) : (
             <div className="form-field">
@@ -146,6 +146,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
               required
               disabled={submitting}
             />
+            <p className="form-hint">画面上で確認するために利用されます。</p>
           </div>
           <div className="form-field">
             <label htmlFor="full-name" className="form-label">氏名 <span className="required">*</span></label>
@@ -159,6 +160,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
               required
               disabled={submitting}
             />
+            <p className="form-hint">給与申請に利用するので、本名を入れてください。</p>
           </div>
           <div className="form-field">
             <label htmlFor="email" className="form-label">メールアドレス <span className="required">*</span></label>
@@ -171,6 +173,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
               required
               disabled={submitting}
             />
+            <p className="form-hint">シフト申請に利用しているメールアドレスを入れてください。</p>
           </div>
           <div className="form-field">
             <label htmlFor="role" className="form-label">ロール <span className="required">*</span></label>
