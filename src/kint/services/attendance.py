@@ -43,6 +43,10 @@ from kint.schemas.attendance import (
 from kint.schemas.punch import PunchRequest, PunchResponse
 from kint.services.settings import SettingsService
 
+# ユーザーごとの最終打刻完了時刻（取り消しを含む）を一時キャッシュするメモリ辞書。
+# 直後の連続打刻による不適切な出勤（直前に取り消し済みの状態）を防止するために使用される。
+_LAST_PUNCH_TIME: dict[str, datetime] = {}
+
 
 def _ensure_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
@@ -187,10 +191,16 @@ class PunchService:
     async def _validate_cooldown(self, user_id: str, occurred_at: datetime) -> None:
         """直近打刻からクールダウン秒数以内の連続打刻を拒否する。"""
         latest = await self._get_latest_attendance(user_id)
-        if latest is None:
-            return
+        latest_punched_at = None
+        if latest is not None:
+            latest_punched_at = latest.check_out or latest.check_in
 
-        latest_punched_at = latest.check_out or latest.check_in
+        # メモリキャッシュ上の最終打刻時刻（取り消しを含む）と比較し、新しい方を採用
+        mem_latest = _LAST_PUNCH_TIME.get(user_id)
+        if mem_latest is not None:
+            if latest_punched_at is None or self._as_utc(mem_latest) > self._as_utc(latest_punched_at):
+                latest_punched_at = mem_latest
+
         if latest_punched_at is None:
             return
 
@@ -309,6 +319,7 @@ class PunchService:
             )
             # 勤怠レコードを削除
             await self.session.delete(attendance)
+            _LAST_PUNCH_TIME[user.id] = request.occurred_at
             await self.session.commit()
 
             from kint.services.notification import NotificationService
@@ -442,6 +453,7 @@ class PunchService:
                     daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
             daily_working_hours_total = round(daily_working_hours_total, 2)
  
+        _LAST_PUNCH_TIME[user.id] = request.occurred_at
         await self.session.commit()
  
         from kint.services.notification import NotificationService

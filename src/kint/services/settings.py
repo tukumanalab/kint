@@ -23,6 +23,7 @@ ALLOWED_SETTING_KEYS = {
     "shift_sync_time",
     "site_name",
     "site_subtitle",
+    "punch_result_display_seconds",
 }
 
 _KNOWN_VERSION = "1"
@@ -48,6 +49,7 @@ class SettingsService:
         sync_time_raw = db_map.get("shift_sync_time")
         site_name_raw = db_map.get("site_name")
         site_subtitle_raw = db_map.get("site_subtitle")
+        display_seconds_raw = db_map.get("punch_result_display_seconds")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -62,6 +64,11 @@ class SettingsService:
         sync_time = sync_time_raw if sync_time_raw else None
         site_name = site_name_raw if site_name_raw is not None else env_settings.site_name
         site_subtitle = site_subtitle_raw if site_subtitle_raw is not None else env_settings.site_subtitle
+        display_seconds = (
+            int(display_seconds_raw)
+            if display_seconds_raw is not None
+            else env_settings.punch_result_display_seconds
+        )
 
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
@@ -70,6 +77,7 @@ class SettingsService:
             shift_sync_time=sync_time,
             site_name=site_name,
             site_subtitle=site_subtitle,
+            punch_result_display_seconds=display_seconds,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -117,6 +125,8 @@ class SettingsService:
             fields["site_name"] = updates.site_name
         if updates.site_subtitle is not None:
             fields["site_subtitle"] = updates.site_subtitle
+        if updates.punch_result_display_seconds is not None:
+            fields["punch_result_display_seconds"] = str(updates.punch_result_display_seconds)
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -185,6 +195,7 @@ class SettingsService:
             "shift_sync_time": current.shift_sync_time,
             "site_name": current.site_name,
             "site_subtitle": current.site_subtitle,
+            "punch_result_display_seconds": current.punch_result_display_seconds,
         }
 
         changes: list[SettingsImportChange] = []

@@ -35,6 +35,7 @@
 | `shift_sync_time` | string \| null | `"03:00"` | — | — | iCal 自動同期の実行時刻（HH:MM、24時間表記）。null / 空文字で自動同期 OFF |
 | `site_name` | string | `"Kint"` | — | — | サイトの表示名称。1〜50文字 |
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
+| `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
 
 ---
 
@@ -92,7 +93,7 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
 - `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。
@@ -138,7 +139,8 @@ erDiagram
   "shift_ical_url": "https://example.com/calendar.ics",
   "shift_sync_time": "03:00",
   "site_name": "Kint",
-  "site_subtitle": "NFC 勤怠管理システム"
+  "site_subtitle": "NFC 勤怠管理システム",
+  "punch_result_display_seconds": 30
 }
 ```
 
@@ -168,7 +170,8 @@ erDiagram
   "shift_ical_url": "https://example.com/calendar.ics",
   "shift_sync_time": "03:00",
   "site_name": "Kint",
-  "site_subtitle": "NFC 勤怠管理システム"
+  "site_subtitle": "NFC 勤怠管理システム",
+  "punch_result_display_seconds": 30
 }
 ```
 
@@ -183,6 +186,7 @@ erDiagram
 | `shift_sync_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動同期 OFF） |
 | `site_name` | string, 1 ≤ length ≤ 50 |
 | `site_subtitle` | string, 1 ≤ length ≤ 100 |
+| `punch_result_display_seconds` | integer, 1 ≤ value ≤ 300 |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 
@@ -270,7 +274,8 @@ erDiagram
   "applied": {
     "punch_cooldown_seconds": 120,
     "shift_checkin_early_minutes": 15,
-    "shift_ical_url": "https://example.com/calendar.ics"
+    "shift_ical_url": "https://example.com/calendar.ics",
+    "punch_result_display_seconds": 30
   }
 }
 ```
@@ -487,6 +492,7 @@ export interface SystemSettings {
   shift_sync_time: string | null;  // "HH:MM" または null（自動同期 OFF）
   site_name: string;
   site_subtitle: string;
+  punch_result_display_seconds: number;
 }
 
 export interface SettingsPatchRequest {
@@ -496,6 +502,7 @@ export interface SettingsPatchRequest {
   shift_sync_time?: string | null;  // "HH:MM" または null / 空文字列
   site_name?: string;
   site_subtitle?: string;
+  punch_result_display_seconds?: number;
 }
 
 export interface SettingsExportFile {
@@ -662,6 +669,7 @@ class SettingsPatchRequest(BaseModel):
     shift_ical_url: str | None = None  # URL または null
     site_name: str | None = None  # min_length=1, max_length=50
     site_subtitle: str | None = None  # min_length=1, max_length=100
+    punch_result_display_seconds: int | None = None  # Field(ge=1, le=300)
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> "SettingsPatchRequest":
@@ -676,8 +684,9 @@ class SettingsPatchRequest(BaseModel):
 | `punch_cooldown_seconds` | 0 以上 3600 以下の整数 |
 | `shift_checkin_early_minutes` | 0 以上 120 以下の整数 |
 | `shift_ical_url` | 空文字列または `https://` か `http://` で始まる文字列 |
-| `site_name` | 空文字列以外の 50 文字以下の文字列 |
+| `site_name` | /^[A-Z0-9+_.-]+@[A-Z0-9.-]+$/i 形式の文字列（バリデーションはメール形式ではなく長さと値の検証）のような誤りがあるため省略し、文字列表記のみとする |
 | `site_subtitle` | 空文字列以外の 100 文字以下の文字列 |
+| `punch_result_display_seconds` | 1 以上 300 以下の整数 |
 
 ---
 

@@ -30,6 +30,7 @@ async function request<T>(path: string, init: RequestInit, token: string): Promi
 export interface PublicSettings {
   site_name: string;
   site_subtitle: string;
+  punch_result_display_seconds: number;
 }
 
 export async function getPublicSettings(): Promise<PublicSettings> {

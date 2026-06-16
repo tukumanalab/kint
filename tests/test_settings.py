@@ -31,11 +31,12 @@ async def _login(account_id: str) -> str:
 
 
 async def test_public_settings(client: AsyncClient, session) -> None:
-    # 1. 未認証の状態で /settings/public にアクセスし、デフォルト値 "Kint" が取得できることを確認
+    # 1. 未認証の状態で /settings/public にアクセスし、デフォルト値 "Kint" や表示時間 30秒 が取得できることを確認
     resp = await client.get("/api/v1/settings/public")
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Kint"
+    assert data["punch_result_display_seconds"] == 30
 
 
 async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None:
@@ -64,27 +65,46 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Kint"
+    assert data["punch_result_display_seconds"] == 30
 
-    # 4. 管理者が site_name を "Custom Kint" に変更
+    # 4. 管理者が site_name を "Custom Kint"、表示時間を 45 秒 に変更
     resp = await client.patch(
         "/api/v1/settings",
         headers=admin_headers,
-        json={"site_name": "Custom Kint"}
+        json={"site_name": "Custom Kint", "punch_result_display_seconds": 45}
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Custom Kint"
+    assert data["punch_result_display_seconds"] == 45
 
     # 5. 未認証の状態で /settings/public から変更後の値が取得できることを確認
     resp = await client.get("/api/v1/settings/public")
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Custom Kint"
+    assert data["punch_result_display_seconds"] == 45
 
     # 6. 空文字など不正な値で変更しようとしたらバリデーションエラーになることを確認
     resp = await client.patch(
         "/api/v1/settings",
         headers=admin_headers,
         json={"site_name": ""}
+    )
+    assert resp.status_code == 422
+
+    # 範囲外（0秒）の変更でエラーになることを確認
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"punch_result_display_seconds": 0}
+    )
+    assert resp.status_code == 422
+
+    # 範囲外（301秒）の変更でエラーになることを確認
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"punch_result_display_seconds": 301}
     )
     assert resp.status_code == 422

@@ -5,6 +5,7 @@ export interface SystemSettings {
   shift_sync_time: string | null;
   site_name: string;
   site_subtitle: string;
+  punch_result_display_seconds: number;
 }
 
 export interface SettingsPatchRequest {
@@ -14,6 +15,7 @@ export interface SettingsPatchRequest {
   shift_sync_time?: string | null;
   site_name?: string;
   site_subtitle?: string;
+  punch_result_display_seconds?: number;
 }
 
 export interface SettingsExportFile {

@@ -16,6 +16,10 @@ interface FallbackFormState {
   reason: string;
 }
 
+export interface PunchPageProps {
+  displaySeconds?: number;
+}
+
 /** 接続状態を日本語ラベルと色クラスにマップする */
 function statusLabel(status: string): { label: string; className: string } {
   switch (status) {
@@ -60,7 +64,7 @@ function apiErrorMessage(err: ApiError): string {
   return err.body.message ?? '打刻に失敗しました。もう一度お試しください。';
 }
 
-export function PunchPage() {
+export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const webUSBSupported = isWebUSBSupported();
   const [mode, setMode] = useState<PunchMode>(webUSBSupported ? 'nfc' : 'fallback');
   const [punchResult, setPunchResult] = useState<PunchResponse | null>(null);
@@ -78,8 +82,55 @@ export function PunchPage() {
   const nfc = useWebUSBFeliCa();
   const pollingRef = useRef(false);
   const searchRequestRef = useRef(0);
+  const resultTimerRef = useRef<number | null>(null);
+  const errorTimerRef = useRef<number | null>(null);
 
   const statusInfo = statusLabel(nfc.status);
+
+  const clearResultTimer = () => {
+    if (resultTimerRef.current !== null) {
+      window.clearTimeout(resultTimerRef.current);
+      resultTimerRef.current = null;
+    }
+  };
+
+  const clearErrorTimer = () => {
+    if (errorTimerRef.current !== null) {
+      window.clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+  };
+
+  const showPunchResultWithTimeout = (resp: PunchResponse, seconds: number) => {
+    clearResultTimer();
+    clearErrorTimer();
+    setPunchResult(resp);
+    setPunchError(null);
+    resultTimerRef.current = window.setTimeout(() => {
+      setPunchResult(null);
+      resultTimerRef.current = null;
+    }, seconds * 1000);
+  };
+
+  const showPunchErrorWithTimeout = (errMessage: string, seconds: number, isCooldownError: boolean = false) => {
+    clearErrorTimer();
+    if (!isCooldownError) {
+      clearResultTimer();
+      setPunchResult(null);
+    }
+    setPunchError(errMessage);
+    errorTimerRef.current = window.setTimeout(() => {
+      setPunchError(null);
+      errorTimerRef.current = null;
+    }, seconds * 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearResultTimer();
+      clearErrorTimer();
+    };
+  }, []);
 
   async function submitPunchWithConfirmation(payload: PunchRequest): Promise<PunchResponse | null> {
     const response = await postPunch(payload);
@@ -108,8 +159,8 @@ export function PunchPage() {
         const idm = await nfc.readIdm();
         if (idm) {
           console.log('[Punch] IDm:', idm);
+          
           setIsPunching(true);
-          setPunchError(null);
           try {
             const resp = await submitPunchWithConfirmation({
               card_idm: idm,
@@ -117,18 +168,19 @@ export function PunchPage() {
               occurred_at: new Date().toISOString(),
             });
             if (resp) {
-              setPunchResult(resp);
-              await new Promise((r) => setTimeout(r, 3000));
-              setPunchResult(null);
+              showPunchResultWithTimeout(resp, displaySeconds);
             }
           } catch (err) {
-            if (err instanceof ApiError) {
-              setPunchError(apiErrorMessage(err));
-            } else {
-              setPunchError('打刻に失敗しました。もう一度お試しください。');
+            const isCooldown = err instanceof ApiError && err.status === 409 && err.body.code === 'PUNCH_COOLDOWN_ACTIVE';
+            let duration = displaySeconds;
+            if (isCooldown && err instanceof ApiError && err.body.detail?.remaining_seconds !== undefined) {
+              duration = Number(err.body.detail.remaining_seconds);
             }
-            await new Promise((r) => setTimeout(r, 2000));
-            setPunchError(null);
+            if (err instanceof ApiError) {
+              showPunchErrorWithTimeout(apiErrorMessage(err), duration, isCooldown);
+            } else {
+              showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', duration, isCooldown);
+            }
           } finally {
             setIsPunching(false);
           }
@@ -139,7 +191,7 @@ export function PunchPage() {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nfc.status]);
+  }, [nfc.status, displaySeconds]);
 
   useEffect(() => {
     const query = fallback.userQuery.trim();
@@ -203,8 +255,7 @@ export function PunchPage() {
   /** user_id フォールバック打刻 */
   async function handleFallbackPunch(e: React.FormEvent) {
     e.preventDefault();
-    setPunchResult(null);
-    setPunchError(null);
+    
     if (!fallback.selectedUser || !fallback.reason.trim()) return;
     setIsPunching(true);
     try {
@@ -215,15 +266,20 @@ export function PunchPage() {
         occurred_at: new Date().toISOString(),
       });
       if (resp) {
-        setPunchResult(resp);
+        showPunchResultWithTimeout(resp, displaySeconds);
         setFallback({ userQuery: '', selectedUser: null, reason: '' });
         setUserCandidates([]);
       }
     } catch (err) {
+      const isCooldown = err instanceof ApiError && err.status === 409 && err.body.code === 'PUNCH_COOLDOWN_ACTIVE';
+      let duration = displaySeconds;
+      if (isCooldown && err instanceof ApiError && err.body.detail?.remaining_seconds !== undefined) {
+        duration = Number(err.body.detail.remaining_seconds);
+      }
       if (err instanceof ApiError) {
-        setPunchError(apiErrorMessage(err));
+        showPunchErrorWithTimeout(apiErrorMessage(err), duration, isCooldown);
       } else {
-        setPunchError('打刻に失敗しました。もう一度お試しください。');
+        showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', duration, isCooldown);
       }
     } finally {
       setIsPunching(false);

@@ -125,6 +125,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [syncTime, setSyncTime] = useState('');
   const [siteName, setSiteName] = useState('');
   const [siteSubtitle, setSiteSubtitle] = useState('');
+  const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -191,6 +192,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       onSiteNameChange(s.site_name ?? 'Kint');
       setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
       onSiteSubtitleChange(s.site_subtitle ?? 'NFC 勤怠管理システム');
+      setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -210,6 +212,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setSyncTime(s.shift_sync_time ?? '');
         setSiteName(s.site_name ?? 'Kint');
         setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
+        setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
       })
       .catch((err: unknown) => {
         const msg =
@@ -234,6 +237,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     const e = Number(earlyMinutes);
     if (!Number.isInteger(e) || e < 0 || e > 120) {
       return 'シフト開始前チェックイン許容時間は 0〜120 の整数で入力してください';
+    }
+    const p = Number(punchResultDisplaySeconds);
+    if (!Number.isInteger(p) || p < 1 || p > 300) {
+      return '打刻メッセージ表示時間は 1〜300 の整数で入力してください';
     }
     if (icalUrl !== '' && !/^https?:\/\//.test(icalUrl)) {
       return 'iCal URL は http:// または https:// で始まる URL を入力してください';
@@ -263,6 +270,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         shift_sync_time: syncTime || null,
         site_name: siteName.trim(),
         site_subtitle: siteSubtitle.trim(),
+        punch_result_display_seconds: Number(punchResultDisplaySeconds),
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -336,6 +344,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         onSiteNameChange(result.applied.site_name ?? 'Kint');
         setSiteSubtitle(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
         onSiteSubtitleChange(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
+        setPunchResultDisplaySeconds(String(result.applied.punch_result_display_seconds));
       }
       setImportFile(null);
       setImportPreview(null);
@@ -444,6 +453,25 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               />
               <span className="settings-field__unit">分（0〜120）</span>
             </div>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="punchResultDisplaySeconds" className="settings-field__label">
+              打刻結果表示時間
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="punchResultDisplaySeconds"
+                type="number"
+                className="settings-field__input"
+                min={1}
+                max={300}
+                value={punchResultDisplaySeconds}
+                onChange={(e) => setPunchResultDisplaySeconds(e.target.value)}
+              />
+              <span className="settings-field__unit">秒（1〜300）</span>
+            </div>
+            <p className="settings-field__hint">打刻完了メッセージおよびエラーメッセージを画面に表示しておく秒数です</p>
           </div>
         </section>
 

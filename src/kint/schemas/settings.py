@@ -17,6 +17,7 @@ class SettingsResponse(BaseModel):
     shift_sync_time: str | None
     site_name: str
     site_subtitle: str
+    punch_result_display_seconds: int
 
 
 class SettingsPatchRequest(BaseModel):
@@ -28,6 +29,7 @@ class SettingsPatchRequest(BaseModel):
     shift_sync_time: str | None = None
     site_name: str | None = Field(default=None, min_length=1, max_length=50)
     site_subtitle: str | None = Field(default=None, min_length=1, max_length=100)
+    punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -49,6 +51,7 @@ class SettingsPatchRequest(BaseModel):
             and self.shift_sync_time is None
             and self.site_name is None
             and self.site_subtitle is None
+            and self.punch_result_display_seconds is None
             and "shift_sync_time" not in self.model_fields_set
         ):
             raise ValueError("少なくとも 1 つのフィールドを指定してください")
@@ -98,3 +101,4 @@ class PublicSettingsResponse(BaseModel):
 
     site_name: str
     site_subtitle: str
+    punch_result_display_seconds: int

@@ -35,13 +35,15 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 async def get_public_settings(
     session: AsyncSession = Depends(get_db),
 ) -> PublicSettingsResponse:
-    """認証不要で取得できる公開設定（サイト名およびサブタイトル）を返す。"""
+    """認証不要で取得できる公開設定（サイト名およびサブタイトル、打刻結果表示時間）を返す。"""
     service = SettingsService(session)
     site_name = await service.get_str("site_name")
     site_subtitle = await service.get_str("site_subtitle")
+    display_seconds = await service.get_int("punch_result_display_seconds")
     return PublicSettingsResponse(
         site_name=site_name or "Kint",
         site_subtitle=site_subtitle or "NFC 勤怠管理システム",
+        punch_result_display_seconds=display_seconds,
     )
 
 

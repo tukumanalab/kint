@@ -238,9 +238,10 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 | `shift_ical_url` | string (文字列) | null | シフト iCal 同期 URL |
 | `site_name` | string (文字列) | `"Kint"` | サイト名 |
 | `site_subtitle` | string (文字列) | `"NFC 勤怠管理システム"` | サイトのサブタイトル |
+| `punch_result_display_seconds` | integer (文字列) | 30 | 打刻結果表示時間（秒） |
 
 運用ルール:
-- `key` は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle"}` のみ許容する。
+- `key` は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "site_name", "site_subtitle", "punch_result_display_seconds"}` のみ許容する。
 - `value` はすべて文字列として格納し、サービス層で型変換する。
 - `shift_ical_url` の空文字列 `""` は null（未設定）として扱う。
 

@@ -1451,7 +1451,7 @@ components:
 
     SettingsResponse:
       type: object
-      required: [punch_cooldown_seconds, shift_checkin_early_minutes, site_name, site_subtitle]
+      required: [punch_cooldown_seconds, shift_checkin_early_minutes, site_name, site_subtitle, punch_result_display_seconds]
       properties:
         punch_cooldown_seconds:
           type: integer
@@ -1479,6 +1479,10 @@ components:
           type: string
           description: サイトのサブタイトル
           example: "NFC 勤怠管理システム"
+        punch_result_display_seconds:
+          type: integer
+          description: 打刻結果表示時間（秒）
+          example: 30
 
     SettingsPatchRequest:
       type: object
@@ -1498,6 +1502,11 @@ components:
           type: string
           nullable: true
           description: シフト iCal 同期 URL。null または空文字列で未設定にする。
+        punch_result_display_seconds:
+          type: integer
+          minimum: 1
+          maximum: 300
+          description: 打刻結果表示時間（秒）
         shift_sync_time:
           type: string
           nullable: true
@@ -1609,7 +1618,7 @@ components:
 
     PublicSettingsResponse:
       type: object
-      required: [site_name, site_subtitle]
+      required: [site_name, site_subtitle, punch_result_display_seconds]
       properties:
         site_name:
           type: string
@@ -1619,6 +1628,10 @@ components:
           type: string
           description: サイトのサブタイトル
           example: "NFC 勤怠管理システム"
+        punch_result_display_seconds:
+          type: integer
+          description: 打刻結果表示時間（秒）
+          example: 30
 
     ErrorResponse:
       type: object

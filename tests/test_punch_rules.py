@@ -129,6 +129,14 @@ class TestPunchRules:
     ) -> None:
         """クールダウン秒以内の連続打刻を拒否する。"""
         user = await _create_user(session)
+        from kint.models.system_setting import SystemSetting
+        session.add(SystemSetting(
+            key="punch_cooldown_seconds",
+            value="60",
+            updated_by_user_id=user.id,
+        ))
+        await session.commit()
+
         await _create_card(session, user.id)
         base_time = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         await _create_shift(
@@ -527,3 +535,72 @@ class TestPunchRules:
         session.expire_all()
         result = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
         assert len(result.scalars().all()) == 1
+
+    async def test_punch_cancel_followed_by_cooldown_rejection(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """出勤打刻の取り消し直後の打刻がクールダウンによって拒否されること。"""
+        user_id = "user-cancel-cooldown"
+        user = await _create_user(session, user_id=user_id)
+
+        # クールダウンを明示的に 60 秒に設定
+        from kint.models.system_setting import SystemSetting
+        session.add(SystemSetting(
+            key="punch_cooldown_seconds",
+            value="60",
+            updated_by_user_id=user.id,
+        ))
+        await session.commit()
+
+        await _create_card(session, user.id, card_idm="7777777777777777")
+
+        # 9:00〜18:00 のシフトを作成
+        shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
+        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-cooldown")
+
+        # 1. 出勤打刻 (9:01:00) -> 200 OK
+        punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)
+        resp1 = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "7777777777777777",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+        assert resp1.status_code == 200
+        assert resp1.json()["action"] == "check_in"
+
+        # 2. 2分後 (9:03:00) に打刻 (5分以内なので取り消し) -> 200 OK
+        punch_cancel_time = punch_in_time + timedelta(minutes=2)
+        resp2 = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "7777777777777777",
+                "device_id": "web-browser",
+                "occurred_at": punch_cancel_time.isoformat(),
+            },
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["action"] == "cancelled"
+
+        # DB 上の勤怠レコードが削除された（0件）であることを確認
+        session.expire_all()
+        result = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
+        assert len(result.scalars().all()) == 0
+
+        # 3. 取り消し直後 (20秒後 = 9:03:20) に再度打刻 -> クールダウン中(60秒以内)なので 409
+        punch_consecutive_time = punch_cancel_time + timedelta(seconds=20)
+        resp3 = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "7777777777777777",
+                "device_id": "web-browser",
+                "occurred_at": punch_consecutive_time.isoformat(),
+            },
+        )
+        assert resp3.status_code == 409
+        assert resp3.json()["code"] == "PUNCH_COOLDOWN_ACTIVE"

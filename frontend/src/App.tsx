@@ -55,6 +55,7 @@ function App() {
   // サイト名動的管理用のステート
   const [siteName, setSiteName] = useState<string>('Kint');
   const [siteSubtitle, setSiteSubtitle] = useState<string>('NFC 勤怠管理システム');
+  const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState<number>(30);
 
   // サイト名の初期ロード
   useEffect(() => {
@@ -62,6 +63,9 @@ function App() {
       .then((settings) => {
         setSiteName(settings.site_name);
         setSiteSubtitle(settings.site_subtitle);
+        if (settings.punch_result_display_seconds !== undefined) {
+          setPunchResultDisplaySeconds(settings.punch_result_display_seconds);
+        }
       })
       .catch((err) => {
         console.error('Failed to fetch public settings:', err);
@@ -309,7 +313,7 @@ function App() {
               </button>
             </div>
           </nav>
-          <PunchPage />
+          <PunchPage displaySeconds={punchResultDisplaySeconds} />
         </div>
       );
     }
@@ -437,7 +441,7 @@ function App() {
         </div>
       </nav>
 
-      {page === 'punch' && <PunchPage />}
+      {page === 'punch' && <PunchPage displaySeconds={punchResultDisplaySeconds} />}
       {page === 'attendance' && <AttendancePage auth={auth} />}
       {page === 'users' && isAdmin && <UserManagementPage auth={auth} />}
       {page === 'myProfile' && <MyProfilePage auth={auth} />}

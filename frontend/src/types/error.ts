@@ -1,7 +1,7 @@
 export interface ErrorResponse {
   code: string;
   message: string;
-  detail?: string;
+  detail?: any;
 }
 
 export class ApiError extends Error {
