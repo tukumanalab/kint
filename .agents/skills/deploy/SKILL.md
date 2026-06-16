@@ -35,15 +35,21 @@ ssh ky@tukumana.si.aoyama.ac.jp "cd /srv/kint && /home/ky/.local/bin/uv run alem
 ```
 
 ### 3. フロントエンドのビルド
-Node.js 依存関係をインストールし、環境変数 `VITE_GOOGLE_CLIENT_ID` を指定してフロントエンドを本番ビルドします。非インタラクティブセッション用に `nvm` の環境設定をロードして実行します。
+Node.js 依存関係をインストールし、環境変数 `VITE_GOOGLE_CLIENT_ID` およびデプロイパス（例: `VITE_BASE_PATH=/kintai/`）を指定してフロントエンドを本番ビルドします。非インタラクティブセッション用に `nvm` の環境設定をロードして実行します。
 ```bash
-ssh ky@tukumana.si.aoyama.ac.jp "export NVM_DIR=\"\$HOME/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && cd /srv/kint/frontend && npm install && VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com npm run build"
+ssh ky@tukumana.si.aoyama.ac.jp "export NVM_DIR=\"\$HOME/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && cd /srv/kint/frontend && npm install && VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com VITE_BASE_PATH=/kintai/ npm run build"
 ```
 
 ### 4. PM2 プロセスの再起動
 アプリケーションサーバー (`kint-backend`) を再起動して変更を適用します。
 ```bash
 ssh ky@tukumana.si.aoyama.ac.jp "pm2 restart kint-backend"
+```
+
+### 5. Nginx 設定ファイルの置換適用（デプロイパスを変更する場合のみ）
+任意のデプロイパス（例: `/kintai`）に変更する場合は、Nginx設定ファイルを置換して配置し、Nginx をリロードします。
+```bash
+ssh ky@tukumana.si.aoyama.ac.jp "sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sudo tee /etc/nginx/kint.conf && sudo nginx -t && sudo systemctl reload nginx"
 ```
 
 ## 注意事項と確認項目

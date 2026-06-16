@@ -28,7 +28,8 @@ function getEmailVerificationToken(): string | null {
 
 function isPunchPath(): boolean {
   const path = window.location.pathname.replace(/\/$/, '');
-  return path === '/kint/punch' || path === '/punch';
+  const baseWithoutTrailingSlash = import.meta.env.BASE_URL.replace(/\/$/, '');
+  return path === `${baseWithoutTrailingSlash}/punch` || path === '/punch';
 }
 
 function getInitialGuestPage(): GuestPage {
@@ -166,25 +167,28 @@ function App() {
 
   // ステートと URL の同期
   useEffect(() => {
+    const basePath = import.meta.env.BASE_URL; // 末尾スラッシュあり (例: '/kint/' または '/kintai/')
+    const baseWithoutTrailing = basePath.replace(/\/$/, ''); // 末尾スラッシュなし (例: '/kint' または '/kintai')
+
     if (!auth.token || !auth.user) {
       if (guestPage === 'punch') {
         if (!isPunchPath()) {
-          window.history.pushState({}, '', '/kint/punch');
+          window.history.pushState({}, '', `${baseWithoutTrailing}/punch`);
         }
       } else {
         const path = window.location.pathname.replace(/\/$/, '');
-        if (path !== '/kint/' && path !== '/kint' && path !== '/') {
-          window.history.pushState({}, '', '/kint/');
+        if (path !== basePath && path !== baseWithoutTrailing && path !== '/') {
+          window.history.pushState({}, '', basePath);
         }
       }
     } else {
       if (page === 'punch') {
         if (!isPunchPath()) {
-          window.history.pushState({}, '', '/kint/punch');
+          window.history.pushState({}, '', `${baseWithoutTrailing}/punch`);
         }
       } else {
         if (isPunchPath()) {
-          window.history.pushState({}, '', '/kint/');
+          window.history.pushState({}, '', basePath);
         }
       }
     }

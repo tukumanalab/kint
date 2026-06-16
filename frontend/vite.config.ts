@@ -1,6 +1,18 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
+
+// .env ファイルおよび環境変数から設定をロードします
+const mode = process.env.NODE_ENV || 'development';
+const env = loadEnv(mode, process.cwd(), '');
+let basePath = env.VITE_BASE_PATH || process.env.VITE_BASE_PATH || '/kint/';
+
+if (!basePath.startsWith('/')) {
+  basePath = '/' + basePath;
+}
+if (!basePath.endsWith('/')) {
+  basePath = basePath + '/';
+}
 
 /**
  * Google Identity Services の redirect モード用ミドルウェア。
@@ -8,12 +20,11 @@ import type { Plugin } from 'vite'
  * SPA のルートへ GET リダイレクトする。
  */
 function googleOAuthCallbackPlugin(): Plugin {
-  const basePath = '/kint/'
   return {
     name: 'google-oauth-callback',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        // base パス (/kint/) または / への POST を受け付ける
+        // base パス または / への POST を受け付ける
         if (req.method !== 'POST' || (req.url !== '/' && req.url !== basePath)) {
           return next()
         }
@@ -40,7 +51,7 @@ window.location.href='${basePath}';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/kint/',
+  base: basePath,
   plugins: [react(), googleOAuthCallbackPlugin()],
   server: {
     proxy: {

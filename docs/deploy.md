@@ -24,17 +24,34 @@
 
 ### 2.1 フロントエンド (Vite) のベースパス設定
 - ファイル: `frontend/vite.config.ts`
-Viteのビルドオプション `base` を `/kint/` に設定しています。
+Viteのビルドオプション `base` は、ビルド時に環境変数 `VITE_BASE_PATH` を参照して動的に決定されます。指定がない場合はデフォルトで `/kint/` に設定されます。
 ```typescript
+// 例: VITE_BASE_PATH=/kintai/ npm run build
+let basePath = process.env.VITE_BASE_PATH || '/kint/';
+// ...
 export default defineConfig({
-  base: '/kint/',
+  base: basePath,
   // ...
 })
 ```
 
 ### 2.2 Google OAuth 2.0 の承認済みリダイレクトURI
-Google Cloud Console の認証情報設定において、**「承認済みのリダイレクト URI」**に以下を追加する必要があります。
-- `https://tukumana.si.aoyama.ac.jp/kint/`
+Google Cloud Console の認証情報設定において、**「承認済みのリダイレクト URI」**に設定したベースパスに合わせたコールバックURLを追加する必要があります。
+- デプロイパスが `/kintai/` の場合の例: `https://tukumana.si.aoyama.ac.jp/kintai/`
+
+### 2.3 環境変数ファイル（.env）による設定
+フロントエンドのベースパス（デプロイパス）は、ビルド時にシェル環境変数を渡す方法のほか、`frontend/` ディレクトリ直下の `.env` または `.env.local` ファイルに記述して設定することもできます。
+
+`frontend/.env.example` を参考に、ローカル用の設定ファイルを作成してご利用ください。
+
+```env
+# Google Identity Services クライアントID
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+
+# デプロイパス（公開サブパス）
+# 例: /kintai/ にデプロイしたい場合
+VITE_BASE_PATH=/kintai/
+```
 
 ---
 
@@ -105,8 +122,16 @@ location /openapi.json {
 }
 ```
 
-### 3.2 既存設定へのインクルード
-既存のサーバーブロック設定ファイル（例：`/etc/nginx/sites-enabled/m-pass`）内の `server { ... }` ブロックの末尾付近に、以下を追記してリロードします。
+### 3.2 設定ファイルの適用とインクルード
+任意のデプロイパスを指定して配置する場合、リポジトリにある `nginx/kint.conf` の `/kint` というパス文字列を `sed` コマンドで置換して適用します。
+
+例としてデプロイパスを `/kintai` に置換して `/etc/nginx/kint.conf` に適用する場合：
+```bash
+# デプロイパスを /kintai に置換して適用
+sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sudo tee /etc/nginx/kint.conf
+```
+
+次に、既存のサーバーブロック設定ファイル（例：`/etc/nginx/sites-enabled/m-pass`）内の `server { ... }` ブロックの末尾付近に、以下を追記してリロードします。
 
 ```nginx
     # kint用のプロキシ設定を追加
@@ -172,11 +197,11 @@ pm2 logs kint-backend
    ```
 
 3. **フロントエンドのビルド**
-   - 本番用の Google Client ID を環境変数に渡してビルドを行います。
+   - 本番用の Google Client ID および任意のデプロイパス（例: `/kintai/`）を環境変数に渡してビルドを行います。
    ```bash
    cd /srv/kint/frontend
    npm ci
-   VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com npm run build
+   VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com VITE_BASE_PATH=/kintai/ npm run build
    ```
    ※ ビルド成果物 `dist` が `/srv/kint/frontend/dist` に配置され、Nginx から直接静的配信されます。
 
