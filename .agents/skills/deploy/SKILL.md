@@ -49,7 +49,7 @@ ssh ky@tukumana.si.aoyama.ac.jp "pm2 restart kint-backend"
 ### 5. Nginx 設定ファイルの置換適用（デプロイパスを変更する場合のみ）
 任意のデプロイパス（例: `/kintai`）に変更する場合は、Nginx設定ファイルを置換して配置し、Nginx をリロードします。
 ```bash
-ssh ky@tukumana.si.aoyama.ac.jp "sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sudo tee /etc/nginx/kint.conf && sudo nginx -t && sudo systemctl reload nginx"
+ssh ky@tukumana.si.aoyama.ac.jp "sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sed 's/\/srv\/kintai/\/srv\/kint/g' | sudo tee /etc/nginx/kint.conf && sudo nginx -t && sudo systemctl reload nginx"
 ```
 
 ## 注意事項と確認項目

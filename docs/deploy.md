@@ -127,8 +127,8 @@ location /openapi.json {
 
 例としてデプロイパスを `/kintai` に置換して `/etc/nginx/kint.conf` に適用する場合：
 ```bash
-# デプロイパスを /kintai に置換して適用
-sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sudo tee /etc/nginx/kint.conf
+# デプロイパスを /kintai に置換して適用（物理パス /srv/kint は維持）
+sed 's/\/kint/\/kintai/g' /srv/kint/nginx/kint.conf | sed 's/\/srv\/kintai/\/srv\/kint/g' | sudo tee /etc/nginx/kint.conf
 ```
 
 次に、既存のサーバーブロック設定ファイル（例：`/etc/nginx/sites-enabled/m-pass`）内の `server { ... }` ブロックの末尾付近に、以下を追記してリロードします。
