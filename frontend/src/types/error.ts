@@ -1,7 +1,8 @@
 export interface ErrorResponse {
   code: string;
   message: string;
-  detail?: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  detail?: any;
 }
 
 export class ApiError extends Error {
