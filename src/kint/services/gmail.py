@@ -131,7 +131,7 @@ def _build_verification_email(
     verification_type: str,
 ) -> MIMEMultipart:
     """確認メールの MIME メッセージを生成する。"""
-    confirm_url = f"{settings.app_base_url}/email-verification?token={token}"
+    confirm_url = f"{settings.app_base_url}/email-verifications/confirm?token={token}"
     sender = _sender_email()
 
     if verification_type == "signup":

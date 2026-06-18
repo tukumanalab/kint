@@ -19,8 +19,14 @@ import './App.css';
 type Page = 'punch' | 'users' | 'myProfile' | 'settings' | 'logs' | 'attendance';
 type GuestPage = 'home' | 'punch' | 'login';
 
+function isEmailVerificationPath(): boolean {
+  const path = window.location.pathname.replace(/\/$/, '');
+  const baseWithoutTrailingSlash = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+  return path === `${baseWithoutTrailingSlash}/email-verifications/confirm` || path === '/email-verifications/confirm';
+}
+
 function getEmailVerificationToken(): string | null {
-  if (window.location.pathname === '/email-verifications/confirm') {
+  if (isEmailVerificationPath()) {
     return new URLSearchParams(window.location.search).get('token');
   }
   return null;
@@ -28,7 +34,7 @@ function getEmailVerificationToken(): string | null {
 
 function isPunchPath(): boolean {
   const path = window.location.pathname.replace(/\/$/, '');
-  const baseWithoutTrailingSlash = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const baseWithoutTrailingSlash = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
   return path === `${baseWithoutTrailingSlash}/punch` || path === '/punch';
 }
 
@@ -181,7 +187,7 @@ function App() {
         }
       } else {
         const path = window.location.pathname.replace(/\/$/, '');
-        if (path !== basePath && path !== baseWithoutTrailing && path !== '/') {
+        if (path !== basePath && path !== baseWithoutTrailing && path !== '/' && !isEmailVerificationPath()) {
           window.history.pushState({}, '', basePath);
         }
       }
@@ -225,12 +231,12 @@ function App() {
   }, [auth.token, auth.user]);
 
   // メール確認ページはログイン不要・認証状態問わず表示
-  if (window.location.pathname === '/email-verifications/confirm') {
+  if (isEmailVerificationPath()) {
     return (
       <EmailVerificationPage
         token={emailVerifToken}
         onGoLogin={() => {
-          window.history.pushState({}, '', '/');
+          window.history.pushState({}, '', import.meta.env.BASE_URL || '/');
           window.location.reload();
         }}
       />

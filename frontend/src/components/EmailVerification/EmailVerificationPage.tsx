@@ -20,13 +20,14 @@ const VERIFICATION_TYPE_LABELS: Record<string, string> = {
 };
 
 export function EmailVerificationPage({ token, onGoLogin }: Props) {
-  const [state, setState] = useState<State>({ kind: 'loading' });
+  const [state, setState] = useState<State>(() =>
+    token
+      ? { kind: 'loading' }
+      : { kind: 'error', message: '確認トークンが見つかりません。リンクが正しいか確認してください。' }
+  );
 
   useEffect(() => {
-    if (!token) {
-      setState({ kind: 'error', message: '確認トークンが見つかりません。リンクが正しいか確認してください。' });
-      return;
-    }
+    if (!token) return;
 
     confirmEmailVerification({ token })
       .then((result) => {
