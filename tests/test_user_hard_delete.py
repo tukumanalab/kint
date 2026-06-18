@@ -14,6 +14,7 @@ from kint.models.attendance import (
 from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
 from kint.models.shift import Shift
+from kint.models.system_setting import SystemSetting
 from kint.models.user import User
 from kint.models.user_profile_change_log import UserProfileChangeLog
 
@@ -197,6 +198,14 @@ class TestUserHardDelete:
         )
         session.add(email_req)
 
+        # 9. SystemSetting
+        system_setting = SystemSetting(
+            key="test_key",
+            value="test_value",
+            updated_by_user_id=target_id,
+        )
+        session.add(system_setting)
+
         await session.commit()
 
         # ログイン
@@ -249,6 +258,14 @@ class TestUserHardDelete:
             )
         ).scalar_one()
         assert other_req_db.approved_by_user_id is None
+
+        # system_settings の updated_by_user_id が 'system' に変更されていること
+        setting_db = (
+            await session.execute(
+                select(SystemSetting).where(SystemSetting.key == "test_key")
+            )
+        ).scalar_one()
+        assert setting_db.updated_by_user_id == "system"
 
     @pytest.mark.asyncio
     async def test_soft_delete_default(self, client: AsyncClient, session) -> None:

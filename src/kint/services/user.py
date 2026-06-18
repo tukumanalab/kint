@@ -301,6 +301,29 @@ class UserService:
         await self.session.execute(delete(Notification).where(Notification.user_id == user_id))
         await self.session.execute(delete(Shift).where(Shift.user_id == user_id))
 
+        # 10.5. システム設定の更新者を system ユーザーに変更（updated_by_user_id が RESTRICT のため）
+        from kint.models.system_setting import SystemSetting
+        system_user_exists = (
+            await self.session.execute(select(User.id).where(User.id == "system"))
+        ).scalar_one_or_none() is not None
+        if not system_user_exists:
+            system_user = User(
+                id="system",
+                name="system",
+                full_name="System Automatic Processor",
+                email="system@kint.local",
+                role="admin",
+                is_active=1,
+            )
+            self.session.add(system_user)
+            await self.session.flush()
+
+        await self.session.execute(
+            update(SystemSetting)
+            .where(SystemSetting.updated_by_user_id == user_id)
+            .values(updated_by_user_id="system")
+        )
+
         # 11. 最後にユーザーを物理削除
         await self.session.delete(user)
 
