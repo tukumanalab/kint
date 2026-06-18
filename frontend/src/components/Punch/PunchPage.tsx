@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { isWebUSBSupported } from '../../utils/browser';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { postPunch, searchPunchUsers } from '../../api/punch';
+import { initAudio, playPunchSuccess, playPunchError } from '../../utils/audio';
 import { ApiError } from '../../types/error';
 import type { PunchRequest, PunchResponse, PunchUserCandidate } from '../../types/punch';
 import './PunchPage.css';
@@ -106,6 +107,9 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
     clearErrorTimer();
     setPunchResult(resp);
     setPunchError(null);
+    if (resp.action) {
+      playPunchSuccess(resp.action);
+    }
     resultTimerRef.current = window.setTimeout(() => {
       setPunchResult(null);
       resultTimerRef.current = null;
@@ -119,6 +123,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
       setPunchResult(null);
     }
     setPunchError(errMessage);
+    playPunchError();
     errorTimerRef.current = window.setTimeout(() => {
       setPunchError(null);
       errorTimerRef.current = null;
@@ -255,6 +260,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   /** user_id フォールバック打刻 */
   async function handleFallbackPunch(e: React.FormEvent) {
     e.preventDefault();
+    void initAudio();
     
     if (!fallback.selectedUser || !fallback.reason.trim()) return;
     setIsPunching(true);
@@ -344,7 +350,13 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
 
           <div className="nfc-actions">
             {nfc.status === 'idle' || nfc.status === 'error' ? (
-              <button className="btn btn--primary" onClick={nfc.connect}>
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  void initAudio();
+                  nfc.connect();
+                }}
+              >
                 PaSoRi に接続
               </button>
             ) : null}
