@@ -240,13 +240,14 @@
 
 ### 6-4. ユーザー管理 API バリデーション仕様
 - 共通ルール:
+  - アカウントID（`id`）はメールアドレス（`email`）と同じ値である必要があり、文字数は 3〜254 文字とします。
   - email は RFC 準拠フォーマットかつ一意であること。
   - name は 1〜50 文字、full_name は 1〜100 文字。
   - role は admin / employee のみ。
   - 文字列項目は前後空白を除去して評価する。
 - POST /api/v1/users:
-  - 必須: name, full_name, email, role。
-  - 既存メール重複は 409 を返す。
+  - 必須: id, name, full_name, email, role。※ `id` と `email` が一致していない場合は 422 バリデーションエラーを返します。
+  - 既存メール（およびアカウントID）重複は 409 を返す。
   - 入力違反は 422 を返す。
 - PATCH /api/v1/users/{user_id}:
   - 更新対象フィールドが 1 つ以上必要（空 body は 422）。

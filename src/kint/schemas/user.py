@@ -58,10 +58,10 @@ class UserCreateRequest(BaseModel):
     @field_validator("id")
     @classmethod
     def validate_id(cls, v: str) -> str:
-        """アカウントIDを英数記号 3〜50 文字で検証する。"""
+        """アカウントIDを英数記号 3〜254 文字で検証する。"""
         v = v.strip()
-        if not 3 <= len(v) <= 50:
-            raise ValueError("id は 3〜50 文字で入力してください")
+        if not 3 <= len(v) <= 254:
+            raise ValueError("id は 3〜254 文字で入力してください")
         if not _ACCOUNT_ID_RE.fullmatch(v):
             raise ValueError("id は英数字と記号 _.@+- のみ使用できます")
         return v
@@ -83,6 +83,13 @@ class UserCreateRequest(BaseModel):
         if not 1 <= len(v) <= 100:
             raise ValueError("full_name は 1〜100 文字で入力してください")
         return v
+
+    @model_validator(mode="after")
+    def validate_id_matches_email(self) -> "UserCreateRequest":
+        """アカウントIDとメールアドレスが一致していることを検証する。"""
+        if self.id != self.email:
+            raise ValueError("アカウントIDはメールアドレスと一致している必要があります")
+        return self
 
 
 class UserPatchRequest(BaseModel):

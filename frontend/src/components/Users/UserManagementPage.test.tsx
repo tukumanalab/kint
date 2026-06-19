@@ -101,7 +101,7 @@ describe('UserManagementPage', () => {
     vi.spyOn(userApi, 'getUsers').mockResolvedValue({ users: [] });
     const createdUser: UserResponse = {
       ...mockEmployeeUser,
-      id: 'new.user',
+      id: 'new@example.com',
       name: 'new',
       full_name: '新規 ユーザー',
       email: 'new@example.com',
@@ -114,7 +114,6 @@ describe('UserManagementPage', () => {
     fireEvent.click(screen.getByText('+ ユーザー登録'));
     expect(screen.getByRole('dialog', { name: 'ユーザー登録' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/アカウントID/), { target: { value: 'new.user' } });
     fireEvent.change(screen.getByLabelText(/表示名/), { target: { value: 'new' } });
     fireEvent.change(screen.getByLabelText(/氏名/), { target: { value: '新規 ユーザー' } });
     fireEvent.change(screen.getByLabelText(/メールアドレス/), { target: { value: 'new@example.com' } });
@@ -123,7 +122,7 @@ describe('UserManagementPage', () => {
 
     await waitFor(() => {
       expect(userApi.createUser).toHaveBeenCalledWith(mockToken, {
-        id: 'new.user',
+        id: 'new@example.com',
         name: 'new',
         full_name: '新規 ユーザー',
         email: 'new@example.com',

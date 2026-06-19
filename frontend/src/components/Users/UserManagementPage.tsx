@@ -69,7 +69,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
       let saved: UserResponse;
       if (mode?.kind === 'create') {
         const payload: UserCreateRequest = {
-          id: accountId.trim(),
+          id: email.trim(),
           name: name.trim(),
           full_name: fullName.trim(),
           email: email.trim(),
@@ -104,24 +104,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
       <div className="modal-box">
         <h2 className="modal-title">{mode?.kind === 'create' ? 'ユーザー登録' : 'ユーザー編集'}</h2>
         <form className="user-form" onSubmit={handleSubmit} noValidate>
-          {mode?.kind === 'create' ? (
-            <div className="form-field">
-              <label htmlFor="account-id" className="form-label">アカウントID <span className="required">*</span></label>
-              <input
-                id="account-id"
-                type="text"
-                className="form-input"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                minLength={3}
-                maxLength={50}
-                required
-                disabled={submitting}
-                autoComplete="username"
-              />
-              <p className="form-hint">システム内部で利用します。3〜50文字、英数字と記号 _.@+- が利用可能です。</p>
-            </div>
-          ) : (
+          {mode?.kind === 'edit' && editing && (
             <div className="form-field">
               <label htmlFor="account-id" className="form-label">アカウントID</label>
               <input
@@ -216,7 +199,7 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={submitting || !accountId.trim() || !name.trim() || !fullName.trim() || !email.trim()}
+              disabled={submitting || !name.trim() || !fullName.trim() || !email.trim()}
             >
               {submitting ? '保存中...' : '保存'}
             </button>

@@ -143,7 +143,7 @@ async def register(
     )
     display_name = claims.get("name") or email.split("@")[0]
     user = User(
-        id=uuid.uuid4().hex[:16],
+        id=email,
         name=display_name,
         full_name=display_name,
         email=email,
