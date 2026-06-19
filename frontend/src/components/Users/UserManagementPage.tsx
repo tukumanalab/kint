@@ -51,8 +51,7 @@ interface FormModalProps {
 
 function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
   const editing = mode?.kind === 'edit' ? mode.user : null;
-
-  const [accountId, setAccountId] = useState(editing?.id ?? '');
+  const accountId = editing?.id ?? '';
   const [name, setName] = useState(editing?.name ?? '');
   const [fullName, setFullName] = useState(editing?.full_name ?? '');
   const [email, setEmail] = useState(editing?.email ?? '');
