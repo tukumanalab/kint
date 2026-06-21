@@ -839,6 +839,297 @@ export function AttendancePage({ auth }: Props) {
     return rows;
   };
 
+  const renderMobileDetailCards = (days: DailyAttendanceDetail[]) => {
+    let weeklyWorkingDays = 0;
+    let weeklyWorkingHours = 0;
+    const cards: React.ReactNode[] = [];
+
+    days.forEach((day, index) => {
+      const hasPunch = (day.punches && day.punches.length > 0) || day.check_in !== null;
+      if (hasPunch) weeklyWorkingDays += 1;
+      if (day.working_hours) weeklyWorkingHours += day.working_hours;
+
+      const isAbsence = day.status === 'absence';
+      const isHighlight = day.is_holiday || !day.has_shift;
+
+      const hasActions = (day.punches && day.punches.length > 0) ||
+        day.attendance_id ||
+        (detailData && !detailData.is_locked && isAdmin);
+
+      cards.push(
+        <div
+          key={day.work_date}
+          className={`att-mobile-card ${isAbsence ? 'att-mobile-card--absence' : ''} ${isHighlight ? 'att-mobile-card--holiday' : ''}`}
+        >
+          <div className="att-mobile-card__header">
+            <span className="att-mobile-card__date">
+              {day.work_date} {getDayOfWeek(day.work_date)}
+            </span>
+            {getStatusBadge(day.status)}
+          </div>
+          <div className="att-mobile-card__body">
+            <div className="att-mobile-card__row">
+              <span className="att-mobile-card__label">シフト</span>
+              <span className="att-mobile-card__value">
+                {day.shifts && day.shifts.length > 0 ? (
+                  day.shifts.map((s, idx) => (
+                    <div key={idx}>{formatTime(s.start_time)} 〜 {formatTime(s.end_time)}</div>
+                  ))
+                ) : day.has_shift && day.shift_start && day.shift_end ? (
+                  <span>{formatTime(day.shift_start)} 〜 {formatTime(day.shift_end)}</span>
+                ) : (
+                  <span className="att-text--muted">公休</span>
+                )}
+              </span>
+            </div>
+
+            {/* 複数打刻: 各打刻をサブカードとしてグループ化 */}
+            {day.punches && day.punches.length > 1 ? (
+              <div className="att-mobile-card__punch-list">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-mobile-punch-sub">
+                    <div className="att-mobile-punch-sub__header">
+                      <span className="att-mobile-punch-sub__index">#{idx + 1}</span>
+                      <span className="att-mobile-punch-sub__source">{getSourceLabel(p.source ?? null)}</span>
+                    </div>
+                    <div className="att-mobile-card__times">
+                      <div className="att-mobile-card__time-block">
+                        <span className="att-mobile-card__label">出勤</span>
+                        <span className="att-mobile-card__value">
+                          {formatPunchTime(p.calculated_check_in, p.check_in)}
+                        </span>
+                      </div>
+                      <div className="att-mobile-card__time-block">
+                        <span className="att-mobile-card__label">退勤</span>
+                        <span className="att-mobile-card__value">
+                          {formatPunchTime(p.calculated_check_out, p.check_out)}
+                        </span>
+                      </div>
+                    </div>
+                    {(detailData && !detailData.is_locked && p.attendance_id || p.attendance_id) && (
+                      <div className="att-mobile-punch-sub__actions">
+                        {detailData && !detailData.is_locked && p.attendance_id && (
+                          <>
+                            <button
+                              type="button"
+                              className="att-btn att-btn--small"
+                              onClick={() =>
+                                handleOpenRequestModal(p.attendance_id!, day.work_date, p.check_in, p.check_out)
+                              }
+                            >
+                              {isAdmin ? '修正' : '修正申請'}
+                            </button>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                className="att-btn att-btn--small"
+                                style={{ background: '#d73a49', color: '#fff' }}
+                                onClick={() => handleDeleteAttendance(p.attendance_id!)}
+                              >
+                                削除
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {p.attendance_id && (
+                          <button
+                            type="button"
+                            className="att-btn att-btn--small att-btn--secondary"
+                            onClick={() => handleViewHistory(p.attendance_id!, day.work_date)}
+                          >
+                            履歴
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* 単一打刻: 従来通りのレイアウト */}
+                <div className="att-mobile-card__times">
+                  <div className="att-mobile-card__time-block">
+                    <span className="att-mobile-card__label">出勤</span>
+                    <span className="att-mobile-card__value">
+                      {day.punches && day.punches.length > 0 ? (
+                        formatPunchTime(day.punches[0].calculated_check_in, day.punches[0].check_in)
+                      ) : (
+                        formatPunchTime(day.calculated_check_in, day.check_in)
+                      )}
+                    </span>
+                  </div>
+                  <div className="att-mobile-card__time-block">
+                    <span className="att-mobile-card__label">退勤</span>
+                    <span className="att-mobile-card__value">
+                      {day.punches && day.punches.length > 0 ? (
+                        formatPunchTime(day.punches[0].calculated_check_out, day.punches[0].check_out)
+                      ) : (
+                        formatPunchTime(day.calculated_check_out, day.check_out)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="att-mobile-card__row">
+                  <span className="att-mobile-card__label">打刻元</span>
+                  <span className="att-mobile-card__value">
+                    {day.punches && day.punches.length > 0 ? (
+                      getSourceLabel(day.punches[0].source ?? null)
+                    ) : (
+                      <>
+                        {getSourceLabel(day.source)}
+                        {day.is_auto_completed && (
+                          <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
+                            自動補完
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <div className="att-mobile-card__hours">
+              <div className="att-mobile-card__hour-item">
+                <span className="att-mobile-card__label">労働</span>
+                <span className="att-mobile-card__value att-mobile-card__value--bold">
+                  {formatHours(day.working_hours)}
+                </span>
+              </div>
+              <div className="att-mobile-card__hour-item">
+                <span className="att-mobile-card__label">時間外</span>
+                <span className="att-mobile-card__value">{formatHours(day.overtime_hours)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 単一打刻 or 打刻なし時のアクションボタン */}
+          {!(day.punches && day.punches.length > 1) && hasActions && (
+            <div className="att-mobile-card__actions">
+              {day.punches && day.punches.length === 1 ? (
+                <div className="att-mobile-card__action-row">
+                  {detailData && !detailData.is_locked && day.punches[0].attendance_id && (
+                    <>
+                      <button
+                        type="button"
+                        className="att-btn att-btn--small"
+                        onClick={() =>
+                          handleOpenRequestModal(day.punches![0].attendance_id!, day.work_date, day.punches![0].check_in, day.punches![0].check_out)
+                        }
+                      >
+                        {isAdmin ? '修正' : '修正申請'}
+                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="att-btn att-btn--small"
+                          style={{ background: '#d73a49', color: '#fff' }}
+                          onClick={() => handleDeleteAttendance(day.punches![0].attendance_id!)}
+                        >
+                          削除
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {day.punches[0].attendance_id && (
+                    <button
+                      type="button"
+                      className="att-btn att-btn--small att-btn--secondary"
+                      onClick={() => handleViewHistory(day.punches![0].attendance_id!, day.work_date)}
+                    >
+                      履歴
+                    </button>
+                  )}
+                </div>
+              ) : day.attendance_id ? (
+                <div className="att-mobile-card__action-row">
+                  {detailData && !detailData.is_locked && (
+                    <>
+                      <button
+                        type="button"
+                        className="att-btn att-btn--small"
+                        onClick={() =>
+                          handleOpenRequestModal(day.attendance_id!, day.work_date, day.check_in, day.check_out)
+                        }
+                      >
+                        {isAdmin ? '修正' : '修正申請'}
+                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="att-btn att-btn--small"
+                          style={{ background: '#d73a49', color: '#fff' }}
+                          onClick={() => handleDeleteAttendance(day.attendance_id!)}
+                        >
+                          削除
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="att-btn att-btn--small att-btn--secondary"
+                    onClick={() => handleViewHistory(day.attendance_id!, day.work_date)}
+                  >
+                    履歴
+                  </button>
+                </div>
+              ) : null}
+
+              {detailData && !detailData.is_locked && isAdmin && (
+                <button
+                  type="button"
+                  className="att-btn att-btn--small"
+                  style={{ background: '#2ea44f', color: '#fff' }}
+                  onClick={() => handleOpenAddModal(day.work_date)}
+                >
+                  追加
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 複数打刻時の管理者追加ボタン */}
+          {day.punches && day.punches.length > 1 && detailData && !detailData.is_locked && isAdmin && (
+            <div className="att-mobile-card__actions">
+              <button
+                type="button"
+                className="att-btn att-btn--small"
+                style={{ background: '#2ea44f', color: '#fff' }}
+                onClick={() => handleOpenAddModal(day.work_date)}
+              >
+                追加
+              </button>
+            </div>
+          )}
+        </div>
+      );
+
+      // 週次集計
+      const d = new Date(day.work_date);
+      const isSunday = d.getDay() === 0;
+      const isLastDay = index === days.length - 1;
+
+      if (isSunday || isLastDay) {
+        cards.push(
+          <div key={`weekly-${day.work_date}`} className="att-mobile-weekly-summary">
+            <span className="att-mobile-weekly-summary__title">📊 週次集計</span>
+            <div className="att-mobile-weekly-summary__data">
+              <span>勤務: {weeklyWorkingDays}日</span>
+              <span>{weeklyWorkingHours > 0 ? `${weeklyWorkingHours.toFixed(2)}h` : '-'}</span>
+            </div>
+          </div>
+        );
+        weeklyWorkingDays = 0;
+        weeklyWorkingHours = 0;
+      }
+    });
+
+    return cards;
+  };
+
   return (
     <div className="attendance-page">
       <div className="attendance-page__header">
@@ -1066,70 +1357,125 @@ export function AttendancePage({ auth }: Props) {
           ) : filteredSummaries.length === 0 ? (
             <div className="att-empty">該当する従業員が見つかりません。</div>
           ) : (
-            <div className="att-table-container">
-              <table className="att-table">
-                <thead>
-                  <tr>
-                    <th>従業員名 (氏名)</th>
-                    <th>所定</th>
-                    <th>出勤</th>
-                    <th>欠勤</th>
-                    <th>遅刻</th>
-                    <th>早退</th>
-                    <th>不整合</th>
-                    <th>総労働時間</th>
-                    <th>時間外時間</th>
-                    <th>1月からの総勤務</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSummaries.map((summary) => (
-                    <tr
-                      key={summary.user_id}
-                      className={selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}
-                    >
-                      <td>
-                        <strong>{summary.user_name}</strong>
-                        {summary.full_name && (
-                          <span className="att-fullname"> ({summary.full_name})</span>
-                        )}
-                      </td>
-                      <td>{summary.prescribed_days}日</td>
-                      <td>{summary.working_days}日</td>
-                      <td>
-                        <span className={summary.absence_days > 0 ? 'att-text--danger' : ''}>
-                          {summary.absence_days}日
-                        </span>
-                      </td>
-                      <td>{summary.late_count}回</td>
-                      <td>{summary.early_leave_count}回</td>
-                      <td>
-                        <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
-                          {summary.incomplete_days}件
-                        </span>
-                      </td>
-                      <td>{formatHours(summary.total_working_hours)}</td>
-                      <td>
-                        <span className={summary.total_overtime_hours > 0 ? 'att-text--info' : ''}>
-                          {formatHours(summary.total_overtime_hours)}
-                        </span>
-                      </td>
-                      <td>{formatHours(summary.yearly_working_hours)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="att-btn att-btn--small"
-                          onClick={() => handleViewDetail(summary)}
-                        >
-                          詳細カレンダー
-                        </button>
-                      </td>
+            <>
+            <div className="att-summary-desktop">
+              <div className="att-table-container">
+                <table className="att-table">
+                  <thead>
+                    <tr>
+                      <th>従業員名 (氏名)</th>
+                      <th>所定</th>
+                      <th>出勤</th>
+                      <th>欠勤</th>
+                      <th>遅刻</th>
+                      <th>早退</th>
+                      <th>不整合</th>
+                      <th>総労働時間</th>
+                      <th>時間外時間</th>
+                      <th>1月からの総勤務</th>
+                      <th>操作</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredSummaries.map((summary) => (
+                      <tr
+                        key={summary.user_id}
+                        className={selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}
+                      >
+                        <td>
+                          <strong>{summary.user_name}</strong>
+                          {summary.full_name && (
+                            <span className="att-fullname"> ({summary.full_name})</span>
+                          )}
+                        </td>
+                        <td>{summary.prescribed_days}日</td>
+                        <td>{summary.working_days}日</td>
+                        <td>
+                          <span className={summary.absence_days > 0 ? 'att-text--danger' : ''}>
+                            {summary.absence_days}日
+                          </span>
+                        </td>
+                        <td>{summary.late_count}回</td>
+                        <td>{summary.early_leave_count}回</td>
+                        <td>
+                          <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
+                            {summary.incomplete_days}件
+                          </span>
+                        </td>
+                        <td>{formatHours(summary.total_working_hours)}</td>
+                        <td>
+                          <span className={summary.total_overtime_hours > 0 ? 'att-text--info' : ''}>
+                            {formatHours(summary.total_overtime_hours)}
+                          </span>
+                        </td>
+                        <td>{formatHours(summary.yearly_working_hours)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="att-btn att-btn--small"
+                            onClick={() => handleViewDetail(summary)}
+                          >
+                            詳細カレンダー
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
+            <div className="att-mobile-summary-cards">
+              {filteredSummaries.map((summary) => (
+                <div
+                  key={summary.user_id}
+                  className={`att-summary-card ${selectedUser?.user_id === summary.user_id ? 'att-summary-card--selected' : ''}`}
+                  onClick={() => handleViewDetail(summary)}
+                >
+                  <div className="att-summary-card__header">
+                    <div className="att-summary-card__name">
+                      <strong>{summary.user_name}</strong>
+                      {summary.full_name && (
+                        <span className="att-summary-card__fullname">{summary.full_name}</span>
+                      )}
+                    </div>
+                    <span className="att-summary-card__arrow">›</span>
+                  </div>
+                  <div className="att-summary-card__stats">
+                    <div className="att-summary-card__stat">
+                      <span className="att-summary-card__stat-value">{summary.working_days}<small>/{summary.prescribed_days}</small></span>
+                      <span className="att-summary-card__stat-label">出勤日</span>
+                    </div>
+                    <div className="att-summary-card__stat">
+                      <span className="att-summary-card__stat-value">{formatHours(summary.total_working_hours)}</span>
+                      <span className="att-summary-card__stat-label">労働時間</span>
+                    </div>
+                    <div className="att-summary-card__stat">
+                      <span className={`att-summary-card__stat-value ${summary.total_overtime_hours > 0 ? 'att-text--info' : ''}`}>
+                        {formatHours(summary.total_overtime_hours)}
+                      </span>
+                      <span className="att-summary-card__stat-label">時間外</span>
+                    </div>
+                  </div>
+                  {(summary.absence_days > 0 || summary.late_count > 0 || summary.early_leave_count > 0 || summary.incomplete_days > 0) && (
+                    <div className="att-summary-card__alerts">
+                      {summary.absence_days > 0 && (
+                        <span className="att-badge att-badge--absence">欠勤 {summary.absence_days}</span>
+                      )}
+                      {summary.late_count > 0 && (
+                        <span className="att-badge att-badge--late">遅刻 {summary.late_count}</span>
+                      )}
+                      {summary.early_leave_count > 0 && (
+                        <span className="att-badge att-badge--early">早退 {summary.early_leave_count}</span>
+                      )}
+                      {summary.incomplete_days > 0 && (
+                        <span className="att-badge att-badge--incomplete">不整合 {summary.incomplete_days}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </div>
       )}
@@ -1206,25 +1552,30 @@ export function AttendancePage({ auth }: Props) {
                 </div>
               )}
 
-              <div className="att-table-container">
-                <table className="att-table">
-                  <thead>
-                    <tr>
-                      <th>日付</th>
-                      <th>シフト予定</th>
-                      <th>出勤(打刻)</th>
-                      <th>退勤(打刻)</th>
-                      <th>労働時間</th>
-                      <th>時間外</th>
-                      <th>状態</th>
-                      <th>打刻元</th>
-                      <th style={{ minWidth: '180px' }}>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {renderDetailDays(detailData.days)}
-                  </tbody>
-                </table>
+              <div className="att-detail-desktop">
+                <div className="att-table-container">
+                  <table className="att-table">
+                    <thead>
+                      <tr>
+                        <th>日付</th>
+                        <th>シフト予定</th>
+                        <th>出勤(打刻)</th>
+                        <th>退勤(打刻)</th>
+                        <th>労働時間</th>
+                        <th>時間外</th>
+                        <th>状態</th>
+                        <th>打刻元</th>
+                        <th style={{ minWidth: '180px' }}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {renderDetailDays(detailData.days)}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="att-mobile-cards">
+                {renderMobileDetailCards(detailData.days)}
               </div>
             </div>
           )}

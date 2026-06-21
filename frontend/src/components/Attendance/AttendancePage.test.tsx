@@ -138,8 +138,8 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
     });
 
-    // 「履歴」ボタンが表示されていることを検証
-    const historyBtn = screen.getByRole('button', { name: '履歴' });
+    // 「履歴」ボタンが表示されていることを検証 (モバイルとデスクトップの2つあるためgetAllByRoleを使う)
+    const historyBtn = screen.getAllByRole('button', { name: '履歴' })[0];
     expect(historyBtn).toBeInTheDocument();
 
     // 履歴ボタンをクリック
@@ -169,8 +169,8 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
     });
 
-    // 「履歴」ボタンが表示されていることを検証
-    const historyBtn = screen.getByRole('button', { name: '履歴' });
+    // 「履歴」ボタンが表示されていることを検証 (モバイルとデスクトップの2つあるためgetAllByRoleを使う)
+    const historyBtn = screen.getAllByRole('button', { name: '履歴' })[0];
     expect(historyBtn).toBeInTheDocument();
 
     // 履歴ボタンをクリック
@@ -192,10 +192,10 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
     });
 
-    // 週次集計が表示されていることを検証
-    expect(screen.getByText('週次集計:')).toBeInTheDocument();
-    expect(screen.getByText('勤務: 1日')).toBeInTheDocument();
-    expect(screen.getAllByText('8.00h')).toHaveLength(2);
+    // 週次集計が表示されていることを検証 (モバイルとデスクトップの2つあるためgetAllByTextを使う)
+    expect(screen.getAllByText(/週次集計/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText('勤務: 1日')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('8.00h').length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -242,10 +242,10 @@ describe('AttendancePage - Search', () => {
   it('管理者画面で検索ワードを入力すると、合致する従業員のみが表示されること', async () => {
     render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
 
-    // 初期状態では両方表示されていること
+    // 初期状態では両方表示されていること (モバイルとデスクトップ両方にあるためgetAllByTextを使う)
     await waitFor(() => {
-      expect(screen.getByText('yamada')).toBeInTheDocument();
-      expect(screen.getByText('sato')).toBeInTheDocument();
+      expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('sato')[0]).toBeInTheDocument();
     });
 
     // 検索入力
@@ -253,27 +253,27 @@ describe('AttendancePage - Search', () => {
     fireEvent.change(searchInput, { target: { value: '山田' } });
 
     // 山田太郎だけが表示され、佐藤花子は非表示になること
-    expect(screen.getByText('yamada')).toBeInTheDocument();
-    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+    expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
+    expect(screen.queryAllByText('sato')).toHaveLength(0);
 
     // 検索ワードをクリア
     fireEvent.change(searchInput, { target: { value: '' } });
-    expect(screen.getByText('yamada')).toBeInTheDocument();
-    expect(screen.getByText('sato')).toBeInTheDocument();
+    expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('sato')[0]).toBeInTheDocument();
   });
 
   it('合致する従業員がいない場合、該当なしメッセージが表示されること', async () => {
     render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
 
     await waitFor(() => {
-      expect(screen.getByText('yamada')).toBeInTheDocument();
+      expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
     });
 
     const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
     fireEvent.change(searchInput, { target: { value: 'tanaka' } });
 
-    expect(screen.queryByText('yamada')).not.toBeInTheDocument();
-    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('yamada')).toHaveLength(0);
+    expect(screen.queryAllByText('sato')).toHaveLength(0);
     expect(screen.getByText('該当する従業員が見つかりません。')).toBeInTheDocument();
   });
 
@@ -281,35 +281,35 @@ describe('AttendancePage - Search', () => {
     render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
 
     await waitFor(() => {
-      expect(screen.getByText('yamada')).toBeInTheDocument();
+      expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
     });
 
     const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
     fireEvent.change(searchInput, { target: { value: '山田' } });
-    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('sato')).toHaveLength(0);
 
     // ✕ ボタン（クリアボタン）をクリック
     const clearBtn = screen.getByTitle('検索条件をクリア');
     fireEvent.click(clearBtn);
 
     expect(searchInput).toHaveValue('');
-    expect(screen.getByText('yamada')).toBeInTheDocument();
-    expect(screen.getByText('sato')).toBeInTheDocument();
+    expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('sato')[0]).toBeInTheDocument();
   });
 
   it('管理者画面でメールアドレスを入力すると、合致する従業員のみが表示されること', async () => {
     render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
 
     await waitFor(() => {
-      expect(screen.getByText('yamada')).toBeInTheDocument();
-      expect(screen.getByText('sato')).toBeInTheDocument();
+      expect(screen.getAllByText('yamada')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('sato')[0]).toBeInTheDocument();
     });
 
     const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
     fireEvent.change(searchInput, { target: { value: 'sato@example.com' } });
 
-    expect(screen.getByText('sato')).toBeInTheDocument();
-    expect(screen.queryByText('yamada')).not.toBeInTheDocument();
+    expect(screen.getAllByText('sato')[0]).toBeInTheDocument();
+    expect(screen.queryAllByText('yamada')).toHaveLength(0);
   });
 });
 
