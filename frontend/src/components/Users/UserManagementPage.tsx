@@ -17,6 +17,7 @@ import type { UserResponse, UserCreateRequest, UserPatchRequest, MeCardListItem 
 import type { UseAuth } from '../../hooks/useAuth';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
+import { UserManagementGuideModal } from './UserManagementGuideModal';
 import './UserManagementPage.css';
 import '../MyProfile/MyProfilePage.css';
 
@@ -361,6 +362,7 @@ export function UserManagementPage({ auth }: Props) {
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [nfcTargetUser, setNfcTargetUser] = useState<UserResponse | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
 
   const token = auth.token!;
 
@@ -516,6 +518,15 @@ export function UserManagementPage({ auth }: Props) {
             disabled={isExporting || isImporting}
           >
             {isImporting ? '復元中...' : '一括復元'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary btn--guide"
+            onClick={() => setShowGuide(true)}
+            disabled={isExporting || isImporting}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+          >
+            <span>📖</span> 使い方ガイド
           </button>
           <button
             type="button"
@@ -676,6 +687,11 @@ export function UserManagementPage({ auth }: Props) {
           user={nfcTargetUser}
           onClose={() => setNfcTargetUser(null)}
           token={token}
+        />
+      )}
+      {showGuide && (
+        <UserManagementGuideModal
+          onClose={() => setShowGuide(false)}
         />
       )}
     </main>

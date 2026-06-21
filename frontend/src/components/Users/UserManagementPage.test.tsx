@@ -64,6 +64,12 @@ function makeAuth(overrides: Partial<UseAuth> = {}): UseAuth {
 describe('UserManagementPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    });
   });
 
   it('ユーザー一覧を表示する', async () => {
@@ -268,5 +274,26 @@ describe('UserManagementPage', () => {
 
     expect(screen.queryByText('管理 太郎')).toBeNull();
     expect(screen.getByText('検索条件に一致するユーザーが見つかりません')).toBeInTheDocument();
+  });
+
+  it('使い方ガイドモーダルを開閉できる', async () => {
+    vi.spyOn(userApi, 'getUsers').mockResolvedValue({ users: [] });
+
+    render(<UserManagementPage auth={makeAuth()} />);
+    await waitFor(() => screen.getByText('使い方ガイド'));
+
+    // ガイドボタンをクリック
+    fireEvent.click(screen.getByText('使い方ガイド'));
+
+    // ガイドモーダルが表示されることを確認
+    expect(screen.getByText('ユーザー管理画面 使い方ガイド')).toBeInTheDocument();
+
+    // 閉じるボタンをクリック
+    const closeBtns = screen.getAllByRole('button', { name: '閉じる' });
+    fireEvent.click(closeBtns[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText('ユーザー管理画面 使い方ガイド')).toBeNull();
+    });
   });
 });

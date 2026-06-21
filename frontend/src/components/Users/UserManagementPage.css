@@ -395,3 +395,52 @@
   color: #4b5563;
   background-color: #f3f4f6;
 }
+
+/* 使い方ガイドモーダル用 */
+.guide-tab-btn {
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.guide-tab-btn:hover:not(.active) {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 640px) {
+  .user-guide-body {
+    flex-direction: column !important;
+  }
+  .user-guide-sidebar {
+    width: 100% !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+    padding: 0.5rem !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .guide-tab-btn {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem !important;
+  }
+  .user-guide-container {
+    height: 90vh !important;
+    max-height: none !important;
+  }
+}
+
