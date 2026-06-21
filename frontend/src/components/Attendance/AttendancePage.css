@@ -319,6 +319,7 @@
   height: auto;
   display: flex;
   align-items: center;
+  white-space: nowrap;
 }
 
 /* 複数シフト */
@@ -333,6 +334,17 @@
   height: auto;
   display: flex;
   align-items: center;
+  white-space: nowrap;
+}
+
+/*
+ * 複数打刻・複数シフトのセルは、各列が独立して項目を縦に並べるため、
+ * 中央寄せ（既定の vertical-align: middle）だと「操作」列の「追加」ボタン分の
+ * 高さの差で行の水平位置がズレる。上寄せにして行頭を揃える。
+ */
+.att-table td:has(.att-multiple-punches),
+.att-table td:has(.att-multiple-shifts) {
+  vertical-align: top;
 }
 
 .att-punch-time-combined {
