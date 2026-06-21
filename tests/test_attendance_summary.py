@@ -155,6 +155,7 @@ class TestAttendanceSummaryAPI:
         assert emp_summary["early_leave_count"] == 0
         assert emp_summary["absence_days"] == 1
         assert emp_summary["incomplete_days"] == 1
+        assert emp_summary["yearly_working_hours"] == emp_summary["total_working_hours"]
 
     async def test_get_monthly_summary_employee_self(self, client: AsyncClient, session) -> None:
         """一般従業員は自分のサマリーのみ取得できる。"""

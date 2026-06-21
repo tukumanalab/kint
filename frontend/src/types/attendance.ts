@@ -11,6 +11,7 @@ export interface AttendanceMonthlySummary {
   early_leave_count: number;
   absence_days: number;
   incomplete_days: number;
+  yearly_working_hours: number;
 }
 
 export type DailyAttendanceStatus =

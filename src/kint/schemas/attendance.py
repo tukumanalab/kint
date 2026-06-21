@@ -96,6 +96,7 @@ class AttendanceMonthlySummary(BaseModel):
     early_leave_count: int
     absence_days: int
     incomplete_days: int
+    yearly_working_hours: float = 0.0
 
 
 class PunchPeriod(BaseModel):

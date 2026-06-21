@@ -1079,6 +1079,7 @@ export function AttendancePage({ auth }: Props) {
                     <th>不整合</th>
                     <th>総労働時間</th>
                     <th>時間外時間</th>
+                    <th>1月からの総勤務</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -1114,6 +1115,7 @@ export function AttendancePage({ auth }: Props) {
                           {formatHours(summary.total_overtime_hours)}
                         </span>
                       </td>
+                      <td>{formatHours(summary.yearly_working_hours)}</td>
                       <td>
                         <button
                           type="button"
@@ -1186,6 +1188,10 @@ export function AttendancePage({ auth }: Props) {
                   <div className="att-user-summary-card__item">
                     <span className="label">時間外労働</span>
                     <span className="value">{formatHours(detailData.summary.total_overtime_hours)}</span>
+                  </div>
+                  <div className="att-user-summary-card__item">
+                    <span className="label">1月からの総勤務時間</span>
+                    <span className="value">{formatHours(detailData.summary.yearly_working_hours)}</span>
                   </div>
                   <div className="att-user-summary-card__item">
                     <span className="label">遅刻 / 早退</span>

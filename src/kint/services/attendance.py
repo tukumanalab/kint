@@ -1041,6 +1041,7 @@ class AttendanceService:
                 early_leave_count=early_leave_count,
                 absence_days=absence_days,
                 incomplete_days=incomplete_days,
+                yearly_working_hours=0.0,
             )
 
             results.append((user, summary, daily_details))
@@ -1063,7 +1064,21 @@ class AttendanceService:
         from_date = date(year, month, 1)
         to_date = date(year, month, last_day)
 
-        return await self._calculate_period_data(from_date, to_date, user_id=user_id)
+        data, att_map = await self._calculate_period_data(from_date, to_date, user_id=user_id)
+
+        # 1月からの累計勤務時間の計算
+        start_of_year = date(year, 1, 1)
+        yearly_data, _ = await self._calculate_period_data(start_of_year, to_date, user_id=user_id)
+        yearly_hours_map = {
+            summary.user_id: summary.total_working_hours
+            for _, summary, _ in yearly_data
+        }
+
+        # 累計勤務時間を当月のサマリーにマージ
+        for _, summary, _ in data:
+            summary.yearly_working_hours = yearly_hours_map.get(summary.user_id, 0.0)
+
+        return data, att_map
 
     async def send_monthly_attendance_reports(self, target_date: date) -> None:
         """月末の自動通知メール送信処理。管理者（role == 'admin'）は送信対象外。"""
