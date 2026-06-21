@@ -188,3 +188,34 @@ class GmailAdapter:
                 code="GMAIL_SEND_FAILED",
                 message="確認メールの送信に失敗しました",
             ) from e
+
+    def send_email(
+        self,
+        to: str,
+        subject: str,
+        body_text: str,
+    ) -> None:
+        """任意のメールを送信する。送信失敗時は KintBadGatewayError を発生させる。"""
+        logger.debug("メール送信を開始します: to=%s subject=%s", to, subject)
+        try:
+            creds = _load_credentials()
+            service = build("gmail", "v1", credentials=creds)
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = _sender_email()
+            msg["To"] = to
+            msg.attach(MIMEText(body_text, "plain", "utf-8"))
+
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+            service.users().messages().send(userId="me", body={"raw": raw}).execute()
+            logger.info("メールを送信しました: to=%s subject=%s", to, subject)
+        except KintBadGatewayError:
+            raise
+        except (HttpError, TransportError, OSError) as e:
+            logger.error("Gmail API 送信エラー: to=%s subject=%s error=%s", to, subject, e)
+            raise KintBadGatewayError(
+                code="GMAIL_SEND_FAILED",
+                message="メールの送信に失敗しました",
+            ) from e
+

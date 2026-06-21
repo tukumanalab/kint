@@ -36,6 +36,7 @@
 | `site_name` | string | `"Kint"` | — | — | サイトの表示名称。1〜50文字 |
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
+| `monthly_report_time` | string \| null | `"20:00"` | — | — | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記）。月末日のこの時刻に通知。null / 空文字で自動通知 OFF |
 
 ---
 
@@ -93,10 +94,11 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
 - `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。
+- `monthly_report_time` の空文字列 `""` は `null`（自動通知 OFF）として扱う。
 
 ### 4-2. ER 図（既存テーブルとの関係）
 
@@ -140,7 +142,8 @@ erDiagram
   "shift_sync_time": "03:00",
   "site_name": "Kint",
   "site_subtitle": "NFC 勤怠管理システム",
-  "punch_result_display_seconds": 30
+  "punch_result_display_seconds": 30,
+  "monthly_report_time": "20:00"
 }
 ```
 
@@ -171,7 +174,8 @@ erDiagram
   "shift_sync_time": "03:00",
   "site_name": "Kint",
   "site_subtitle": "NFC 勤怠管理システム",
-  "punch_result_display_seconds": 30
+  "punch_result_display_seconds": 30,
+  "monthly_report_time": "20:00"
 }
 ```
 
@@ -187,6 +191,7 @@ erDiagram
 | `site_name` | string, 1 ≤ length ≤ 50 |
 | `site_subtitle` | string, 1 ≤ length ≤ 100 |
 | `punch_result_display_seconds` | integer, 1 ≤ value ≤ 300 |
+| `monthly_report_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動通知 OFF） |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 
@@ -493,6 +498,7 @@ export interface SystemSettings {
   site_name: string;
   site_subtitle: string;
   punch_result_display_seconds: number;
+  monthly_report_time: string | null;
 }
 
 export interface SettingsPatchRequest {
@@ -670,6 +676,7 @@ class SettingsPatchRequest(BaseModel):
     site_name: str | None = None  # min_length=1, max_length=50
     site_subtitle: str | None = None  # min_length=1, max_length=100
     punch_result_display_seconds: int | None = None  # Field(ge=1, le=300)
+    monthly_report_time: str | None = None  # HH:MM または null
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> "SettingsPatchRequest":

@@ -1483,6 +1483,11 @@ components:
           type: integer
           description: 打刻結果表示時間（秒）
           example: 30
+        monthly_report_time:
+          type: string
+          nullable: true
+          description: 月次勤怠レポートの自動メール通知時刻（HH:MM 形式、24時間表記）。null / 未設定で自動通知 OFF
+          example: "20:00"
 
     SettingsPatchRequest:
       type: object
@@ -1525,6 +1530,14 @@ components:
           minLength: 1
           maxLength: 100
           description: サイトのサブタイトル
+        monthly_report_time:
+          type: string
+          nullable: true
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: >-
+            月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記）。
+            null または空文字列で自動通知 OFF。形式不正は 422。
+          example: "20:00"
 
     SettingsExportFile:
       type: object

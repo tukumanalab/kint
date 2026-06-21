@@ -24,6 +24,7 @@ ALLOWED_SETTING_KEYS = {
     "site_name",
     "site_subtitle",
     "punch_result_display_seconds",
+    "monthly_report_time",
 }
 
 _KNOWN_VERSION = "1"
@@ -50,6 +51,7 @@ class SettingsService:
         site_name_raw = db_map.get("site_name")
         site_subtitle_raw = db_map.get("site_subtitle")
         display_seconds_raw = db_map.get("punch_result_display_seconds")
+        monthly_report_time_raw = db_map.get("monthly_report_time")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -69,6 +71,13 @@ class SettingsService:
             if display_seconds_raw is not None
             else env_settings.punch_result_display_seconds
         )
+        monthly_report_time = (
+            monthly_report_time_raw
+            if monthly_report_time_raw is not None
+            else env_settings.monthly_report_time
+        )
+        if monthly_report_time == "":
+            monthly_report_time = None
 
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
@@ -78,6 +87,7 @@ class SettingsService:
             site_name=site_name,
             site_subtitle=site_subtitle,
             punch_result_display_seconds=display_seconds,
+            monthly_report_time=monthly_report_time,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -127,6 +137,10 @@ class SettingsService:
             fields["site_subtitle"] = updates.site_subtitle
         if updates.punch_result_display_seconds is not None:
             fields["punch_result_display_seconds"] = str(updates.punch_result_display_seconds)
+        if updates.monthly_report_time is not None:
+            fields["monthly_report_time"] = updates.monthly_report_time
+        elif "monthly_report_time" in updates.model_fields_set:
+            fields["monthly_report_time"] = ""
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -152,6 +166,10 @@ class SettingsService:
             from kint.scheduler import reschedule_calendar_sync
 
             reschedule_calendar_sync(result_settings.shift_sync_time)
+        if "monthly_report_time" in fields:
+            from kint.scheduler import reschedule_monthly_report
+
+            reschedule_monthly_report(result_settings.monthly_report_time)
         return result_settings
 
     async def export(self, actor_email: str) -> SettingsExportFile:
@@ -196,6 +214,7 @@ class SettingsService:
             "site_name": current.site_name,
             "site_subtitle": current.site_subtitle,
             "punch_result_display_seconds": current.punch_result_display_seconds,
+            "monthly_report_time": current.monthly_report_time,
         }
 
         changes: list[SettingsImportChange] = []
@@ -208,7 +227,7 @@ class SettingsService:
                 continue
 
             # 値の正規化
-            if key in {"shift_ical_url", "shift_sync_time", "site_name", "site_subtitle"}:
+            if key in {"shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "monthly_report_time"}:
                 new_value: int | str | None = raw_value if raw_value else None
             else:
                 new_value = int(raw_value)

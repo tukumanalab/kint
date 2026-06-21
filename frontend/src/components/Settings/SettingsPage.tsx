@@ -126,6 +126,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [siteName, setSiteName] = useState('');
   const [siteSubtitle, setSiteSubtitle] = useState('');
   const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
+  const [monthlyReportTime, setMonthlyReportTime] = useState('');
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -193,6 +194,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
       onSiteSubtitleChange(s.site_subtitle ?? 'NFC 勤怠管理システム');
       setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
+      setMonthlyReportTime(s.monthly_report_time ?? '');
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -213,6 +215,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setSiteName(s.site_name ?? 'Kint');
         setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
+        setMonthlyReportTime(s.monthly_report_time ?? '');
       })
       .catch((err: unknown) => {
         const msg =
@@ -248,6 +251,9 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     if (syncTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(syncTime)) {
       return '自動同期時刻は HH:MM 形式（例: 03:00）で入力してください';
     }
+    if (monthlyReportTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(monthlyReportTime)) {
+      return '自動通知時刻は HH:MM 形式（例: 20:00）で入力してください';
+    }
     return null;
   }
 
@@ -271,6 +277,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         site_name: siteName.trim(),
         site_subtitle: siteSubtitle.trim(),
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
+        monthly_report_time: monthlyReportTime || null,
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -345,6 +352,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setSiteSubtitle(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
         onSiteSubtitleChange(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(result.applied.punch_result_display_seconds));
+        setMonthlyReportTime(result.applied.monthly_report_time ?? '');
       }
       setImportFile(null);
       setImportPreview(null);
@@ -509,6 +517,28 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">HH:MM（未入力で自動同期 OFF）</span>
             </div>
             <p className="settings-field__hint">毎日この時刻に iCal からシフトを自動取り込みします</p>
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h2 className="settings-section__title">月次勤怠レポート通知</h2>
+
+          <div className="settings-field">
+            <label htmlFor="monthlyReportTime" className="settings-field__label">
+              自動通知時刻
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="monthlyReportTime"
+                type="text"
+                className="settings-field__input"
+                placeholder="20:00"
+                value={monthlyReportTime}
+                onChange={(e) => setMonthlyReportTime(e.target.value)}
+              />
+              <span className="settings-field__unit">HH:MM（未入力で自動通知 OFF）</span>
+            </div>
+            <p className="settings-field__hint">毎月末日のこの時刻に、当月の勤務実績レポートを従業員（管理者を除く）にメール通知します</p>
           </div>
         </section>
 

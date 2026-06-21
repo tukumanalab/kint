@@ -14,6 +14,7 @@ scheduler = AsyncIOScheduler()
 CALENDAR_SYNC_JOB_ID = "calendar_sync_daily"
 AUTO_COMPLETE_JOB_ID = "missing_checkout_auto_complete_daily"
 NOTIFICATION_CLEANUP_JOB_ID = "notification_cleanup_daily"
+MONTHLY_REPORT_JOB_ID = "monthly_attendance_report"
 
 
 
@@ -59,6 +60,26 @@ async def _run_notification_cleanup() -> None:
 
 
 
+async def _run_monthly_attendance_report() -> None:
+    """スケジューラから呼ばれる月次勤怠レポート通知ジョブ。"""
+    from kint.services.attendance import AttendanceService
+    from datetime import date
+    import logging
+
+    logger.info("定期月次勤怠レポート通知バッチを開始します")
+    async with AsyncSessionLocal() as session:
+        service = AttendanceService(session)
+        try:
+            from datetime import timezone, timedelta
+            JST = timezone(timedelta(hours=9))
+            today = datetime.now(JST).date()
+
+            await service.send_monthly_attendance_reports(today)
+            logger.info("定期月次勤怠レポート通知完了")
+        except Exception as exc:
+            logger.exception("定期月次勤怠レポート通知で予期しないエラー: %s", exc)
+
+
 def reschedule_calendar_sync(time_str: str | None) -> None:
     """既存ジョブを削除し、指定時刻で再登録する。None の場合はジョブ削除のみ。"""
     if scheduler.get_job(CALENDAR_SYNC_JOB_ID):
@@ -79,8 +100,28 @@ def reschedule_calendar_sync(time_str: str | None) -> None:
     logger.info("定期同期ジョブを登録しました: %s", time_str)
 
 
+def reschedule_monthly_report(time_str: str | None) -> None:
+    """既存ジョブを削除し、指定時刻で再登録する。None の場合はジョブ削除のみ。"""
+    if scheduler.get_job(MONTHLY_REPORT_JOB_ID):
+        scheduler.remove_job(MONTHLY_REPORT_JOB_ID)
+        logger.info("定期月次勤怠レポート通知ジョブを削除しました")
+
+    if not time_str:
+        logger.info("monthly_report_time が未設定のため定期月次勤怠レポート通知を無効にしました")
+        return
+
+    hour, minute = time_str.split(":")
+    scheduler.add_job(
+        _run_monthly_attendance_report,
+        trigger=CronTrigger(day="last", hour=int(hour), minute=int(minute)),
+        id=MONTHLY_REPORT_JOB_ID,
+        replace_existing=True,
+    )
+    logger.info("定期月次勤怠レポート通知ジョブを登録しました: %s (月末)", time_str)
+
+
 async def init_scheduler() -> None:
-    """起動時初期化。DB から shift_sync_time を取得してジョブを登録し scheduler を起動する。"""
+    """起動時初期化。DB から各設定を取得してジョブを登録し scheduler を起動する。"""
     from kint.services.settings import SettingsService
 
     try:
@@ -94,6 +135,18 @@ async def init_scheduler() -> None:
         reschedule_calendar_sync(sync_time)
     else:
         logger.info("shift_sync_time が未設定のため定期同期は無効です")
+
+    try:
+        async with AsyncSessionLocal() as session:
+            report_time = await SettingsService(session).get_str("monthly_report_time")
+    except Exception as exc:
+        logger.warning("monthly_report_time 取得失敗。デフォルト値 (20:00) を使用します: %s", exc)
+        report_time = "20:00"
+
+    if report_time:
+        reschedule_monthly_report(report_time)
+    else:
+        logger.info("monthly_report_time が未設定のため定期月次勤怠レポート通知は無効です")
 
     # 毎日午前 4:00 に自動補完バッチを実行
     if not scheduler.get_job(AUTO_COMPLETE_JOB_ID):
@@ -114,7 +167,6 @@ async def init_scheduler() -> None:
             replace_existing=True,
         )
         logger.info("定期お知らせクリーンアップジョブを登録しました: 04:05")
-
 
     scheduler.start()
     logger.info("スケジューラを起動しました")

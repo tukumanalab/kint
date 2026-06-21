@@ -788,22 +788,13 @@ class AttendanceService:
         ]
         return AttendanceHistoryResponse(items=items, total=len(items))
 
-    async def _calculate_monthly_data(
-        self, year_month: str, user_id: str | None = None
+    async def _calculate_period_data(
+        self, from_date: date, to_date: date, user_id: str | None = None
     ) -> tuple[
         list[tuple[User, AttendanceMonthlySummary, list[DailyAttendanceDetail]]],
         dict[tuple[str, date], list[Attendance]],
     ]:
-        """指定した年月の、対象ユーザー（または全員）のサマリーと日次明細を計算する。"""
-        try:
-            year, month = map(int, year_month.split("-"))
-            _, last_day = calendar.monthrange(year, month)
-        except ValueError:
-            raise ValueError("年月は YYYY-MM 形式で指定してください。")
-
-        from_date = date(year, month, 1)
-        to_date = date(year, month, last_day)
-
+        """指定した期間の、対象ユーザー（または全員）のサマリーと日次明細を計算する。"""
         # JSTにおける今日の日付を取得（未来のシフトを「出勤予定」とする判定用）
         from datetime import timezone, timedelta
         JST = timezone(timedelta(hours=9))
@@ -863,11 +854,11 @@ class AttendanceService:
             absence_days = 0
             incomplete_days = 0
 
-            # 1日から月末日まで走査
-            for d in range(1, last_day + 1):
-                cur_date = date(year, month, d)
-                day_atts = att_map.get((user.id, cur_date), [])
-                day_shifts = shift_map.get((user.id, cur_date), [])
+            # from_date から to_date まで走査
+            curr_date = from_date
+            while curr_date <= to_date:
+                day_atts = att_map.get((user.id, curr_date), [])
+                day_shifts = shift_map.get((user.id, curr_date), [])
                 day_shifts = sorted(day_shifts, key=lambda s: s.start_time)
 
                 has_shift = len(day_shifts) > 0
@@ -943,7 +934,7 @@ class AttendanceService:
                 if len(day_atts) > 0 and has_incomplete_punch:
                     status = "incomplete"
                 elif has_shift and len(day_atts) == 0:
-                    status = "scheduled" if cur_date > today else "absence"
+                    status = "absence" if curr_date <= today else "scheduled"
                 elif has_shift and is_late and is_early:
                     status = "late_and_early"
                 elif has_shift and is_late:
@@ -1009,7 +1000,7 @@ class AttendanceService:
                 is_auto_completed = any(a.is_auto_completed for a in day_atts)
 
                 detail = DailyAttendanceDetail(
-                    work_date=cur_date,
+                    work_date=curr_date,
                     attendance_id=attendance_id,
                     has_shift=has_shift,
                     is_holiday=is_holiday,
@@ -1034,6 +1025,7 @@ class AttendanceService:
                     ],
                 )
                 daily_details.append(detail)
+                curr_date += timedelta(days=1)
 
             # サマリーを作成
             summary = AttendanceMonthlySummary(
@@ -1054,6 +1046,103 @@ class AttendanceService:
             results.append((user, summary, daily_details))
 
         return results, att_map
+
+    async def _calculate_monthly_data(
+        self, year_month: str, user_id: str | None = None
+    ) -> tuple[
+        list[tuple[User, AttendanceMonthlySummary, list[DailyAttendanceDetail]]],
+        dict[tuple[str, date], list[Attendance]],
+    ]:
+        """指定した年月の、対象ユーザー（または全員）のサマリーと日次明細を計算する。"""
+        try:
+            year, month = map(int, year_month.split("-"))
+            _, last_day = calendar.monthrange(year, month)
+        except ValueError:
+            raise ValueError("年月は YYYY-MM 形式で指定してください。")
+
+        from_date = date(year, month, 1)
+        to_date = date(year, month, last_day)
+
+        return await self._calculate_period_data(from_date, to_date, user_id=user_id)
+
+    async def send_monthly_attendance_reports(self, target_date: date) -> None:
+        """月末の自動通知メール送信処理。管理者（role == 'admin'）は送信対象外。"""
+        from kint.services.gmail import GmailAdapter
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        year = target_date.year
+        month = target_date.month
+        _, last_day = calendar.monthrange(year, month)
+
+        # 対象月の期間
+        start_of_month = date(year, month, 1)
+        end_of_month = date(year, month, last_day)
+
+        # 当年1月1日からの期間
+        start_of_year = date(year, 1, 1)
+
+        # 1. 対象月（当月）のサマリー計算
+        monthly_data, _ = await self._calculate_period_data(start_of_month, end_of_month)
+
+        # 2. 当年1月からの累計サマリー計算
+        yearly_data, _ = await self._calculate_period_data(start_of_year, end_of_month)
+
+        # ユーザーIDごとの累計勤務時間をマップにする
+        yearly_hours_map = {
+            summary.user_id: summary.total_working_hours
+            for _, summary, _ in yearly_data
+        }
+
+        gmail = GmailAdapter()
+
+        # システム設定からサイト名を取得
+        settings_service = SettingsService(self.session)
+        site_name = await settings_service.get_str("site_name") or "Kint"
+
+        # 3. 各従業員へのメール送信
+        for user, summary, _ in monthly_data:
+            # 管理者 (admin) は除外する
+            if user.role == "admin":
+                logger.debug("ユーザー %s (%s) は管理者のため、月次レポート通知から除外します。", user.name, user.id)
+                continue
+
+            if not user.email:
+                logger.warning(
+                    "ユーザー %s (%s) のメールアドレスが登録されていないため、月次レポートを送信できませんでした。",
+                    user.name,
+                    user.id,
+                )
+                continue
+
+            yearly_hours = yearly_hours_map.get(user.id, 0.0)
+
+            subject = f"【{site_name}】{year}年{month}月 勤務実績レポート"
+            body = (
+                f"{user.full_name or user.name} さん\n\n"
+                f"{site_name} 勤怠管理システムより、当月の勤務実績レポートをお知らせします。\n\n"
+                f"対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
+                f"* 1か月ごとの勤務日数: {summary.working_days} 日\n"
+                f"* 1か月ごとの勤務時間: {summary.total_working_hours:.2f} 時間\n"
+                f"* 1月からの総勤務時間: {yearly_hours:.2f} 時間\n\n"
+                f"※このメールはシステムより自動送信されています。"
+            )
+
+            try:
+                gmail.send_email(user.email, subject, body)
+                logger.info(
+                    "ユーザー %s (%s) への月次レポート送信が完了しました。",
+                    user.name,
+                    user.email,
+                )
+            except Exception as e:
+                logger.error(
+                    "ユーザー %s (%s) への月次レポート送信に失敗しました: %s",
+                    user.name,
+                    user.email,
+                    e,
+                )
 
     async def get_monthly_summaries(
         self, year_month: str, user_id: str | None = None

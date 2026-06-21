@@ -6,6 +6,7 @@ export interface SystemSettings {
   site_name: string;
   site_subtitle: string;
   punch_result_display_seconds: number;
+  monthly_report_time: string | null;
 }
 
 export interface SettingsPatchRequest {
@@ -16,6 +17,7 @@ export interface SettingsPatchRequest {
   site_name?: string;
   site_subtitle?: string;
   punch_result_display_seconds?: number;
+  monthly_report_time?: string | null;
 }
 
 export interface SettingsExportFile {

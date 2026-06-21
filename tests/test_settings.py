@@ -66,17 +66,19 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
     data = resp.json()
     assert data["site_name"] == "Kint"
     assert data["punch_result_display_seconds"] == 30
+    assert data["monthly_report_time"] == "20:00"
 
-    # 4. 管理者が site_name を "Custom Kint"、表示時間を 45 秒 に変更
+    # 4. 管理者が site_name を "Custom Kint"、表示時間を 45 秒 、通知時刻を "19:30" に変更
     resp = await client.patch(
         "/api/v1/settings",
         headers=admin_headers,
-        json={"site_name": "Custom Kint", "punch_result_display_seconds": 45}
+        json={"site_name": "Custom Kint", "punch_result_display_seconds": 45, "monthly_report_time": "19:30"}
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Custom Kint"
     assert data["punch_result_display_seconds"] == 45
+    assert data["monthly_report_time"] == "19:30"
 
     # 5. 未認証の状態で /settings/public から変更後の値が取得できることを確認
     resp = await client.get("/api/v1/settings/public")
@@ -108,3 +110,19 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
         json={"punch_result_display_seconds": 301}
     )
     assert resp.status_code == 422
+
+    # 不正な monthly_report_time の形式でエラーになることを確認
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"monthly_report_time": "24:00"}
+    )
+    assert resp.status_code == 422
+
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"monthly_report_time": "abc"}
+    )
+    assert resp.status_code == 422
+

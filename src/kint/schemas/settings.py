@@ -18,6 +18,7 @@ class SettingsResponse(BaseModel):
     site_name: str
     site_subtitle: str
     punch_result_display_seconds: int
+    monthly_report_time: str | None
 
 
 class SettingsPatchRequest(BaseModel):
@@ -30,6 +31,7 @@ class SettingsPatchRequest(BaseModel):
     site_name: str | None = Field(default=None, min_length=1, max_length=50)
     site_subtitle: str | None = Field(default=None, min_length=1, max_length=100)
     punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
+    monthly_report_time: str | None = None
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -39,6 +41,16 @@ class SettingsPatchRequest(BaseModel):
             return v
         if not isinstance(v, str) or not _TIME_RE.match(v):
             raise ValueError("shift_sync_time は HH:MM 形式（例: 03:00）で指定してください")
+        return v
+
+    @field_validator("monthly_report_time", mode="before")
+    @classmethod
+    def validate_monthly_report_time(cls, v: object) -> object:
+        """HH:MM 形式（24 時間）または null のみ許可する。"""
+        if v is None or v == "":
+            return v
+        if not isinstance(v, str) or not _TIME_RE.match(v):
+            raise ValueError("monthly_report_time は HH:MM 形式（例: 20:00）で指定してください")
         return v
 
     @model_validator(mode="after")
@@ -52,7 +64,9 @@ class SettingsPatchRequest(BaseModel):
             and self.site_name is None
             and self.site_subtitle is None
             and self.punch_result_display_seconds is None
+            and self.monthly_report_time is None
             and "shift_sync_time" not in self.model_fields_set
+            and "monthly_report_time" not in self.model_fields_set
         ):
             raise ValueError("少なくとも 1 つのフィールドを指定してください")
         return self
