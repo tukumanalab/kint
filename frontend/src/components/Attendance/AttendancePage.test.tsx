@@ -115,6 +115,12 @@ const mockHistory = {
 describe('AttendancePage - History', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    });
     vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockSummaries);
     vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(attendanceApi.getMonthlyAttendanceDetail).mockResolvedValue(mockDetail);
@@ -312,5 +318,60 @@ describe('AttendancePage - Search', () => {
     expect(screen.queryAllByText('yamada')).toHaveLength(0);
   });
 });
+
+describe('AttendancePage - Guide', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    });
+    vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockSummaries);
+    vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(attendanceApi.getMonthlyAttendanceDetail).mockResolvedValue(mockDetail);
+  });
+
+  it('一般従業員でログインし、使い方ガイドボタンをクリックすると従業員用ガイドが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    });
+
+    const guideBtn = screen.getByRole('button', { name: '📖 使い方ガイド' });
+    expect(guideBtn).toBeInTheDocument();
+
+    fireEvent.click(guideBtn);
+
+    expect(screen.getByText('勤怠管理画面 使い方ガイド (従業員向け)')).toBeInTheDocument();
+    expect(screen.getByText('勤怠の修正申請')).toBeInTheDocument();
+    expect(screen.queryByText('勤怠の直接追加・修正')).not.toBeInTheDocument();
+
+    const closeBtn = screen.getByText('閉じる');
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByText('勤怠管理画面 使い方ガイド (従業員向け)')).not.toBeInTheDocument();
+  });
+
+  it('管理者でログインし、使い方ガイドボタンをクリックすると管理者用ガイドが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
+    });
+
+    const guideBtn = screen.getByRole('button', { name: '📖 使い方ガイド' });
+    expect(guideBtn).toBeInTheDocument();
+
+    fireEvent.click(guideBtn);
+
+    expect(screen.getByText('勤怠管理画面 使い方ガイド (管理者向け)')).toBeInTheDocument();
+    expect(screen.getByText('勤怠の直接追加・修正')).toBeInTheDocument();
+    expect(screen.queryByText('勤怠の修正申請')).not.toBeInTheDocument();
+  });
+});
+
 
 

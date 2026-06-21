@@ -23,6 +23,7 @@ import type {
   AttendanceHistoryEntry,
 } from '../../types/attendance';
 import './AttendancePage.css';
+import { AttendanceGuideModal } from './AttendanceGuideModal';
 
 interface Props {
   auth: UseAuth;
@@ -47,6 +48,7 @@ export function AttendancePage({ auth }: Props) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   // 修正申請関連
   const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
@@ -1153,6 +1155,15 @@ export function AttendancePage({ auth }: Props) {
             />
           </div>
 
+          <button
+            type="button"
+            className="att-btn att-btn--secondary"
+            onClick={() => setShowGuide(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginRight: '8px' }}
+          >
+            <span>📖</span> 使い方ガイド
+          </button>
+
           {isAdmin && (
             <div className="attendance-page__csv-buttons">
               <button
@@ -2080,6 +2091,13 @@ export function AttendancePage({ auth }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {showGuide && (
+        <AttendanceGuideModal
+          isAdmin={isAdmin}
+          onClose={() => setShowGuide(false)}
+        />
       )}
     </div>
   );

@@ -181,14 +181,14 @@ export function UserManagementGuideModal({ onClose }: UserManagementGuideModalPr
             </button>
           </div>
 
-          {/* 右コンテンツ表示エリア */}
           <div className="user-guide-content" style={{
             flex: 1,
             padding: '1.5rem 2rem',
             overflowY: 'auto',
             background: '#ffffff',
             lineHeight: '1.6',
-            color: '#334155'
+            color: '#334155',
+            textAlign: 'left'
           }}>
             {activeTab === 'register' && (
               <div className="guide-section animate-fade-in">
