@@ -206,4 +206,67 @@ describe('UserManagementPage', () => {
       expect(screen.getByText('ユーザー一覧の取得に失敗しました。')).toBeInTheDocument();
     });
   });
+
+  it('検索キーワードを入力して、名前やメールで正しくフィルタリングできる', async () => {
+    vi.spyOn(userApi, 'getUsers').mockResolvedValue({
+      users: [mockAdminUser, mockEmployeeUser, mockInactiveUser],
+    });
+
+    render(<UserManagementPage auth={makeAuth()} />);
+    await waitFor(() => screen.getByText('山田 太郎'));
+
+    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+
+    // "山田" で検索 (氏名一致)
+    fireEvent.change(searchInput, { target: { value: '山田' } });
+    expect(screen.getByText('山田 太郎')).toBeInTheDocument();
+    expect(screen.queryByText('管理 太郎')).toBeNull();
+    expect(screen.queryByText('鈴木 花子')).toBeNull();
+
+    // "hanako" で検索 (表示名/メールアドレス一致)
+    fireEvent.change(searchInput, { target: { value: 'hanako' } });
+    expect(screen.getByText('鈴木 花子')).toBeInTheDocument();
+    expect(screen.queryByText('管理 太郎')).toBeNull();
+    expect(screen.queryByText('山田 太郎')).toBeNull();
+  });
+
+  it('検索キーワードをクリアすると、全ユーザーの一覧に戻る', async () => {
+    vi.spyOn(userApi, 'getUsers').mockResolvedValue({
+      users: [mockAdminUser, mockEmployeeUser, mockInactiveUser],
+    });
+
+    render(<UserManagementPage auth={makeAuth()} />);
+    await waitFor(() => screen.getByText('山田 太郎'));
+
+    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+
+    // "山田" で検索
+    fireEvent.change(searchInput, { target: { value: '山田' } });
+    expect(screen.queryByText('管理 太郎')).toBeNull();
+
+    // クリアボタンを取得してクリック
+    const clearBtn = screen.getByRole('button', { name: '検索条件をクリア' });
+    fireEvent.click(clearBtn);
+
+    // 全ユーザーが再度表示されることを確認
+    expect(screen.getByText('管理 太郎')).toBeInTheDocument();
+    expect(screen.getByText('山田 太郎')).toBeInTheDocument();
+    expect(screen.getByText('鈴木 花子')).toBeInTheDocument();
+    expect(searchInput).toHaveValue('');
+  });
+
+  it('検索結果が0件の場合にメッセージが表示される', async () => {
+    vi.spyOn(userApi, 'getUsers').mockResolvedValue({
+      users: [mockAdminUser],
+    });
+
+    render(<UserManagementPage auth={makeAuth()} />);
+    await waitFor(() => screen.getByText('管理 太郎'));
+
+    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+    fireEvent.change(searchInput, { target: { value: '存在しないユーザー' } });
+
+    expect(screen.queryByText('管理 太郎')).toBeNull();
+    expect(screen.getByText('検索条件に一致するユーザーが見つかりません')).toBeInTheDocument();
+  });
 });

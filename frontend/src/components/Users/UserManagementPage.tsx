@@ -360,8 +360,19 @@ export function UserManagementPage({ auth }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [nfcTargetUser, setNfcTargetUser] = useState<UserResponse | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const token = auth.token!;
+
+  const filteredUsers = users.filter((user) => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      user.name.toLowerCase().includes(term) ||
+      user.full_name.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term)
+    );
+  });
 
   const [importResult, setImportResult] = useState<{
     imported_count: number;
@@ -517,6 +528,26 @@ export function UserManagementPage({ auth }: Props) {
         </div>
       </div>
 
+      <div className="user-mgmt-search-bar">
+        <input
+          type="text"
+          placeholder="名前、氏名、またはメールアドレスで検索..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            className="search-clear-btn"
+            onClick={() => setSearchTerm('')}
+            aria-label="検索条件をクリア"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
       {actionError && (
         <div className="user-mgmt-error" style={{ marginBottom: '1rem' }} role="alert">
           {actionError}
@@ -543,12 +574,14 @@ export function UserManagementPage({ auth }: Props) {
               </tr>
             </thead>
             <tbody>
-              {users.length === 0 && (
+              {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="user-table__empty">ユーザーが登録されていません</td>
+                  <td colSpan={7} className="user-table__empty">
+                    {searchTerm.trim() ? '検索条件に一致するユーザーが見つかりません' : 'ユーザーが登録されていません'}
+                  </td>
                 </tr>
               )}
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.id} className={user.is_active ? '' : 'user-table__row--inactive'}>
                   <td>{user.id}</td>
                   <td>{user.full_name}</td>
