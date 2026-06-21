@@ -37,6 +37,7 @@ export function AttendancePage({ auth }: Props) {
   });
 
   const [summaries, setSummaries] = useState<AttendanceMonthlySummary[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +92,19 @@ export function AttendancePage({ auth }: Props) {
   });
 
   const isAdmin = auth.user?.role === 'admin';
+
+  const filteredSummaries = summaries.filter((summary) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    const matchesName = summary.user_name.toLowerCase().includes(query);
+    const matchesFullName = summary.full_name
+      ? summary.full_name.toLowerCase().includes(query)
+      : false;
+    const matchesEmail = summary.email
+      ? summary.email.toLowerCase().includes(query)
+      : false;
+    return matchesName || matchesFullName || matchesEmail;
+  });
 
   const handleViewHistory = async (attendanceId: string, workDate: string) => {
     if (!auth.token) return;
@@ -842,6 +856,7 @@ export function AttendancePage({ auth }: Props) {
                 setYearMonth(e.target.value);
                 setSelectedUser(null);
                 setDetailData(null);
+                setSearchQuery('');
               }}
               className="attendance-page__input"
             />
@@ -1022,11 +1037,34 @@ export function AttendancePage({ auth }: Props) {
       {/* 管理者向け：全員のサマリー一覧 */}
       {isAdmin && (
         <div className="attendance-section">
-          <h2>月次勤務サマリー</h2>
+          <div className="att-summary-header">
+            <h2>月次勤務サマリー</h2>
+            <div className="att-summary-search">
+              <input
+                type="text"
+                placeholder="従業員名・氏名で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="attendance-page__search-input"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="attendance-page__search-clear"
+                  title="検索条件をクリア"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
           {loading ? (
             <div className="att-loading">読み込み中...</div>
           ) : summaries.length === 0 ? (
             <div className="att-empty">データが登録されていません。</div>
+          ) : filteredSummaries.length === 0 ? (
+            <div className="att-empty">該当する従業員が見つかりません。</div>
           ) : (
             <div className="att-table-container">
               <table className="att-table">
@@ -1045,7 +1083,7 @@ export function AttendancePage({ auth }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {summaries.map((summary) => (
+                  {filteredSummaries.map((summary) => (
                     <tr
                       key={summary.user_id}
                       className={selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}

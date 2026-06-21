@@ -859,4 +859,63 @@
   border: 1px solid #b3e5fc;
 }
 
+/* 月次勤務サマリー ヘッダーと検索窓 */
+.att-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.att-summary-header h2 {
+  margin: 0;
+}
+
+.att-summary-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.attendance-page__search-input {
+  padding: 6px 30px 6px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 220px;
+  transition: all 0.2s ease-in-out;
+  box-sizing: border-box;
+}
+
+.attendance-page__search-input:focus {
+  border-color: #0366d6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.3);
+}
+
+.attendance-page__search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #959da5;
+  font-size: 14px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+}
+
+.attendance-page__search-clear:hover {
+  background-color: #eaecef;
+  color: #24292e;
+}
+
+
 

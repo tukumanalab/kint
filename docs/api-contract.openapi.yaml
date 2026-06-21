@@ -1648,7 +1648,7 @@ components:
 
     AttendanceMonthlySummary:
       type: object
-      required: [user_id, user_name, full_name, prescribed_days, working_days, total_working_hours, total_overtime_hours, late_count, early_leave_count, absence_days, incomplete_days]
+      required: [user_id, user_name, full_name, email, prescribed_days, working_days, total_working_hours, total_overtime_hours, late_count, early_leave_count, absence_days, incomplete_days]
       properties:
         user_id:
           type: string
@@ -1661,6 +1661,10 @@ components:
           type: string
           description: 氏名
           example: "山田 太郎"
+        email:
+          type: string
+          description: メールアドレス
+          example: "yamada@example.com"
         prescribed_days:
           type: integer
           description: 所定内（シフトあり）日数

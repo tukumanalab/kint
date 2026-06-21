@@ -50,6 +50,7 @@ const mockSummaries = [
     user_id: 'employee-user',
     user_name: 'employee',
     full_name: '従業員花子',
+    email: 'employee@example.com',
     prescribed_days: 20,
     working_days: 18,
     total_working_hours: 144,
@@ -196,4 +197,117 @@ describe('AttendancePage - History', () => {
     expect(screen.getAllByText('8.00h')).toHaveLength(2);
   });
 });
+
+describe('AttendancePage - Search', () => {
+  const mockMultipleSummaries = [
+    {
+      user_id: 'user-1',
+      user_name: 'yamada',
+      full_name: '山田太郎',
+      email: 'yamada@example.com',
+      prescribed_days: 20,
+      working_days: 18,
+      total_working_hours: 144,
+      total_overtime_hours: 10,
+      late_count: 1,
+      early_leave_count: 0,
+      absence_days: 2,
+      incomplete_days: 0,
+    },
+    {
+      user_id: 'user-2',
+      user_name: 'sato',
+      full_name: '佐藤花子',
+      email: 'sato@example.com',
+      prescribed_days: 20,
+      working_days: 15,
+      total_working_hours: 120,
+      total_overtime_hours: 5,
+      late_count: 0,
+      early_leave_count: 1,
+      absence_days: 5,
+      incomplete_days: 0,
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockMultipleSummaries);
+    vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it('管理者画面で検索ワードを入力すると、合致する従業員のみが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    // 初期状態では両方表示されていること
+    await waitFor(() => {
+      expect(screen.getByText('yamada')).toBeInTheDocument();
+      expect(screen.getByText('sato')).toBeInTheDocument();
+    });
+
+    // 検索入力
+    const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
+    fireEvent.change(searchInput, { target: { value: '山田' } });
+
+    // 山田太郎だけが表示され、佐藤花子は非表示になること
+    expect(screen.getByText('yamada')).toBeInTheDocument();
+    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+
+    // 検索ワードをクリア
+    fireEvent.change(searchInput, { target: { value: '' } });
+    expect(screen.getByText('yamada')).toBeInTheDocument();
+    expect(screen.getByText('sato')).toBeInTheDocument();
+  });
+
+  it('合致する従業員がいない場合、該当なしメッセージが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('yamada')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
+    fireEvent.change(searchInput, { target: { value: 'tanaka' } });
+
+    expect(screen.queryByText('yamada')).not.toBeInTheDocument();
+    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+    expect(screen.getByText('該当する従業員が見つかりません。')).toBeInTheDocument();
+  });
+
+  it('クリアボタンをクリックすると検索窓が空になり、全員が表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('yamada')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
+    fireEvent.change(searchInput, { target: { value: '山田' } });
+    expect(screen.queryByText('sato')).not.toBeInTheDocument();
+
+    // ✕ ボタン（クリアボタン）をクリック
+    const clearBtn = screen.getByTitle('検索条件をクリア');
+    fireEvent.click(clearBtn);
+
+    expect(searchInput).toHaveValue('');
+    expect(screen.getByText('yamada')).toBeInTheDocument();
+    expect(screen.getByText('sato')).toBeInTheDocument();
+  });
+
+  it('管理者画面でメールアドレスを入力すると、合致する従業員のみが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('yamada')).toBeInTheDocument();
+      expect(screen.getByText('sato')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText('従業員名・氏名で検索...');
+    fireEvent.change(searchInput, { target: { value: 'sato@example.com' } });
+
+    expect(screen.getByText('sato')).toBeInTheDocument();
+    expect(screen.queryByText('yamada')).not.toBeInTheDocument();
+  });
+});
+
 
