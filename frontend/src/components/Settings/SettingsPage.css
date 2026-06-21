@@ -272,3 +272,62 @@
   gap: 0.75rem;
   margin-top: 1.25rem;
 }
+
+/* ===== 使い方ガイド用のヘッダーとボタン ===== */
+.settings-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.settings-page__header .settings-page__title {
+  margin: 0;
+}
+
+.settings-btn--guide {
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+}
+
+/* ===== 使い方ガイドモーダル (dialog) ===== */
+.settings-guide-dialog {
+  border: none;
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 850px;
+  width: 90%;
+  overflow: hidden;
+}
+
+.settings-guide-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+/* フェードインアニメーション */
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* タブボタンのホバー・アクティブ状態 */
+.guide-tab-btn {
+  transition: all 0.2s;
+}
+
+.guide-tab-btn:hover:not(.active) {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}

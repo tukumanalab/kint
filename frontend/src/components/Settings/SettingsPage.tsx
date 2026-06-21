@@ -13,6 +13,7 @@ import { ApiError } from '../../types/error';
 import type { SettingsExportFile, SettingsImportResult, SystemSettings } from '../../types/settings';
 import type { UseAuth } from '../../hooks/useAuth';
 import { PunchDeviceManager } from './PunchDeviceManager';
+import { SettingsGuideModal } from './SettingsGuideModal';
 import './SettingsPage.css';
 
 interface Props {
@@ -117,6 +118,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [current, setCurrent] = useState<SystemSettings | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   // フォーム値
   const [cooldown, setCooldown] = useState('');
@@ -389,7 +391,17 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
 
   return (
     <div className="settings-page">
-      <h1 className="settings-page__title">システム設定</h1>
+      <div className="settings-page__header">
+        <h1 className="settings-page__title">システム設定</h1>
+        <button
+          type="button"
+          className="settings-btn settings-btn--secondary settings-btn--guide"
+          onClick={() => setShowGuide(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+        >
+          <span>📖</span> 使い方ガイド
+        </button>
+      </div>
 
       <form onSubmit={handleSave} noValidate>
         <section className="settings-section">
@@ -632,6 +644,12 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
           }}
           onApply={handleApply}
           applying={applying}
+        />
+      )}
+
+      {showGuide && (
+        <SettingsGuideModal
+          onClose={() => setShowGuide(false)}
         />
       )}
     </div>
