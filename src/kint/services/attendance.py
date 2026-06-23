@@ -109,7 +109,6 @@ def calculate_working_time(
     return calc_in, calc_out
 
 
-
 class PunchService:
     """打刻サービス。card_idm / user_id の両経路を処理する。"""
 
@@ -211,7 +210,9 @@ class PunchService:
         # メモリキャッシュ上の最終打刻時刻（取り消しを含む）と比較し、新しい方を採用
         mem_latest = _LAST_PUNCH_TIME.get(user_id)
         if mem_latest is not None:
-            if latest_punched_at is None or self._as_utc(mem_latest) > self._as_utc(latest_punched_at):
+            if latest_punched_at is None or self._as_utc(mem_latest) > self._as_utc(
+                latest_punched_at
+            ):
                 latest_punched_at = mem_latest
 
         if latest_punched_at is None:
@@ -307,14 +308,16 @@ class PunchService:
             user = await self._get_user_by_user_id(request.user_id)  # type: ignore[arg-type]
             source = "web_user_id"
             method = "user_id"
- 
+
         await self._validate_cooldown(user.id, request.occurred_at)
         attendance = await self._get_open_attendance(user.id)
 
         # 5分以内の退勤打刻の場合、出勤記録を取り消す（削除する）
         is_cancelled = False
         if attendance is not None and attendance.check_in is not None:
-            diff_seconds = (self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)).total_seconds()
+            diff_seconds = (
+                self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)
+            ).total_seconds()
             if diff_seconds <= 300:
                 is_cancelled = True
 
@@ -328,7 +331,9 @@ class PunchService:
                 )
             # 関連するチェンジログを削除
             await self.session.execute(
-                delete(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance.id)
+                delete(AttendanceChangeLog).where(
+                    AttendanceChangeLog.attendance_id == attendance.id
+                )
             )
             # 勤怠レコードを削除
             await self.session.delete(attendance)
@@ -336,6 +341,7 @@ class PunchService:
             await self.session.commit()
 
             from kint.services.notification import NotificationService
+
             notif_svc = NotificationService(self.session)
             has_unread = await notif_svc.has_unread_notifications(user.id)
 
@@ -350,7 +356,6 @@ class PunchService:
                 message="出勤打刻を取り消しました（5分以内の退勤）",
                 has_unread_notifications=has_unread,
             )
-
 
         if attendance is not None:
             # 締め（ロック）チェック
@@ -378,13 +383,14 @@ class PunchService:
                     code="ATTENDANCE_LOCKED",
                     message="対象年月の勤怠は締め処理が完了しているため、出勤打刻は行えません。",
                 )
- 
+
             has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
             if not has_shift and not request.confirm:
                 settings_svc = SettingsService(self.session)
                 ical_url = await settings_svc.get_str("shift_ical_url")
                 sync_hint = "シフト同期設定あり" if ical_url else "SHIFT_ICAL_URL 未設定"
                 from kint.services.notification import NotificationService
+
                 notif_svc = NotificationService(self.session)
                 has_unread = await notif_svc.has_unread_notifications(user.id)
 
@@ -404,7 +410,6 @@ class PunchService:
                     has_unread_notifications=has_unread,
                 )
 
- 
             work_date = request.occurred_at.date()
             attendance = await self._do_check_in(
                 user=user,
@@ -416,22 +421,22 @@ class PunchService:
                 reason=request.reason,
             )
             action = "check_in"
- 
+
         # 丸め処理後の勤務出勤/退勤時刻および労働時間の計算
         calculated_time = None
         current_working_hours = None
         daily_working_hours_total = None
- 
+
         active_shift = await self._find_active_shift(user.id, request.occurred_at)
         shift_start = active_shift.start_time if active_shift else None
         shift_end = active_shift.end_time if active_shift else None
- 
+
         if action == "check_in":
             calc_in, _ = calculate_working_time(
                 self._as_utc(request.occurred_at),
                 None,
                 _ensure_utc(shift_start),
-                _ensure_utc(shift_end)
+                _ensure_utc(shift_end),
             )
             calculated_time = calc_in
         elif action == "check_out":
@@ -439,37 +444,35 @@ class PunchService:
                 self._as_utc(attendance.check_in),
                 self._as_utc(request.occurred_at),
                 _ensure_utc(shift_start),
-                _ensure_utc(shift_end)
+                _ensure_utc(shift_end),
             )
             calculated_time = calc_out
             if calc_in and calc_out:
                 current_working_hours = round((calc_out - calc_in).total_seconds() / 3600.0, 2)
- 
+
             # その日の勤務時間合計を計算する（今回のレコードも含めて）
             stmt = select(Attendance).where(
-                Attendance.user_id == user.id,
-                Attendance.work_date == attendance.work_date
+                Attendance.user_id == user.id, Attendance.work_date == attendance.work_date
             )
             result = await self.session.execute(stmt)
             day_atts = result.scalars().all()
- 
+
             daily_working_hours_total = 0.0
             shift_start_utc = _ensure_utc(shift_start)
             shift_end_utc = _ensure_utc(shift_end)
             for a in day_atts:
                 a_cin = _ensure_utc(a.check_in)
                 a_cout = _ensure_utc(a.check_out)
-                c_in, c_out = calculate_working_time(
-                    a_cin, a_cout, shift_start_utc, shift_end_utc
-                )
+                c_in, c_out = calculate_working_time(a_cin, a_cout, shift_start_utc, shift_end_utc)
                 if c_in and c_out:
                     daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
             daily_working_hours_total = round(daily_working_hours_total, 2)
- 
+
         _LAST_PUNCH_TIME[user.id] = request.occurred_at
         await self.session.commit()
- 
+
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(self.session)
         has_unread = await notif_svc.has_unread_notifications(user.id)
 
@@ -488,7 +491,6 @@ class PunchService:
             daily_working_hours_total=daily_working_hours_total,
             has_unread_notifications=has_unread,
         )
-
 
     async def _do_check_in(
         self,
@@ -643,7 +645,8 @@ class AttendanceService:
 
             if overlap:
                 # ユーザーフレンドリーなエラーメッセージ（ローカル時刻 JST +09:00 に変換）
-                from datetime import timezone, timedelta
+                from datetime import timedelta, timezone
+
                 JST = timezone(timedelta(hours=9))
                 local_in = other_in.astimezone(JST)
                 local_out = other_out.astimezone(JST) if other_out else None
@@ -809,7 +812,8 @@ class AttendanceService:
     ]:
         """指定した期間の、対象ユーザー（または全員）のサマリーと日次明細を計算する。"""
         # JSTにおける今日の日付を取得（未来のシフトを「出勤予定」とする判定用）
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
+
         JST = timezone(timedelta(hours=9))
         today = datetime.now(JST).date()
 
@@ -1083,8 +1087,7 @@ class AttendanceService:
         start_of_year = date(year, 1, 1)
         yearly_data, _ = await self._calculate_period_data(start_of_year, to_date, user_id=user_id)
         yearly_hours_map = {
-            summary.user_id: summary.total_working_hours
-            for _, summary, _ in yearly_data
+            summary.user_id: summary.total_working_hours for _, summary, _ in yearly_data
         }
 
         # 累計勤務時間を当月のサマリーにマージ
@@ -1095,8 +1098,9 @@ class AttendanceService:
 
     async def send_monthly_attendance_reports(self, target_date: date) -> None:
         """月末の自動通知メール送信処理。管理者（role == 'admin'）は送信対象外。"""
-        from kint.services.gmail import GmailAdapter
         import logging
+
+        from kint.services.gmail import GmailAdapter
 
         logger = logging.getLogger(__name__)
 
@@ -1119,8 +1123,7 @@ class AttendanceService:
 
         # ユーザーIDごとの累計勤務時間をマップにする
         yearly_hours_map = {
-            summary.user_id: summary.total_working_hours
-            for _, summary, _ in yearly_data
+            summary.user_id: summary.total_working_hours for _, summary, _ in yearly_data
         }
 
         gmail = GmailAdapter()
@@ -1133,7 +1136,11 @@ class AttendanceService:
         for user, summary, _ in monthly_data:
             # 管理者 (admin) は除外する
             if user.role == "admin":
-                logger.debug("ユーザー %s (%s) は管理者のため、月次レポート通知から除外します。", user.name, user.id)
+                logger.debug(
+                    "ユーザー %s (%s) は管理者のため、月次レポート通知から除外します。",
+                    user.name,
+                    user.id,
+                )
                 continue
 
             if not user.email:
@@ -1248,14 +1255,11 @@ class AttendanceService:
                     "氏名",
                     "シフト開始時刻",
                     "シフト終了時刻",
-                    "出勤時間",
-                    "退勤時間",
-                    "勤務出勤",
-                    "勤務退勤",
-                    "実労働時間",
-                    "時間外労働時間",
-                    "遅刻判定",
-                    "早退判定",
+                    "出勤打刻",
+                    "退勤打刻",
+                    "出勤",
+                    "退勤",
+                    "勤務時間",
                     "勤怠ステータス",
                     "打刻ソース",
                     "修正理由",
@@ -1321,49 +1325,6 @@ class AttendanceService:
                                 duration = (calc_cout - calc_cin).total_seconds()
                                 working_hours = duration / 3600.0
 
-                            # 時間外労働時間（このエントリー単体、丸め後ベース）
-                            overtime_hours = 0.0
-                            if day.has_shift and day_shift_end_utc and calc_cout:
-                                if calc_cout > day_shift_end_utc:
-                                    diff = calc_cout - day_shift_end_utc
-                                    over_sec = diff.total_seconds()
-                                    overtime_hours = over_sec / 3600.0
-                            elif not day.has_shift and calc_cin and calc_cout:
-                                if working_hours > 8.0:
-                                    overtime_hours = working_hours - 8.0
-
-                            # 遅刻判定：その日の最古の打刻エントリーで評価
-                            is_late_val = "否"
-                            if day.has_shift:
-                                first_att = sorted_atts[0]
-                                first_calc_cin, _ = calculate_working_time(
-                                    ensure_utc(first_att.check_in),
-                                    ensure_utc(first_att.check_out),
-                                    day_shift_start_utc,
-                                    day_shift_end_utc,
-                                )
-                                if first_calc_cin and day_shift_start_utc:
-                                    if first_calc_cin > day_shift_start_utc:
-                                        is_late_val = "是"
-                            else:
-                                is_late_val = "-"
-
-                            # 早退判定：その日の最新の打刻エントリーで評価
-                            is_early_val = "否"
-                            if day.has_shift:
-                                last_att = sorted_atts[-1]
-                                _, last_calc_cout = calculate_working_time(
-                                    ensure_utc(last_att.check_in),
-                                    ensure_utc(last_att.check_out),
-                                    day_shift_start_utc,
-                                    day_shift_end_utc,
-                                )
-                                if last_calc_cout and day_shift_end_utc:
-                                    if last_calc_cout < day_shift_end_utc:
-                                        is_early_val = "是"
-                            else:
-                                is_early_val = "-"
-
                             # エントリーに特化したステータス
                             # もし att 自体が unfinished (check_out が NULL) なら "打刻漏れ"
                             entry_status_label = status_label
@@ -1382,9 +1343,6 @@ class AttendanceService:
                                     fmt_dt(calc_cin),
                                     fmt_dt(calc_cout),
                                     format_to_h_mm(working_hours),
-                                    format_to_h_mm(overtime_hours),
-                                    is_late_val,
-                                    is_early_val,
                                     entry_status_label,
                                     att.source if att.source else "",
                                     att.updated_reason if att.updated_reason else "",
@@ -1721,8 +1679,13 @@ class AttendanceService:
 
         # 却下お知らせ（通知）の作成
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(self.session)
-        work_date_str = attendance.work_date.strftime("%Y-%m-%d") if attendance else request.created_at.strftime("%Y-%m-%d")
+        work_date_str = (
+            attendance.work_date.strftime("%Y-%m-%d")
+            if attendance
+            else request.created_at.strftime("%Y-%m-%d")
+        )
         reason_comment = comment.strip() if (comment and comment.strip()) else "（理由未記入）"
         message = f"{work_date_str} の勤怠修正申請が却下されました。理由: {reason_comment}"
         await notif_svc.create_notification(
@@ -1733,7 +1696,6 @@ class AttendanceService:
         )
 
         await self.session.commit()
-
 
         # 関連オブジェクトを明示的にロードした上で返却
         stmt_ref = (

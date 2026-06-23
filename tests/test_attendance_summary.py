@@ -267,7 +267,21 @@ class TestAttendanceExportAPI:
         rows = list(reader)
         # ヘッダー行 + 打刻がある日のみ出力 (emp_user: 5/1, 5/2, 5/4 の3行, admin: 0行)
         assert len(rows) == 4
-        assert rows[0][0] == "日付"
+        assert rows[0] == [
+            "日付",
+            "表示名",
+            "氏名",
+            "シフト開始時刻",
+            "シフト終了時刻",
+            "出勤打刻",
+            "退勤打刻",
+            "出勤",
+            "退勤",
+            "勤務時間",
+            "勤怠ステータス",
+            "打刻ソース",
+            "修正理由",
+        ]
 
     async def test_export_summary_csv_admin(self, client: AsyncClient, session) -> None:
         """管理者は月次サマリーのCSVをエクスポートできる。"""
@@ -421,26 +435,27 @@ class TestMultiplePunchesInSameDay:
 
         # 1行目: 1回目の打刻（08:45 〜 12:15 UTC）が JST 換算されて出力されている
         row1 = target_rows[0]
-        assert "17:45:00" in row1[5]  # 打刻出勤 JST
-        assert "21:15:00" in row1[6]  # 打刻退勤 JST
-        assert "18:00:00" in row1[7]  # 勤務出勤 JST (丸め後)
-        assert "21:15:00" in row1[8]  # 勤務退勤 JST (丸め後)
-        assert row1[9] == "3:15"  # 丸め後 3.25時間
+        assert "17:45:00" in row1[5]  # 出勤打刻 JST
+        assert "21:15:00" in row1[6]  # 退勤打刻 JST
+        assert "18:00:00" in row1[7]  # 出勤 JST (丸め後)
+        assert "21:15:00" in row1[8]  # 退勤 JST (丸め後)
+        assert row1[9] == "3:15"  # 勤務時間 (丸め後 3.25時間)
 
         # 2行目: 2回目の打刻（13:00 〜 18:00 UTC）が JST 換算されて出力されている
         row2 = target_rows[1]
-        assert "22:00:00" in row2[5]  # 打刻出勤 JST
-        assert "03:00:00" in row2[6]  # 打刻退勤 JST
-        assert "22:00:00" in row2[7]  # 勤務出勤 JST (丸め後)
-        assert "03:00:00" in row2[8]  # 勤務退勤 JST (丸め後)
-        assert row2[9] == "5:00"  # 5.0時間
+        assert "22:00:00" in row2[5]  # 出勤打刻 JST
+        assert "03:00:00" in row2[6]  # 退勤打刻 JST
+        assert "22:00:00" in row2[7]  # 出勤 JST (丸め後)
+        assert "03:00:00" in row2[8]  # 退勤 JST (丸め後)
+        assert row2[9] == "5:00"  # 勤務時間 (5.0時間)
 
     async def test_get_monthly_detail_future_shift(self, client: AsyncClient, session) -> None:
         """未来のシフト予定日で打刻がない場合、ステータスが "scheduled" になることを検証する。"""
-        from datetime import date, datetime, timedelta, timezone
+        from datetime import datetime, timedelta, timezone
+
         JST = timezone(timedelta(hours=9))
         today = datetime.now(JST).date()
-        future_date = today + timedelta(days=5) # 5日後の未来
+        future_date = today + timedelta(days=5)  # 5日後の未来
 
         # ユーザーを作成
         emp = await _create_user(
