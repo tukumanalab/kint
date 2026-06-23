@@ -25,6 +25,7 @@ ALLOWED_SETTING_KEYS = {
     "site_subtitle",
     "punch_result_display_seconds",
     "monthly_report_time",
+    "login_token_expire_hours",
 }
 
 _KNOWN_VERSION = "1"
@@ -52,6 +53,7 @@ class SettingsService:
         site_subtitle_raw = db_map.get("site_subtitle")
         display_seconds_raw = db_map.get("punch_result_display_seconds")
         monthly_report_time_raw = db_map.get("monthly_report_time")
+        login_token_expire_hours_raw = db_map.get("login_token_expire_hours")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -79,6 +81,12 @@ class SettingsService:
         if monthly_report_time == "":
             monthly_report_time = None
 
+        login_token_expire_hours = (
+            int(login_token_expire_hours_raw)
+            if login_token_expire_hours_raw is not None
+            else env_settings.login_token_expire_hours
+        )
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -88,6 +96,7 @@ class SettingsService:
             site_subtitle=site_subtitle,
             punch_result_display_seconds=display_seconds,
             monthly_report_time=monthly_report_time,
+            login_token_expire_hours=login_token_expire_hours,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -141,6 +150,8 @@ class SettingsService:
             fields["monthly_report_time"] = updates.monthly_report_time
         elif "monthly_report_time" in updates.model_fields_set:
             fields["monthly_report_time"] = ""
+        if updates.login_token_expire_hours is not None:
+            fields["login_token_expire_hours"] = str(updates.login_token_expire_hours)
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -215,6 +226,7 @@ class SettingsService:
             "site_subtitle": current.site_subtitle,
             "punch_result_display_seconds": current.punch_result_display_seconds,
             "monthly_report_time": current.monthly_report_time,
+            "login_token_expire_hours": current.login_token_expire_hours,
         }
 
         changes: list[SettingsImportChange] = []

@@ -67,18 +67,26 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
     assert data["site_name"] == "Kint"
     assert data["punch_result_display_seconds"] == 30
     assert data["monthly_report_time"] == "20:00"
+    assert data["login_token_expire_hours"] == 168
 
-    # 4. 管理者が site_name を "Custom Kint"、表示時間を 45 秒 、通知時刻を "19:30" に変更
+    # 4. 管理者が設定を変更
     resp = await client.patch(
         "/api/v1/settings",
         headers=admin_headers,
-        json={"site_name": "Custom Kint", "punch_result_display_seconds": 45, "monthly_report_time": "19:30"}
+        json={
+            "site_name": "Custom Kint",
+            "punch_result_display_seconds": 45,
+            "monthly_report_time": "19:30",
+            "login_token_expire_hours": 24,
+        }
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["site_name"] == "Custom Kint"
     assert data["punch_result_display_seconds"] == 45
     assert data["monthly_report_time"] == "19:30"
+    assert data["login_token_expire_hours"] == 24
+
 
     # 5. 未認証の状態で /settings/public から変更後の値が取得できることを確認
     resp = await client.get("/api/v1/settings/public")
@@ -125,4 +133,71 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
         json={"monthly_report_time": "abc"}
     )
     assert resp.status_code == 422
+
+    # 範囲外（0時間）の変更でエラーになることを確認
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"login_token_expire_hours": 0}
+    )
+    assert resp.status_code == 422
+
+    # 範囲外（8761時間）の変更でエラーになることを確認
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"login_token_expire_hours": 8761}
+    )
+    assert resp.status_code == 422
+
+
+async def test_jwt_token_expiration_applies_setting(client: AsyncClient, session) -> None:
+    from jose import jwt
+    from kint.config import settings
+    from kint.routers.auth import _create_access_token
+    from kint.services.settings import SettingsService
+    from datetime import datetime, UTC
+
+    # 管理者ロールでのユーザー作成
+    await _create_user(session, id="admin", email="admin@example.com", role="admin")
+
+    # 1. デフォルト値の確認 (168時間 = 7日間)
+    service = SettingsService(session)
+    expire_hours = await service.get_int("login_token_expire_hours")
+    assert expire_hours == 168
+
+    token = _create_access_token("admin", 1, expire_hours=expire_hours)
+    payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    exp = payload["exp"]
+    expected_duration = 168 * 3600
+    
+    now_ts = int(datetime.now(tz=UTC).timestamp())
+    assert abs((exp - now_ts) - expected_duration) < 10
+
+    # 2. 設定値を 24時間 に変更
+    admin_token = _create_access_token("admin", 1, expire_hours=168)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    resp = await client.patch(
+        "/api/v1/settings",
+        headers=admin_headers,
+        json={"login_token_expire_hours": 24}
+    )
+    assert resp.status_code == 200
+
+    # 3. 変更後の設定値でトークンを生成したときの有効期限の確認 (24時間)
+    # セッションキャッシュがあるため、新しいセッションでロードするためにcommit後再ロードされるか確認
+    # (FastAPIの Depends(get_db) はリクエストごとに新しいセッションを作るため、テストでも get_int で再取得可能)
+    expire_hours_new = await service.get_int("login_token_expire_hours")
+    assert expire_hours_new == 24
+
+    token_new = _create_access_token("admin", 1, expire_hours=expire_hours_new)
+    payload_new = jwt.decode(token_new, settings.secret_key, algorithms=["HS256"])
+    exp_new = payload_new["exp"]
+    expected_duration_new = 24 * 3600
+    
+    now_ts_new = int(datetime.now(tz=UTC).timestamp())
+    assert abs((exp_new - now_ts_new) - expected_duration_new) < 10
+
+
 

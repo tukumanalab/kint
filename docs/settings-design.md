@@ -8,7 +8,7 @@
 
 ## 1. 概要
 
-`punch_cooldown_seconds`（連続打刻クールダウン）・`shift_checkin_early_minutes`（シフト早着許容時間）・`shift_ical_url`（シフト iCal URL）・`site_name`（サイト名）・`site_subtitle`（サイトのサブタイトル）の各設定値を、管理者がブラウザ上の管理画面から変更できる機能です。
+`punch_cooldown_seconds`（連続打刻クールダウン）・`shift_checkin_early_minutes`（シフト早着許容時間）・`shift_ical_url`（シフト iCal URL）・`site_name`（サイト名）・`site_subtitle`（サイトのサブタイトル）・`login_token_expire_hours`（ログイン継続時間）の各設定値を、管理者がブラウザ上の管理画面から変更できる機能です。
 
 また、現在の設定値を JSON ファイルとしてエクスポートしたり、バックアップファイルからインポートして設定を復元できる機能も提供します。
 
@@ -37,6 +37,7 @@
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
 | `monthly_report_time` | string \| null | `"20:00"` | — | — | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記）。月末日のこの時刻に通知。null / 空文字で自動通知 OFF |
+| `login_token_expire_hours` | integer | 168 | 1 | 8760 | ログイン継続時間（時間）。JWTアクセストークンの有効期限。 |
 
 ---
 
@@ -94,11 +95,12 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "login_token_expire_hours"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
 - `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。
 - `monthly_report_time` の空文字列 `""` は `null`（自動通知 OFF）として扱う。
+
 
 ### 4-2. ER 図（既存テーブルとの関係）
 
@@ -143,7 +145,8 @@ erDiagram
   "site_name": "Kint",
   "site_subtitle": "NFC 勤怠管理システム",
   "punch_result_display_seconds": 30,
-  "monthly_report_time": "20:00"
+  "monthly_report_time": "20:00",
+  "login_token_expire_hours": 168
 }
 ```
 
@@ -175,7 +178,8 @@ erDiagram
   "site_name": "Kint",
   "site_subtitle": "NFC 勤怠管理システム",
   "punch_result_display_seconds": 30,
-  "monthly_report_time": "20:00"
+  "monthly_report_time": "20:00",
+  "login_token_expire_hours": 168
 }
 ```
 
@@ -192,6 +196,7 @@ erDiagram
 | `site_subtitle` | string, 1 ≤ length ≤ 100 |
 | `punch_result_display_seconds` | integer, 1 ≤ value ≤ 300 |
 | `monthly_report_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動通知 OFF）。フロント UI はON/OFFスイッチおよび時・分セレクトボックス（トグルONのとき入力必須） |
+| `login_token_expire_hours` | integer, 1 ≤ value ≤ 8760 |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 
@@ -499,6 +504,7 @@ export interface SystemSettings {
   site_subtitle: string;
   punch_result_display_seconds: number;
   monthly_report_time: string | null;
+  login_token_expire_hours: number;
 }
 
 export interface SettingsPatchRequest {
@@ -509,6 +515,7 @@ export interface SettingsPatchRequest {
   site_name?: string;
   site_subtitle?: string;
   punch_result_display_seconds?: number;
+  login_token_expire_hours?: number;
 }
 
 export interface SettingsExportFile {
@@ -677,6 +684,7 @@ class SettingsPatchRequest(BaseModel):
     site_subtitle: str | None = None  # min_length=1, max_length=100
     punch_result_display_seconds: int | None = None  # Field(ge=1, le=300)
     monthly_report_time: str | None = None  # HH:MM または null
+    login_token_expire_hours: int | None = None  # Field(ge=1, le=8760)
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> "SettingsPatchRequest":
@@ -694,6 +702,7 @@ class SettingsPatchRequest(BaseModel):
 | `site_name` | /^[A-Z0-9+_.-]+@[A-Z0-9.-]+$/i 形式の文字列（バリデーションはメール形式ではなく長さと値の検証）のような誤りがあるため省略し、文字列表記のみとする |
 | `site_subtitle` | 空文字列以外の 100 文字以下の文字列 |
 | `punch_result_display_seconds` | 1 以上 300 以下の整数 |
+| `login_token_expire_hours` | 1 以上 8760 以下の整数 |
 
 ---
 

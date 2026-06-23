@@ -134,6 +134,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
   const [monthlyReportTime, setMonthlyReportTime] = useState('');
   const [enabledMonthlyReport, setEnabledMonthlyReport] = useState(false);
+  const [loginTokenExpireHours, setLoginTokenExpireHours] = useState('');
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -241,6 +242,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
       setMonthlyReportTime(s.monthly_report_time ?? '');
       setEnabledMonthlyReport(!!s.monthly_report_time);
+      setLoginTokenExpireHours(String(s.login_token_expire_hours));
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -263,6 +265,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
         setMonthlyReportTime(s.monthly_report_time ?? '');
         setEnabledMonthlyReport(!!s.monthly_report_time);
+        setLoginTokenExpireHours(String(s.login_token_expire_hours));
       })
       .catch((err: unknown) => {
         const msg =
@@ -306,6 +309,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         return '自動通知時刻は HH:MM 形式（例: 20:00）で入力してください';
       }
     }
+    const l = Number(loginTokenExpireHours);
+    if (!Number.isInteger(l) || l < 1 || l > 8760) {
+      return 'ログイン継続時間は 1〜8760 の整数で入力してください';
+    }
     return null;
   }
 
@@ -330,6 +337,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         site_subtitle: siteSubtitle.trim(),
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
         monthly_report_time: enabledMonthlyReport ? (monthlyReportTime || null) : null,
+        login_token_expire_hours: Number(loginTokenExpireHours),
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -406,6 +414,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setPunchResultDisplaySeconds(String(result.applied.punch_result_display_seconds));
         setMonthlyReportTime(result.applied.monthly_report_time ?? '');
         setEnabledMonthlyReport(!!result.applied.monthly_report_time);
+        setLoginTokenExpireHours(String(result.applied.login_token_expire_hours));
       }
       setImportFile(null);
       setImportPreview(null);
@@ -484,6 +493,24 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               onChange={(e) => setSiteSubtitle(e.target.value)}
             />
             <p className="settings-field__hint">トップページなどで使用されるサブタイトルです</p>
+          </div>
+          <div className="settings-field">
+            <label htmlFor="loginTokenExpireHours" className="settings-field__label">
+              ログイン継続時間
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="loginTokenExpireHours"
+                type="number"
+                className="settings-field__input"
+                min={1}
+                max={8760}
+                value={loginTokenExpireHours}
+                onChange={(e) => setLoginTokenExpireHours(e.target.value)}
+              />
+              <span className="settings-field__unit">時間（1〜8760）</span>
+            </div>
+            <p className="settings-field__hint">ログイン後のセッションの有効期限を設定します。デフォルトは168時間（7日間）です。</p>
           </div>
         </section>
 

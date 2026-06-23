@@ -19,6 +19,7 @@ class SettingsResponse(BaseModel):
     site_subtitle: str
     punch_result_display_seconds: int
     monthly_report_time: str | None
+    login_token_expire_hours: int
 
 
 class SettingsPatchRequest(BaseModel):
@@ -32,6 +33,7 @@ class SettingsPatchRequest(BaseModel):
     site_subtitle: str | None = Field(default=None, min_length=1, max_length=100)
     punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
     monthly_report_time: str | None = None
+    login_token_expire_hours: int | None = Field(default=None, ge=1, le=8760)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -65,6 +67,7 @@ class SettingsPatchRequest(BaseModel):
             and self.site_subtitle is None
             and self.punch_result_display_seconds is None
             and self.monthly_report_time is None
+            and self.login_token_expire_hours is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):

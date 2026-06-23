@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     site_subtitle: str = "NFC 勤怠管理システム"
     punch_result_display_seconds: int = 30
     monthly_report_time: str = "20:00"
+    login_token_expire_hours: int = 168
+
+
 
 
 settings = Settings()

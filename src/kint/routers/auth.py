@@ -26,9 +26,12 @@ _ALGORITHM = "HS256"
 _TOKEN_EXPIRE_HOURS = 8
 
 
-def _create_access_token(user_id: str, token_version: int) -> str:
+def _create_access_token(
+    user_id: str, token_version: int, expire_hours: int | None = None
+) -> str:
     """JWT アクセストークンを生成する。tv クレームでトークンバージョンを埋め込む。"""
-    expire = datetime.now(tz=UTC) + timedelta(hours=_TOKEN_EXPIRE_HOURS)
+    hours = expire_hours if expire_hours is not None else settings.login_token_expire_hours
+    expire = datetime.now(tz=UTC) + timedelta(hours=hours)
     payload = {"sub": user_id, "tv": token_version, "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
@@ -107,7 +110,10 @@ async def google_login(
 
     logger.info("Login successful for user %s (%s)", user.name, user.email)
 
-    token = _create_access_token(user.id, user.token_version or 1)
+    from kint.services.settings import SettingsService
+    service = SettingsService(session)
+    expire_hours = await service.get_int("login_token_expire_hours")
+    token = _create_access_token(user.id, user.token_version or 1, expire_hours=expire_hours)
     return LoginResponse(
         access_token=token,
         token_type="bearer",
@@ -156,7 +162,10 @@ async def register(
     await session.commit()
     await session.refresh(user)
 
-    token = _create_access_token(user.id, user.token_version)
+    from kint.services.settings import SettingsService
+    service = SettingsService(session)
+    expire_hours = await service.get_int("login_token_expire_hours")
+    token = _create_access_token(user.id, user.token_version, expire_hours=expire_hours)
     return LoginResponse(
         access_token=token,
         token_type="bearer",

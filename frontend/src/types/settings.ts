@@ -7,6 +7,7 @@ export interface SystemSettings {
   site_subtitle: string;
   punch_result_display_seconds: number;
   monthly_report_time: string | null;
+  login_token_expire_hours: number;
 }
 
 export interface SettingsPatchRequest {
@@ -18,6 +19,7 @@ export interface SettingsPatchRequest {
   site_subtitle?: string;
   punch_result_display_seconds?: number;
   monthly_report_time?: string | null;
+  login_token_expire_hours?: number;
 }
 
 export interface SettingsExportFile {
