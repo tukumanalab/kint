@@ -304,12 +304,21 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  自動メール通知のON/OFF
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  <strong>「月末の自動メール通知を有効にする」</strong>スイッチをONにすることで通知が有効化され、OFFにすると無効化されます。
+                  <br />
+                  スイッチがOFFの間は、自動通知時刻の設定は無視され、メールは送信されません。
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
                   自動通知時刻 (monthly_report_time)
                 </h4>
                 <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
-                  毎月末日の指定された時刻にメールが配信されます。送信対象はアクティブな従業員（管理者は除外）かつメールアドレスが登録されているユーザーです。
+                  スイッチがONのとき、毎月末日の指定された時刻にメールが配信されます。送信対象はアクティブな従業員（管理者は除外）かつメールアドレスが登録されているユーザーです。
                   <br />
-                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: HH:MM 形式（例: 20:00）。空欄にすると自動メール通知は実行されません。</span>
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: スイッチがONの場合、HH:MM 形式（例: 20:00）で指定してください。</span>
                 </p>
 
                 <div style={{

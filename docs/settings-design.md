@@ -32,7 +32,7 @@
 | `punch_cooldown_seconds` | integer | 60 | 0 | 3600 | 連続打刻防止クールダウン（秒）|
 | `shift_checkin_early_minutes` | integer | 15 | 0 | 120 | シフト開始前チェックイン許容時間（分）|
 | `shift_ical_url` | string \| null | null | — | — | シフト iCal 同期 URL |
-| `shift_sync_time` | string \| null | `"03:00"` | — | — | iCal 自動同期の実行時刻（HH:MM、24時間表記）。null / 空文字で自動同期 OFF |
+| `shift_sync_time` | string \| null | `"03:00"` | — | — | iCal 自動同期の実行時刻（時・分セレクトボックス、バックエンドへの保存値はHH:MM）。null / 空文字で自動同期 OFF |
 | `site_name` | string | `"Kint"` | — | — | サイトの表示名称。1〜50文字 |
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
@@ -187,11 +187,11 @@ erDiagram
 | `punch_cooldown_seconds` | integer, 0 ≤ value ≤ 3600 |
 | `shift_checkin_early_minutes` | integer, 0 ≤ value ≤ 120 |
 | `shift_ical_url` | string (URI 形式) または null / 空文字列（未設定として扱う） |
-| `shift_sync_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動同期 OFF） |
+| `shift_sync_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動同期 OFF）。フロント UI は時・分セレクトボックス |
 | `site_name` | string, 1 ≤ length ≤ 50 |
 | `site_subtitle` | string, 1 ≤ length ≤ 100 |
 | `punch_result_display_seconds` | integer, 1 ≤ value ≤ 300 |
-| `monthly_report_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動通知 OFF） |
+| `monthly_report_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動通知 OFF）。フロント UI はON/OFFスイッチおよび時・分セレクトボックス（トグルONのとき入力必須） |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 

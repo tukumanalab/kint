@@ -114,6 +114,9 @@ function ImportDialog({ file, preview, onClose, onApply, applying }: ImportDialo
 
 // ===== メインページ =====
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
 export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: Props) {
   const { token } = auth;
 
@@ -130,6 +133,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [siteSubtitle, setSiteSubtitle] = useState('');
   const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
   const [monthlyReportTime, setMonthlyReportTime] = useState('');
+  const [enabledMonthlyReport, setEnabledMonthlyReport] = useState(false);
+
+  const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
+  const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -233,6 +240,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       onSiteSubtitleChange(s.site_subtitle ?? 'NFC 勤怠管理システム');
       setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
       setMonthlyReportTime(s.monthly_report_time ?? '');
+      setEnabledMonthlyReport(!!s.monthly_report_time);
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -254,6 +262,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
         setMonthlyReportTime(s.monthly_report_time ?? '');
+        setEnabledMonthlyReport(!!s.monthly_report_time);
       })
       .catch((err: unknown) => {
         const msg =
@@ -289,8 +298,13 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     if (syncTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(syncTime)) {
       return '自動同期時刻は HH:MM 形式（例: 03:00）で入力してください';
     }
-    if (monthlyReportTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(monthlyReportTime)) {
-      return '自動通知時刻は HH:MM 形式（例: 20:00）で入力してください';
+    if (enabledMonthlyReport) {
+      if (monthlyReportTime.trim() === '') {
+        return '自動通知時刻を入力してください';
+      }
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(monthlyReportTime)) {
+        return '自動通知時刻は HH:MM 形式（例: 20:00）で入力してください';
+      }
     }
     return null;
   }
@@ -315,7 +329,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         site_name: siteName.trim(),
         site_subtitle: siteSubtitle.trim(),
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
-        monthly_report_time: monthlyReportTime || null,
+        monthly_report_time: enabledMonthlyReport ? (monthlyReportTime || null) : null,
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -391,6 +405,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         onSiteSubtitleChange(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(result.applied.punch_result_display_seconds));
         setMonthlyReportTime(result.applied.monthly_report_time ?? '');
+        setEnabledMonthlyReport(!!result.applied.monthly_report_time);
       }
       setImportFile(null);
       setImportPreview(null);
@@ -550,19 +565,50 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
           </div>
 
           <div className="settings-field">
-            <label htmlFor="syncTime" className="settings-field__label">
+            <label htmlFor="syncHour" className="settings-field__label">
               自動同期時刻
             </label>
             <div className="settings-field__input-row">
-              <input
-                id="syncTime"
-                type="text"
-                className="settings-field__input"
-                placeholder="03:00"
-                value={syncTime}
-                onChange={(e) => setSyncTime(e.target.value)}
-              />
-              <span className="settings-field__unit">HH:MM（未入力で自動同期 OFF）</span>
+              <select
+                id="syncHour"
+                className="settings-field__select"
+                value={syncHour}
+                onChange={(e) => {
+                  const h = e.target.value;
+                  if (h === '') {
+                    setSyncTime('');
+                  } else {
+                    const m = syncMinute || '00';
+                    setSyncTime(`${h}:${m}`);
+                  }
+                }}
+              >
+                <option value="">--</option>
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+              <span className="settings-field__unit">時</span>
+              <select
+                id="syncMinute"
+                className="settings-field__select"
+                value={syncMinute}
+                onChange={(e) => {
+                  const m = e.target.value;
+                  if (m === '') {
+                    setSyncTime('');
+                  } else {
+                    const h = syncHour || '00';
+                    setSyncTime(`${h}:${m}`);
+                  }
+                }}
+              >
+                <option value="">--</option>
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <span className="settings-field__unit">分（両方選択で有効、未選択で自動同期 OFF）</span>
             </div>
             <p className="settings-field__hint">毎日この時刻に iCal からシフトを自動取り込みします</p>
           </div>
@@ -600,19 +646,74 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
           <h2 className="settings-section__title">月次勤怠レポート通知</h2>
 
           <div className="settings-field">
-            <label htmlFor="monthlyReportTime" className="settings-field__label">
+            <div className="settings-field__switch-row">
+              <label htmlFor="enableMonthlyReport" className="settings-field__label">
+                月末の自動メール通知を有効にする
+              </label>
+              <label className="settings-switch">
+                <input
+                  id="enableMonthlyReport"
+                  type="checkbox"
+                  checked={enabledMonthlyReport}
+                  onChange={(e) => {
+                    setEnabledMonthlyReport(e.target.checked);
+                    if (e.target.checked && !monthlyReportTime) {
+                      setMonthlyReportTime('20:00');
+                    }
+                  }}
+                />
+                <span className="settings-switch__slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div className={`settings-field ${!enabledMonthlyReport ? 'settings-field--disabled' : ''}`}>
+            <label htmlFor="monthlyReportHour" className="settings-field__label">
               自動通知時刻
             </label>
             <div className="settings-field__input-row">
-              <input
-                id="monthlyReportTime"
-                type="text"
-                className="settings-field__input"
-                placeholder="20:00"
-                value={monthlyReportTime}
-                onChange={(e) => setMonthlyReportTime(e.target.value)}
-              />
-              <span className="settings-field__unit">HH:MM（未入力で自動通知 OFF）</span>
+              <select
+                id="monthlyReportHour"
+                className="settings-field__select"
+                value={monthlyReportHour}
+                onChange={(e) => {
+                  const h = e.target.value;
+                  if (h === '') {
+                    setMonthlyReportTime('');
+                  } else {
+                    const m = monthlyReportMinute || '00';
+                    setMonthlyReportTime(`${h}:${m}`);
+                  }
+                }}
+                disabled={!enabledMonthlyReport}
+              >
+                <option value="">--</option>
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+              <span className="settings-field__unit">時</span>
+              <select
+                id="monthlyReportMinute"
+                className="settings-field__select"
+                value={monthlyReportMinute}
+                onChange={(e) => {
+                  const m = e.target.value;
+                  if (m === '') {
+                    setMonthlyReportTime('');
+                  } else {
+                    const h = monthlyReportHour || '00';
+                    setMonthlyReportTime(`${h}:${m}`);
+                  }
+                }}
+                disabled={!enabledMonthlyReport}
+              >
+                <option value="">--</option>
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <span className="settings-field__unit">分</span>
             </div>
             <p className="settings-field__hint">毎月末日のこの時刻に、当月の勤務実績レポートを従業員（管理者を除く）にメール通知します</p>
           </div>
