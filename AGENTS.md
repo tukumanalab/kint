@@ -121,6 +121,7 @@ kint/
 - コミットメッセージは日本語、prefix 付き: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 - テストは `tests/` (Backend), `frontend/src/**/*.test.tsx` (React)
 - 環境変数は `.env` で管理、`config.py` で Pydantic Settings を使う
+- 仕様の変更があった時は必ず docs/ にあるドキュメントもそれに合わせて更新すること
 
 ## アーキテクチャ方針
 
