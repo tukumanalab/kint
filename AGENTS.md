@@ -122,6 +122,7 @@ kint/
 - テストは `tests/` (Backend), `frontend/src/**/*.test.tsx` (React)
 - 環境変数は `.env` で管理、`config.py` で Pydantic Settings を使う
 - 仕様の変更があった時は必ず docs/ にあるドキュメントもそれに合わせて更新すること
+- 機能を変更したときには必ず「使い方ガイド」などの関連する操作マニュアルも合わせて更新すること
 
 ## アーキテクチャ方針
 
