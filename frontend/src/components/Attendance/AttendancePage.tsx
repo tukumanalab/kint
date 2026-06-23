@@ -679,7 +679,6 @@ export function AttendancePage({ auth }: Props) {
             )}
           </td>
           <td>{formatHours(day.working_hours)}</td>
-          <td>{formatHours(day.overtime_hours)}</td>
           <td>{getStatusBadge(day.status)}</td>
           <td>
             {day.punches && day.punches.length > 0 ? (
@@ -992,14 +991,10 @@ export function AttendancePage({ auth }: Props) {
 
             <div className="att-mobile-card__hours">
               <div className="att-mobile-card__hour-item">
-                <span className="att-mobile-card__label">労働</span>
+                <span className="att-mobile-card__label">勤務時間</span>
                 <span className="att-mobile-card__value att-mobile-card__value--bold">
                   {formatHours(day.working_hours)}
                 </span>
-              </div>
-              <div className="att-mobile-card__hour-item">
-                <span className="att-mobile-card__label">時間外</span>
-                <span className="att-mobile-card__value">{formatHours(day.overtime_hours)}</span>
               </div>
             </div>
           </div>
@@ -1375,11 +1370,8 @@ export function AttendancePage({ auth }: Props) {
                       <th>所定</th>
                       <th>出勤</th>
                       <th>欠勤</th>
-                      <th>遅刻</th>
-                      <th>早退</th>
                       <th>不整合</th>
-                      <th>総労働時間</th>
-                      <th>時間外時間</th>
+                      <th>総勤務時間</th>
                       <th>4月からの総勤務</th>
                       <th>操作</th>
                     </tr>
@@ -1403,19 +1395,12 @@ export function AttendancePage({ auth }: Props) {
                             {summary.absence_days}日
                           </span>
                         </td>
-                        <td>{summary.late_count}回</td>
-                        <td>{summary.early_leave_count}回</td>
                         <td>
                           <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
                             {summary.incomplete_days}件
                           </span>
                         </td>
                         <td>{formatHours(summary.total_working_hours)}</td>
-                        <td>
-                          <span className={summary.total_overtime_hours > 0 ? 'att-text--info' : ''}>
-                            {formatHours(summary.total_overtime_hours)}
-                          </span>
-                        </td>
                         <td>{formatHours(summary.yearly_working_hours)}</td>
                         <td>
                           <button
@@ -1455,25 +1440,13 @@ export function AttendancePage({ auth }: Props) {
                     </div>
                     <div className="att-summary-card__stat">
                       <span className="att-summary-card__stat-value">{formatHours(summary.total_working_hours)}</span>
-                      <span className="att-summary-card__stat-label">労働時間</span>
-                    </div>
-                    <div className="att-summary-card__stat">
-                      <span className={`att-summary-card__stat-value ${summary.total_overtime_hours > 0 ? 'att-text--info' : ''}`}>
-                        {formatHours(summary.total_overtime_hours)}
-                      </span>
-                      <span className="att-summary-card__stat-label">時間外</span>
+                      <span className="att-summary-card__stat-label">勤務時間</span>
                     </div>
                   </div>
-                  {(summary.absence_days > 0 || summary.late_count > 0 || summary.early_leave_count > 0 || summary.incomplete_days > 0) && (
+                  {(summary.absence_days > 0 || summary.incomplete_days > 0) && (
                     <div className="att-summary-card__alerts">
                       {summary.absence_days > 0 && (
                         <span className="att-badge att-badge--absence">欠勤 {summary.absence_days}</span>
-                      )}
-                      {summary.late_count > 0 && (
-                        <span className="att-badge att-badge--late">遅刻 {summary.late_count}</span>
-                      )}
-                      {summary.early_leave_count > 0 && (
-                        <span className="att-badge att-badge--early">早退 {summary.early_leave_count}</span>
                       )}
                       {summary.incomplete_days > 0 && (
                         <span className="att-badge att-badge--incomplete">不整合 {summary.incomplete_days}</span>
@@ -1536,22 +1509,12 @@ export function AttendancePage({ auth }: Props) {
                     <span className="value">{detailData.summary.working_days}日</span>
                   </div>
                   <div className="att-user-summary-card__item">
-                    <span className="label">総労働時間</span>
+                    <span className="label">総勤務時間</span>
                     <span className="value">{formatHours(detailData.summary.total_working_hours)}</span>
-                  </div>
-                  <div className="att-user-summary-card__item">
-                    <span className="label">時間外労働</span>
-                    <span className="value">{formatHours(detailData.summary.total_overtime_hours)}</span>
                   </div>
                   <div className="att-user-summary-card__item">
                     <span className="label">4月からの総勤務時間</span>
                     <span className="value">{formatHours(detailData.summary.yearly_working_hours)}</span>
-                  </div>
-                  <div className="att-user-summary-card__item">
-                    <span className="label">遅刻 / 早退</span>
-                    <span className="value">
-                      {detailData.summary.late_count}回 / {detailData.summary.early_leave_count}回
-                    </span>
                   </div>
                   <div className="att-user-summary-card__item">
                     <span className="label">非整合打刻</span>
@@ -1569,8 +1532,7 @@ export function AttendancePage({ auth }: Props) {
                         <th>シフト予定</th>
                         <th>出勤(打刻)</th>
                         <th>退勤(打刻)</th>
-                        <th>労働時間</th>
-                        <th>時間外</th>
+                        <th>勤務時間</th>
                         <th>状態</th>
                         <th>打刻元</th>
                         <th style={{ minWidth: '180px' }}>操作</th>

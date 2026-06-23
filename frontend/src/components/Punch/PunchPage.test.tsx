@@ -199,7 +199,7 @@ describe('PunchPage', () => {
       expect(screen.getByText(/今回の勤務時間/)).toBeInTheDocument();
       expect(screen.getByText(/本日の合計勤務時間/)).toBeInTheDocument();
       // 具体的な労働時間数値の表示をアサート (正規表現で改行や余分なスペースを許容しつつ)
-      const matches = screen.getAllByText(/8\.83/);
+      const matches = screen.getAllByText(/8:50/);
       expect(matches.length).toBeGreaterThanOrEqual(2);
     });
   });

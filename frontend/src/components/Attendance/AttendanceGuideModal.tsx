@@ -263,7 +263,7 @@ export function AttendanceGuideModal({ isAdmin, onClose }: AttendanceGuideModalP
                     行の右側にある <strong>「承認」</strong> ボタンをクリックします。
                   </li>
                   <li style={{ marginBottom: '0.5rem' }}>
-                    確認画面で変更前・変更後の時刻および、労働時間の増減（プレビュー）を確認します。
+                    確認画面で変更前・変更後の時刻および、勤務時間の増減（プレビュー）を確認します。
                   </li>
                   <li style={{ marginBottom: '0.5rem' }}>
                     必要に応じて <strong>「承認コメント」</strong>（任意）を入力し、承認を確定します。承認されると自動的に勤怠データが更新され、監査ログが記録されます。
@@ -335,7 +335,7 @@ export function AttendanceGuideModal({ isAdmin, onClose }: AttendanceGuideModalP
                     <strong>「申請理由 (必須)」</strong>（例: 「退勤の押し忘れ」等）を詳しく入力します。
                   </li>
                   <li style={{ marginBottom: '0.5rem' }}>
-                    労働時間の差分プレビュー（例: <code>+1.50h</code> など）を確認し、間違いがなければ <strong>「申請する」</strong> をクリックします。
+                    勤務時間の差分プレビュー（例: <code>+1.50h</code> など）を確認し、間違いがなければ <strong>「申請する」</strong> をクリックします。
                   </li>
                 </ol>
 

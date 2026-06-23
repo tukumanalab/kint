@@ -201,7 +201,7 @@ describe('AttendancePage - History', () => {
     // 週次集計が表示されていることを検証 (モバイルとデスクトップの2つあるためgetAllByTextを使う)
     expect(screen.getAllByText(/週次集計/)[0]).toBeInTheDocument();
     expect(screen.getAllByText('勤務: 1日')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('8.00h').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('8:00').length).toBeGreaterThanOrEqual(2);
   });
 });
 
