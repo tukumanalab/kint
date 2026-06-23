@@ -136,6 +136,79 @@ class TestShiftSync:
         assert resp.status_code == 401
 
 
+class TestShiftSyncNow:
+    """POST /api/v1/shifts/sync/now のテスト。"""
+
+    async def test_sync_now_success_by_admin(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """管理者が即時同期をリクエストすると、成功ステータスと統計が返る。"""
+        await _create_admin(session)
+        employee = await _create_employee(session)
+        token = await _get_admin_token(client)
+        ical = _make_ical(email=employee.email)
+
+        with (
+            patch(
+                "kint.services.calendar_sync.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_fetch,
+            patch(
+                "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+            ) as mock_get_str,
+        ):
+            mock_fetch.return_value = ical
+            mock_get_str.return_value = "https://example.com/cal.ics"
+
+            resp = await client.post(
+                "/api/v1/shifts/sync/now",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["stats"]["inserted"] == 1
+
+    async def test_sync_now_forbidden_for_employee(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """従業員が即時同期をリクエストすると 403 が返る。"""
+        await _create_admin(session)
+        await _create_employee(session)
+        token = await _get_employee_token(client)
+
+        resp = await client.post(
+            "/api/v1/shifts/sync/now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 403
+
+    async def test_sync_now_unauthenticated(self, client: AsyncClient) -> None:
+        """未認証では 401 が返る。"""
+        resp = await client.post("/api/v1/shifts/sync/now")
+        assert resp.status_code == 401
+
+    async def test_sync_now_fails_when_ical_url_not_set(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """iCal URLが未設定の時は 400 エラーが返る。"""
+        await _create_admin(session)
+        token = await _get_admin_token(client)
+
+        with patch(
+            "kint.services.settings.SettingsService.get_str", new_callable=AsyncMock
+        ) as mock_get_str:
+            mock_get_str.return_value = None
+
+            resp = await client.post(
+                "/api/v1/shifts/sync/now",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert resp.status_code == 400
+        assert resp.json()["code"] == "CALENDAR_SYNC_FAILED"
+
+
 class TestCalendarSyncService:
     """CalendarSyncService の単体テスト。"""
 

@@ -784,6 +784,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ShiftSyncAcceptedResponse'
 
+  /shifts/sync/now:
+    post:
+      tags: [Shift]
+      summary: Google Calendar 即時同期を実行（管理者専用）
+      description: iCal URL からシフトデータを直ちに同期します。完了後の統計情報を即座に返却します。
+      responses:
+        '200':
+          description: 同期成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, stats]
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  stats:
+                    type: object
+                    required: [inserted, updated, deleted, skipped]
+                    properties:
+                      inserted:
+                        type: integer
+                      updated:
+                        type: integer
+                      deleted:
+                        type: integer
+                      skipped:
+                        type: integer
+        '400':
+          description: 設定不備または同期処理失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（管理者以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /settings:
     get:
       tags: [Settings]

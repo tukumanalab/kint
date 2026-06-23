@@ -9,6 +9,7 @@ import {
   exportDatabaseBackup,
   restoreDatabaseBackup,
 } from '../../api/settings';
+import { syncShiftsNow } from '../../api/shifts';
 import { ApiError } from '../../types/error';
 import type { SettingsExportFile, SettingsImportResult, SystemSettings } from '../../types/settings';
 import type { UseAuth } from '../../hooks/useAuth';
@@ -149,6 +150,41 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbSuccess, setDbSuccess] = useState<string | null>(null);
   const dbFileInputRef = useRef<HTMLInputElement>(null);
+
+  // シフト同期用 state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    stats?: {
+      inserted: number;
+      updated: number;
+      deleted: number;
+      skipped: number;
+    };
+  } | null>(null);
+
+  async function handleSyncNow() {
+    if (!token) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await syncShiftsNow(token);
+      setSyncResult({
+        success: true,
+        message: res.message || '同期が正常に完了しました',
+        stats: res.stats,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? apiErrorMessage(err) : '同期に失敗しました';
+      setSyncResult({
+        success: false,
+        message: msg,
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleDbExport() {
     if (!token) return;
@@ -529,6 +565,34 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">HH:MM（未入力で自動同期 OFF）</span>
             </div>
             <p className="settings-field__hint">毎日この時刻に iCal からシフトを自動取り込みします</p>
+          </div>
+
+          <div className="settings-field" style={{ marginTop: '1.25rem' }}>
+            <button
+              type="button"
+              className="settings-btn settings-btn--secondary"
+              onClick={handleSyncNow}
+              disabled={syncing}
+            >
+              {syncing ? '同期中...' : '直ちに同期する'}
+            </button>
+            {syncResult && (
+              <div
+                className={`settings-sync-result ${
+                  syncResult.success ? 'settings-sync-result--success' : 'settings-sync-result--error'
+                }`}
+              >
+                {syncResult.success ? (
+                  <p style={{ margin: 0 }}>
+                    {syncResult.message}
+                    {syncResult.stats &&
+                      ` (追加: ${syncResult.stats.inserted}件, 更新: ${syncResult.stats.updated}件, 削除: ${syncResult.stats.deleted}件, スキップ: ${syncResult.stats.skipped}件)`}
+                  </p>
+                ) : (
+                  <p style={{ margin: 0 }}>同期エラー: {syncResult.message}</p>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.db import AsyncSessionLocal, get_db
 from kint.dependencies import get_current_user
-from kint.exceptions import KintForbiddenError
+from kint.exceptions import KintBadRequestError, KintForbiddenError
 from kint.models.user import User
 from kint.services.calendar_sync import CalendarSyncError, CalendarSyncService
 
@@ -52,3 +52,31 @@ async def sync_shifts(
         status_code=202,
         content={"accepted": True, "message": "シフト同期を開始しました"},
     )
+
+
+@router.post("/sync/now")
+async def sync_shifts_now(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """iCal URL からシフトデータを直ちに同期する。管理者専用。"""
+    _require_admin(current_user)
+    service = CalendarSyncService(session)
+    try:
+        stats = await service.sync()
+        return {
+            "success": True,
+            "message": "同期が成功しました",
+            "stats": stats,
+        }
+    except CalendarSyncError as exc:
+        raise KintBadRequestError(
+            code="CALENDAR_SYNC_FAILED",
+            message=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception("即時同期で予期しないエラー")
+        raise KintBadRequestError(
+            code="INTERNAL_SERVER_ERROR",
+            message=f"予期しないエラーが発生しました: {exc}",
+        ) from exc

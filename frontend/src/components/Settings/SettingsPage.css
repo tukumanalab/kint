@@ -331,3 +331,25 @@
   background: #f1f5f9 !important;
   color: #1e293b !important;
 }
+
+/* シフトカレンダー即時同期結果 */
+.settings-sync-result {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.settings-sync-result--success {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #16a34a;
+}
+
+.settings-sync-result--error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+}
+
