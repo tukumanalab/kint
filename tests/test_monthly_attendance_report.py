@@ -106,9 +106,13 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
 
     # 2. シフトと勤務記録の準備
     # 従業員1: 
+    # 3月 (3/15): 8時間勤務 (9:00 - 17:00) ※年度開始前のデータ
     # 5月 (5/15): 8時間勤務 (9:00 - 17:00)
     # 6月 (6/10, 6/20): 各8時間勤務 (9:00 - 17:00)
-    # 総労働時間: 5月=8h, 6月=16h, 1月からの累計=24h, 勤務日数: 6月=2日
+    # 総労働時間: 3月=8h, 5月=8h, 6月=16h, 4月からの累計=24h, 勤務日数: 6月=2日
+    await _create_shift(session, emp1.id, date(2026, 3, 15), 9, 17)
+    await _create_attendance(session, emp1.id, date(2026, 3, 15), 9, 17)
+
     await _create_shift(session, emp1.id, date(2026, 5, 15), 9, 17)
     await _create_attendance(session, emp1.id, date(2026, 5, 15), 9, 17)
 
@@ -156,9 +160,9 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
             assert "Employee One さん" in body
             assert "1か月ごとの勤務日数: 2 日" in body
             assert "1か月ごとの勤務時間: 16:00" in body
-            assert "1月からの総勤務時間: 24:00" in body
+            assert "4月からの総勤務時間: 24:00" in body
         elif to_email == "emp2@example.com":
             assert "Employee Two さん" in body
             assert "1か月ごとの勤務日数: 1 日" in body
             assert "1か月ごとの勤務時間: 8:00" in body
-            assert "1月からの総勤務時間: 8:00" in body
+            assert "4月からの総勤務時間: 8:00" in body

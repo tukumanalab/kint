@@ -325,7 +325,7 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                   <ul>
                     <li>当月の勤務日数 (実際に打刻が行われた日数)</li>
                     <li>当月の総勤務時間 (端数処理適用後の労働時間合計)</li>
-                    <li>当年1月1日から当月末までの累計労働時間</li>
+                    <li>当年4月1日（または前年4月1日）から当月末までの累計労働時間</li>
                   </ul>
                 </div>
               </div>

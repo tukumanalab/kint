@@ -1083,9 +1083,12 @@ class AttendanceService:
 
         data, att_map = await self._calculate_period_data(from_date, to_date, user_id=user_id)
 
-        # 1月からの累計勤務時間の計算
-        start_of_year = date(year, 1, 1)
-        yearly_data, _ = await self._calculate_period_data(start_of_year, to_date, user_id=user_id)
+        # 4月からの累計勤務時間の計算 (日本の一般的な年度開始月)
+        if month >= 4:
+            start_of_fiscal_year = date(year, 4, 1)
+        else:
+            start_of_fiscal_year = date(year - 1, 4, 1)
+        yearly_data, _ = await self._calculate_period_data(start_of_fiscal_year, to_date, user_id=user_id)
         yearly_hours_map = {
             summary.user_id: summary.total_working_hours for _, summary, _ in yearly_data
         }
@@ -1112,14 +1115,17 @@ class AttendanceService:
         start_of_month = date(year, month, 1)
         end_of_month = date(year, month, last_day)
 
-        # 当年1月1日からの期間
-        start_of_year = date(year, 1, 1)
+        # 4月からの累計期間 (日本の一般的な年度開始月)
+        if month >= 4:
+            start_of_fiscal_year = date(year, 4, 1)
+        else:
+            start_of_fiscal_year = date(year - 1, 4, 1)
 
         # 1. 対象月（当月）のサマリー計算
         monthly_data, _ = await self._calculate_period_data(start_of_month, end_of_month)
 
-        # 2. 当年1月からの累計サマリー計算
-        yearly_data, _ = await self._calculate_period_data(start_of_year, end_of_month)
+        # 2. 4月からの累計サマリー計算
+        yearly_data, _ = await self._calculate_period_data(start_of_fiscal_year, end_of_month)
 
         # ユーザーIDごとの累計勤務時間をマップにする
         yearly_hours_map = {
@@ -1160,7 +1166,7 @@ class AttendanceService:
                 f"対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
                 f"* 1か月ごとの勤務日数: {summary.working_days} 日\n"
                 f"* 1か月ごとの勤務時間: {format_to_h_mm(summary.total_working_hours)}\n"
-                f"* 1月からの総勤務時間: {format_to_h_mm(yearly_hours)}\n\n"
+                f"* 4月からの総勤務時間: {format_to_h_mm(yearly_hours)}\n\n"
                 f"※このメールはシステムより自動送信されています。"
             )
 
