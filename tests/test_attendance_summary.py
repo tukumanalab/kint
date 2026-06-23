@@ -425,7 +425,7 @@ class TestMultiplePunchesInSameDay:
         assert "21:15:00" in row1[6]  # 打刻退勤 JST
         assert "18:00:00" in row1[7]  # 勤務出勤 JST (丸め後)
         assert "21:15:00" in row1[8]  # 勤務退勤 JST (丸め後)
-        assert row1[9] == "3.25"  # 丸め後 3.25時間
+        assert row1[9] == "3:15"  # 丸め後 3.25時間
 
         # 2行目: 2回目の打刻（13:00 〜 18:00 UTC）が JST 換算されて出力されている
         row2 = target_rows[1]
@@ -433,7 +433,7 @@ class TestMultiplePunchesInSameDay:
         assert "03:00:00" in row2[6]  # 打刻退勤 JST
         assert "22:00:00" in row2[7]  # 勤務出勤 JST (丸め後)
         assert "03:00:00" in row2[8]  # 勤務退勤 JST (丸め後)
-        assert row2[9] == "5.00"  # 5.0時間
+        assert row2[9] == "5:00"  # 5.0時間
 
     async def test_get_monthly_detail_future_shift(self, client: AsyncClient, session) -> None:
         """未来のシフト予定日で打刻がない場合、ステータスが "scheduled" になることを検証する。"""

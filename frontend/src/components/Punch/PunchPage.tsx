@@ -6,6 +6,7 @@ import { initAudio, playPunchSuccess, playPunchError } from '../../utils/audio';
 import { ApiError } from '../../types/error';
 import type { PunchRequest, PunchResponse, PunchUserCandidate } from '../../types/punch';
 import './PunchPage.css';
+import { formatHours } from '../../utils/time';
 
 const DEVICE_ID = 'web-browser';
 
@@ -485,13 +486,13 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
               {punchResult.current_working_hours !== undefined && punchResult.current_working_hours !== null && (
                 <div className="punch-result__extra-row">
                   <span className="punch-result__extra-label">今回の勤務時間: </span>
-                  <strong className="punch-result__extra-value">{punchResult.current_working_hours.toFixed(2)} 時間</strong>
+                  <strong className="punch-result__extra-value">{formatHours(punchResult.current_working_hours)}</strong>
                 </div>
               )}
               {punchResult.daily_working_hours_total !== undefined && punchResult.daily_working_hours_total !== null && (
                 <div className="punch-result__extra-row" style={{ marginTop: '4px' }}>
                   <span className="punch-result__extra-label">本日の合計勤務時間: </span>
-                  <strong className="punch-result__extra-value">{punchResult.daily_working_hours_total.toFixed(2)} 時間</strong>
+                  <strong className="punch-result__extra-value">{formatHours(punchResult.daily_working_hours_total)}</strong>
                 </div>
               )}
             </div>

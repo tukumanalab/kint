@@ -24,6 +24,7 @@ import type {
 } from '../../types/attendance';
 import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
+import { formatHours } from '../../utils/time';
 
 interface Props {
   auth: UseAuth;
@@ -507,10 +508,7 @@ export function AttendancePage({ auth }: Props) {
     );
   };
 
-  const formatHours = (hours: number | null) => {
-    if (hours === null || hours === undefined) return '-';
-    return `${hours.toFixed(2)}h`;
-  };
+
 
   const getDayOfWeek = (dateStr: string) => {
     const weekday = ['日', '月', '火', '水', '木', '金', '土'];
@@ -823,8 +821,7 @@ export function AttendancePage({ auth }: Props) {
         rows.push(
           <tr key={`weekly-${day.work_date}`} className="att-table__weekly-summary">
             <td colSpan={4} style={{ textAlign: 'right' }}>週次集計:</td>
-            <td>{weeklyWorkingHours > 0 ? `${weeklyWorkingHours.toFixed(2)}h` : '-'}</td>
-            <td>-</td>
+            <td>{weeklyWorkingHours > 0 ? formatHours(weeklyWorkingHours) : '-'}</td>
             <td>
               <span className="att-badge att-badge--weekly">
                 勤務: {weeklyWorkingDays}日
@@ -1120,7 +1117,7 @@ export function AttendancePage({ auth }: Props) {
             <span className="att-mobile-weekly-summary__title">📊 週次集計</span>
             <div className="att-mobile-weekly-summary__data">
               <span>勤務: {weeklyWorkingDays}日</span>
-              <span>{weeklyWorkingHours > 0 ? `${weeklyWorkingHours.toFixed(2)}h` : '-'}</span>
+              <span>{weeklyWorkingHours > 0 ? formatHours(weeklyWorkingHours) : '-'}</span>
             </div>
           </div>
         );
@@ -1739,7 +1736,7 @@ export function AttendancePage({ auth }: Props) {
                     <span className="att-preview-val" style={{ fontWeight: 'bold' }}>
                       {formatHours(diff.reqHours)}
                       <span className={`att-diff-badge ${diff.hoursDiff > 0 ? 'att-diff-badge--plus' : diff.hoursDiff < 0 ? 'att-diff-badge--minus' : 'att-diff-badge--zero'}`}>
-                        {diff.hoursDiff > 0 ? `+${diff.hoursDiff.toFixed(2)}h` : diff.hoursDiff < 0 ? `${diff.hoursDiff.toFixed(2)}h` : '±0.00h'}
+                        {diff.hoursDiff > 0 ? `+${formatHours(diff.hoursDiff)}` : diff.hoursDiff < 0 ? formatHours(diff.hoursDiff) : '±0:00'}
                       </span>
                     </span>
                   </div>
@@ -1860,7 +1857,7 @@ export function AttendancePage({ auth }: Props) {
                           <span className="att-preview-val" style={{ fontWeight: 'bold' }}>
                             {formatHours(diff.reqHours)}
                             <span className={`att-diff-badge ${diff.hoursDiff > 0 ? 'att-diff-badge--plus' : diff.hoursDiff < 0 ? 'att-diff-badge--minus' : 'att-diff-badge--zero'}`} style={{ marginLeft: '8px' }}>
-                              {diff.hoursDiff > 0 ? `+${diff.hoursDiff.toFixed(2)}h` : diff.hoursDiff < 0 ? `${diff.hoursDiff.toFixed(2)}h` : '±0.00h'}
+                              {diff.hoursDiff > 0 ? `+${formatHours(diff.hoursDiff)}` : diff.hoursDiff < 0 ? formatHours(diff.hoursDiff) : '±0:00'}
                             </span>
                           </span>
                         </div>

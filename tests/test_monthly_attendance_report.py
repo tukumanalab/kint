@@ -155,10 +155,10 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
         if to_email == "emp1@example.com":
             assert "Employee One さん" in body
             assert "1か月ごとの勤務日数: 2 日" in body
-            assert "1か月ごとの勤務時間: 16.00 時間" in body
-            assert "1月からの総勤務時間: 24.00 時間" in body
+            assert "1か月ごとの勤務時間: 16:00" in body
+            assert "1月からの総勤務時間: 24:00" in body
         elif to_email == "emp2@example.com":
             assert "Employee Two さん" in body
             assert "1か月ごとの勤務日数: 1 日" in body
-            assert "1か月ごとの勤務時間: 8.00 時間" in body
-            assert "1月からの総勤務時間: 8.00 時間" in body
+            assert "1か月ごとの勤務時間: 8:00" in body
+            assert "1月からの総勤務時間: 8:00" in body

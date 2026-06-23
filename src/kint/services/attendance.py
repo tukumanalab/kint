@@ -48,6 +48,19 @@ from kint.services.settings import SettingsService
 _LAST_PUNCH_TIME: dict[str, datetime] = {}
 
 
+def format_to_h_mm(hours: float | None) -> str:
+    """勤務時間 (hours: float) を [h]:mm 形式の文字列に変換する。"""
+    if hours is None:
+        return ""
+    total_minutes = round(hours * 60)
+    is_negative = total_minutes < 0
+    abs_minutes = abs(total_minutes)
+    h = abs_minutes // 60
+    m = abs_minutes % 60
+    prefix = "-" if is_negative else ""
+    return f"{prefix}{h}:{m:02d}"
+
+
 def _ensure_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
@@ -1139,8 +1152,8 @@ class AttendanceService:
                 f"{site_name} 勤怠管理システムより、当月の勤務実績レポートをお知らせします。\n\n"
                 f"対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
                 f"* 1か月ごとの勤務日数: {summary.working_days} 日\n"
-                f"* 1か月ごとの勤務時間: {summary.total_working_hours:.2f} 時間\n"
-                f"* 1月からの総勤務時間: {yearly_hours:.2f} 時間\n\n"
+                f"* 1か月ごとの勤務時間: {format_to_h_mm(summary.total_working_hours)}\n"
+                f"* 1月からの総勤務時間: {format_to_h_mm(yearly_hours)}\n\n"
                 f"※このメールはシステムより自動送信されています。"
             )
 
@@ -1202,8 +1215,8 @@ class AttendanceService:
                     "氏名",
                     "所定労働日数",
                     "実出勤日数",
-                    "総労働時間(h)",
-                    "時間外労働時間(h)",
+                    "総労働時間",
+                    "時間外労働時間",
                     "遅刻回数",
                     "早退回数",
                     "欠勤日数",
@@ -1219,8 +1232,8 @@ class AttendanceService:
                         summary.full_name,
                         summary.prescribed_days,
                         summary.working_days,
-                        f"{summary.total_working_hours:.2f}",
-                        f"{summary.total_overtime_hours:.2f}",
+                        format_to_h_mm(summary.total_working_hours),
+                        format_to_h_mm(summary.total_overtime_hours),
                         summary.late_count,
                         summary.early_leave_count,
                         summary.absence_days,
@@ -1239,8 +1252,8 @@ class AttendanceService:
                     "退勤時間",
                     "勤務出勤",
                     "勤務退勤",
-                    "実労働時間(h)",
-                    "時間外労働時間(h)",
+                    "実労働時間",
+                    "時間外労働時間",
                     "遅刻判定",
                     "早退判定",
                     "勤怠ステータス",
@@ -1331,7 +1344,6 @@ class AttendanceService:
                                 )
                                 if first_calc_cin and day_shift_start_utc:
                                     if first_calc_cin > day_shift_start_utc:
-                                        is_late_val = "意"  # ここは元のファイルでは "是" だった
                                         is_late_val = "是"
                             else:
                                 is_late_val = "-"
@@ -1369,8 +1381,8 @@ class AttendanceService:
                                     check_out_str,
                                     fmt_dt(calc_cin),
                                     fmt_dt(calc_cout),
-                                    f"{working_hours:.2f}",
-                                    f"{overtime_hours:.2f}",
+                                    format_to_h_mm(working_hours),
+                                    format_to_h_mm(overtime_hours),
                                     is_late_val,
                                     is_early_val,
                                     entry_status_label,
