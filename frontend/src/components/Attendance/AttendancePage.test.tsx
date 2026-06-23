@@ -101,10 +101,14 @@ const mockHistory = {
       before: {
         check_in: '2026-06-09T08:50:00Z',
         check_out: '2026-06-09T17:50:00Z',
+        work_start: null,
+        work_end: null,
       },
       after: {
         check_in: '2026-06-09T09:00:00Z',
         check_out: '2026-06-09T18:00:00Z',
+        work_start: null,
+        work_end: null,
       },
       reason: '手動修正テスト',
     },

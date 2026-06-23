@@ -95,6 +95,8 @@ export interface AttendanceLock {
 export interface AttendanceHistorySnapshot {
   check_in: string | null;
   check_out: string | null;
+  work_start: string | null;
+  work_end: string | null;
 }
 
 export interface AttendanceHistoryEntry {
@@ -120,6 +122,9 @@ export interface AttendanceRecord {
   work_date: string;
   check_in: string | null;
   check_out: string | null;
+  work_start: string | null;
+  work_end: string | null;
+  is_manual_work_time: boolean;
   source: 'webusb_nfc' | 'web_user_id' | 'admin_manual' | 'self_service';
   updated_reason: string | null;
   is_auto_completed: boolean;

@@ -210,8 +210,8 @@ export async function createAttendance(
   body: {
     user_id: string;
     work_date: string;
-    check_in: string | null;
-    check_out: string | null;
+    work_start: string | null;
+    work_end: string | null;
     reason: string;
   },
 ): Promise<AttendanceRecord> {
@@ -219,6 +219,26 @@ export async function createAttendance(
     '/attendance',
     {
       method: 'POST',
+      body: JSON.stringify(body),
+    },
+    token,
+  );
+}
+
+export async function updateAttendance(
+  token: string,
+  attendanceId: string,
+  body: {
+    work_start: string | null;
+    work_end: string | null;
+    reset_to_auto?: boolean;
+    reason: string;
+  },
+): Promise<AttendanceRecord> {
+  return request<AttendanceRecord>(
+    `/attendance/${attendanceId}`,
+    {
+      method: 'PATCH',
       body: JSON.stringify(body),
     },
     token,

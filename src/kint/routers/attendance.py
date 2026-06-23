@@ -63,21 +63,14 @@ async def patch_attendance(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> AttendanceRecord:
-    """勤怠記録を修正する。変更履歴を同一トランザクションで保存する。"""
-    service = AttendanceService(session)
-
-    # 従業員は自分の勤怠のみ修正可能か事前確認（サービス層呼び出し前に権限チェック）
-    if current_user.role == "employee":
-        result = await session.execute(
-            select(Attendance.user_id).where(Attendance.id == attendance_id)
+    """勤怠記録を修正する。変更履歴を同一トランザクションで保存する。管理者のみ実行可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
         )
-        owner_id = result.scalar_one_or_none()
-        if owner_id is None or owner_id != current_user.id:
-            raise KintForbiddenError(
-                code="FORBIDDEN",
-                message="この勤怠記録を修正する権限がありません",
-            )
 
+    service = AttendanceService(session)
     return await service.patch_attendance(attendance_id, body, current_user)
 
 

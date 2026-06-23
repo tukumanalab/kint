@@ -595,10 +595,11 @@ class AttendanceService:
         if check_in is None:
             return
 
-        # 同一ユーザーの他の（正常な出勤情報のある）勤怠記録を取得
+        # 同一ユーザーの他の（正常な出勤または手動勤務情報のある）勤怠記録を取得
+        from sqlalchemy import or_
         stmt = select(Attendance).where(
             Attendance.user_id == user_id,
-            Attendance.check_in.isnot(None),
+            or_(Attendance.check_in.isnot(None), Attendance.work_start.isnot(None)),
         )
         if attendance_id is not None:
             stmt = stmt.where(Attendance.id != attendance_id)
@@ -621,8 +622,9 @@ class AttendanceService:
             )
 
         for other in other_attendances:
-            other_in = _ensure_utc(other.check_in)
-            other_out = _ensure_utc(other.check_out)
+            # 手動設定レコードの場合は手動勤務時間、自動の場合は打刻時間を対象とする
+            other_in = _ensure_utc(other.work_start if other.is_manual_work_time else other.check_in)
+            other_out = _ensure_utc(other.work_end if other.is_manual_work_time else other.check_out)
 
             # other_in も念のため None の場合はスキップ
             if other_in is None:
@@ -726,18 +728,26 @@ class AttendanceService:
         now = datetime.now(tz=UTC)
         before_check_in = attendance.check_in
         before_check_out = attendance.check_out
+        before_work_start = attendance.work_start
+        before_work_end = attendance.work_end
 
-        if patch.check_in is not None:
-            attendance.check_in = patch.check_in
-        if patch.check_out is not None:
-            attendance.check_out = patch.check_out
+        if patch.reset_to_auto:
+            attendance.is_manual_work_time = False
+            attendance.work_start = None
+            attendance.work_end = None
+        else:
+            attendance.work_start = patch.work_start
+            attendance.work_end = patch.work_end
+            attendance.is_manual_work_time = True
 
         # 重複勤務時間のチェック
+        check_in_for_overlap = attendance.work_start if attendance.is_manual_work_time else attendance.check_in
+        check_out_for_overlap = attendance.work_end if attendance.is_manual_work_time else attendance.check_out
         await self._check_overlap(
             user_id=attendance.user_id,
             attendance_id=attendance.id,
-            check_in=attendance.check_in,
-            check_out=attendance.check_out,
+            check_in=check_in_for_overlap,
+            check_out=check_out_for_overlap,
         )
 
         attendance.updated_reason = patch.reason
@@ -756,6 +766,10 @@ class AttendanceService:
             before_check_out=before_check_out,
             after_check_in=attendance.check_in,
             after_check_out=attendance.check_out,
+            before_work_start=before_work_start,
+            before_work_end=before_work_end,
+            after_work_start=attendance.work_start,
+            after_work_end=attendance.work_end,
             reason=patch.reason,
             changed_at=now,
         )
@@ -793,10 +807,14 @@ class AttendanceService:
                 before=AttendanceHistorySnapshot(
                     check_in=log.before_check_in,
                     check_out=log.before_check_out,
+                    work_start=log.before_work_start,
+                    work_end=log.before_work_end,
                 ),
                 after=AttendanceHistorySnapshot(
                     check_in=log.after_check_in,
                     check_out=log.after_check_out,
+                    work_start=log.after_work_start,
+                    work_end=log.after_work_end,
                 ),
                 reason=log.reason,
             )
@@ -904,24 +922,47 @@ class AttendanceService:
                 shift_start_utc = ensure_utc(shift_start)
                 shift_end_utc = ensure_utc(shift_end)
 
-                # 勤務時間（丸め後の出退勤時刻）を計算
-                calc_check_in, calc_check_out = calculate_working_time(
-                    check_in_utc, check_out_utc, shift_start_utc, shift_end_utc
-                )
+                # 勤務時間（丸め後の出退勤時刻、または手動設定の時刻）を計算
+                calculated_ins = []
+                calculated_outs = []
+                for a in day_atts:
+                    if a.is_manual_work_time:
+                        if a.work_start is not None:
+                            calculated_ins.append(ensure_utc(a.work_start))
+                        if a.work_end is not None:
+                            calculated_outs.append(ensure_utc(a.work_end))
+                    else:
+                        c_in, c_out = calculate_working_time(
+                            ensure_utc(a.check_in),
+                            ensure_utc(a.check_out),
+                            shift_start_utc,
+                            shift_end_utc
+                        )
+                        if c_in is not None:
+                            calculated_ins.append(c_in)
+                        if c_out is not None:
+                            calculated_outs.append(c_out)
+
+                calc_check_in = min(calculated_ins) if calculated_ins else None
+                calc_check_out = max(calculated_outs) if calculated_outs else None
 
                 working_hours = 0.0
                 overtime_hours = 0.0
 
                 # 実労働時間の計算（全ての打刻セグメントの勤務時間を合算）
                 for a in day_atts:
-                    if a.check_in and a.check_out:
-                        a_cin_utc = ensure_utc(a.check_in)
-                        a_cout_utc = ensure_utc(a.check_out)
-                        c_in, c_out = calculate_working_time(
-                            a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc
-                        )
-                        if c_in and c_out:
-                            working_hours += (c_out - c_in).total_seconds() / 3600.0
+                    if a.is_manual_work_time:
+                        if a.work_start and a.work_end:
+                            working_hours += (ensure_utc(a.work_end) - ensure_utc(a.work_start)).total_seconds() / 3600.0
+                    else:
+                        if a.check_in and a.check_out:
+                            a_cin_utc = ensure_utc(a.check_in)
+                            a_cout_utc = ensure_utc(a.check_out)
+                            c_in, c_out = calculate_working_time(
+                                a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc
+                            )
+                            if c_in and c_out:
+                                working_hours += (c_out - c_in).total_seconds() / 3600.0
 
                 # 時間外労働時間の算出
                 if has_shift and shift_end_utc and calc_check_out:
@@ -943,10 +984,22 @@ class AttendanceService:
                     if calc_check_out < shift_end_utc:
                         is_early = True
 
-                # ステータスの決定（未退勤の打刻が1つでもあれば不整合）
-                has_incomplete_punch = any(
-                    a.check_in is not None and a.check_out is None for a in day_atts
-                )
+                # ステータスの決定（未退勤の打刻が1つでもあれば不整合。ただし手動で勤務時間が設定されている場合はそちらのNULL/非NULL状態に基づく）
+                has_incomplete_punch = False
+                if len(day_atts) > 0:
+                    # 全て手動設定レコードなら、手動の開始/終了のいずれかがNULLの場合に不整合とみなす
+                    # 一つでも自動設定レコードが含まれるなら、従来通りcheck_outがNULLのものを不整合とする
+                    has_manual = any(a.is_manual_work_time for a in day_atts)
+                    if has_manual:
+                        # 手動設定されている場合で、work_startがありwork_endがない、またはその逆がある場合
+                        has_incomplete_punch = any(
+                            (a.work_start is not None and a.work_end is None) or (a.check_in is not None and a.check_out is None and not a.is_manual_work_time)
+                            for a in day_atts
+                        )
+                    else:
+                        has_incomplete_punch = any(
+                            a.check_in is not None and a.check_out is None for a in day_atts
+                        )
 
                 if len(day_atts) > 0 and has_incomplete_punch:
                     status = "incomplete"
@@ -967,7 +1020,10 @@ class AttendanceService:
                 if has_shift:
                     prescribed_days += 1
                 if len(day_atts) > 0:
-                    working_days += 1
+                    # 勤務時間の削除（work_start/work_endがNULLかつ手動設定）された日は、出勤日数から除外する
+                    is_deleted_work = any(a.is_manual_work_time and a.work_start is None and a.work_end is None for a in day_atts)
+                    if not is_deleted_work:
+                        working_days += 1
                 total_working_hours += working_hours
                 total_overtime_hours += overtime_hours
 
@@ -992,15 +1048,19 @@ class AttendanceService:
                 # 1日の中のすべての打刻ペアを時系列順（check_in昇順）に整理して格納
                 sorted_atts = sorted(
                     day_atts,
-                    key=lambda a: a.check_in if a.check_in else datetime.max.replace(tzinfo=UTC),
+                    key=lambda a: a.check_in if a.check_in else (a.work_start if a.work_start else datetime.max.replace(tzinfo=UTC)),
                 )
                 punches = []
                 for a in sorted_atts:
                     p_cin = ensure_utc(a.check_in)
                     p_cout = ensure_utc(a.check_out)
-                    p_calc_in, p_calc_out = calculate_working_time(
-                        p_cin, p_cout, shift_start_utc, shift_end_utc
-                    )
+                    if a.is_manual_work_time:
+                        p_calc_in = ensure_utc(a.work_start)
+                        p_calc_out = ensure_utc(a.work_end)
+                    else:
+                        p_calc_in, p_calc_out = calculate_working_time(
+                            p_cin, p_cout, shift_start_utc, shift_end_utc
+                        )
                     punches.append(
                         PunchPeriod(
                             attendance_id=a.id,
@@ -1591,10 +1651,15 @@ class AttendanceService:
         now = datetime.now(tz=UTC)
         before_check_in = attendance.check_in
         before_check_out = attendance.check_out
+        before_work_start = attendance.work_start
+        before_work_end = attendance.work_end
 
-        # 勤怠更新
+        # 勤怠更新（打刻修正申請承認時は、手動勤務設定を解除して自動計算に戻します）
         attendance.check_in = request.requested_check_in
         attendance.check_out = request.requested_check_out
+        attendance.work_start = None
+        attendance.work_end = None
+        attendance.is_manual_work_time = False
         attendance.updated_reason = request.reason
         attendance.last_updated_by_user_id = actor.id
         attendance.last_updated_at = now
@@ -1621,6 +1686,10 @@ class AttendanceService:
             before_check_out=before_check_out,
             after_check_in=request.requested_check_in,
             after_check_out=request.requested_check_out,
+            before_work_start=before_work_start,
+            before_work_end=before_work_end,
+            after_work_start=None,
+            after_work_end=None,
             reason=log_reason,
             changed_at=now,
         )
@@ -1855,12 +1924,16 @@ class AttendanceService:
                 message="対象年月の勤怠は締め処理が完了しているため、追加できません。",
             )
 
+        # 互換性フォールバック（work_startがない場合はcheck_in/check_outを使用）
+        work_start = request.work_start if request.work_start is not None else request.check_in
+        work_end = request.work_end if request.work_end is not None else request.check_out
+
         # 重複チェック
         await self._check_overlap(
             user_id=request.user_id,
             attendance_id=None,
-            check_in=request.check_in,
-            check_out=request.check_out,
+            check_in=work_start,
+            check_out=work_end,
         )
 
         now = datetime.now(tz=UTC)
@@ -1868,8 +1941,11 @@ class AttendanceService:
             id=str(uuid.uuid4()),
             user_id=request.user_id,
             work_date=request.work_date,
-            check_in=request.check_in,
-            check_out=request.check_out,
+            check_in=None,
+            check_out=None,
+            work_start=work_start,
+            work_end=work_end,
+            is_manual_work_time=True,
             source="admin_manual",
             updated_reason=request.reason,
             last_updated_by_user_id=actor.id,
@@ -1886,8 +1962,12 @@ class AttendanceService:
             actor_role=actor.role,
             before_check_in=None,
             before_check_out=None,
-            after_check_in=attendance.check_in,
-            after_check_out=attendance.check_out,
+            after_check_in=None,
+            after_check_out=None,
+            before_work_start=None,
+            before_work_end=None,
+            after_work_start=work_start,
+            after_work_end=work_end,
             reason=request.reason,
             changed_at=now,
         )
@@ -1919,10 +1999,45 @@ class AttendanceService:
                 message="対象年月の勤怠は締め処理が完了しているため、削除できません。",
             )
 
-        # 関連するチェンジログを削除
-        await self.session.execute(
-            delete(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance.id)
-        )
-        # 勤怠レコードを削除
-        await self.session.delete(attendance)
-        await self.session.commit()
+        now = datetime.now(tz=UTC)
+
+        # 打刻データが存在する場合（カードタッチ等）は物理削除せず、勤務時間のみ削除（NULL）して手動上書きとする
+        if attendance.check_in is not None or attendance.check_out is not None:
+            before_work_start = attendance.work_start
+            before_work_end = attendance.work_end
+
+            attendance.is_manual_work_time = True
+            attendance.work_start = None
+            attendance.work_end = None
+            attendance.updated_reason = "管理者による勤務時間の削除"
+            attendance.last_updated_by_user_id = actor.id
+            attendance.last_updated_at = now
+
+            # 監査ログを記録
+            log = AttendanceChangeLog(
+                id=str(uuid.uuid4()),
+                attendance_id=attendance.id,
+                actor_user_id=actor.id,
+                actor_role=actor.role,
+                before_check_in=attendance.check_in,
+                before_check_out=attendance.check_out,
+                after_check_in=attendance.check_in,
+                after_check_out=attendance.check_out,
+                before_work_start=before_work_start,
+                before_work_end=before_work_end,
+                after_work_start=None,
+                after_work_end=None,
+                reason="管理者による勤務時間の削除",
+                changed_at=now,
+            )
+            self.session.add(log)
+            await self.session.commit()
+        else:
+            # 打刻データがない（管理者手動追加されただけの）レコードは物理削除する
+            # 関連するチェンジログを削除
+            await self.session.execute(
+                delete(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance.id)
+            )
+            # 勤怠レコードを削除
+            await self.session.delete(attendance)
+            await self.session.commit()

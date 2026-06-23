@@ -397,8 +397,8 @@ async def test_overlapping_attendance_not_allowed(
     resp = await client.patch(
         "/api/v1/attendance/att_overlap_2",
         json={
-            "check_in": "2026-05-30T15:31:00Z",
-            "check_out": "2026-05-30T15:33:00Z",
+            "work_start": "2026-05-30T15:31:00Z",
+            "work_end": "2026-05-30T15:33:00Z",
             "reason": "直接重複編集",
         },
         headers={"Authorization": f"Bearer {admin_token}"},

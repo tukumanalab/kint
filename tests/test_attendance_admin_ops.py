@@ -24,8 +24,8 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
     admin_token = await _login(client, "adminuser", "Password123")
 
     work_date = date(2026, 6, 1)
-    check_in = datetime(2026, 6, 1, 9, 0, tzinfo=UTC)
-    check_out = datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
+    work_start = datetime(2026, 6, 1, 9, 0, tzinfo=UTC)
+    work_end = datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
 
     # 管理者が従業員の勤怠を追加
     resp = await client.post(
@@ -33,8 +33,8 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
         json={
             "user_id": "empuser",
             "work_date": work_date.isoformat(),
-            "check_in": check_in.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "check_out": check_out.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "work_start": work_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "work_end": work_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "reason": "手動追加テスト",
         },
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -54,8 +54,10 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
     )
     att = db_result.scalar_one_or_none()
     assert att is not None
-    assert att.check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
-    assert att.check_out.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
+    assert att.check_in is None
+    assert att.check_out is None
+    assert att.work_start.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
+    assert att.work_end.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
 
     log_result = await session.execute(
         select(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == att_id)
@@ -63,10 +65,10 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
     logs = list(log_result.scalars().all())
     assert len(logs) == 1
     assert logs[0].actor_user_id == "adminuser"
-    assert logs[0].before_check_in is None
-    assert logs[0].before_check_out is None
-    assert logs[0].after_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
-    assert logs[0].after_check_out.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
+    assert logs[0].before_work_start is None
+    assert logs[0].before_work_end is None
+    assert logs[0].after_work_start.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
+    assert logs[0].after_work_end.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
     assert logs[0].reason == "手動追加テスト"
 
 
@@ -126,8 +128,8 @@ async def test_create_attendance_overlap_restriction(session: AsyncSession, clie
         json={
             "user_id": "empuser",
             "work_date": "2026-06-01",
-            "check_in": "2026-06-01T10:00:00Z",
-            "check_out": "2026-06-01T14:00:00Z",
+            "work_start": "2026-06-01T10:00:00Z",
+            "work_end": "2026-06-01T14:00:00Z",
             "reason": "重複追加",
         },
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -163,8 +165,8 @@ async def test_create_attendance_locked_restriction(session: AsyncSession, clien
         json={
             "user_id": "empuser",
             "work_date": "2026-06-15",
-            "check_in": "2026-06-15T09:00:00Z",
-            "check_out": "2026-06-15T18:00:00Z",
+            "work_start": "2026-06-15T09:00:00Z",
+            "work_end": "2026-06-15T18:00:00Z",
             "reason": "ロック期間追加",
         },
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -191,8 +193,11 @@ async def test_admin_delete_attendance_success(session: AsyncSession, client: As
         id="att_to_delete",
         user_id="empuser",
         work_date=date(2026, 6, 2),
-        check_in=datetime(2026, 6, 2, 9, 0, tzinfo=UTC),
-        check_out=datetime(2026, 6, 2, 18, 0, tzinfo=UTC),
+        check_in=None,
+        check_out=None,
+        work_start=datetime(2026, 6, 2, 9, 0, tzinfo=UTC),
+        work_end=datetime(2026, 6, 2, 18, 0, tzinfo=UTC),
+        is_manual_work_time=True,
         source="admin_manual",
     )
     session.add(att)
@@ -205,8 +210,12 @@ async def test_admin_delete_attendance_success(session: AsyncSession, client: As
         actor_role="admin",
         before_check_in=None,
         before_check_out=None,
-        after_check_in=att.check_in,
-        after_check_out=att.check_out,
+        after_check_in=None,
+        after_check_out=None,
+        before_work_start=None,
+        before_work_end=None,
+        after_work_start=att.work_start,
+        after_work_end=att.work_end,
         reason="手動追加",
     )
     session.add(log)

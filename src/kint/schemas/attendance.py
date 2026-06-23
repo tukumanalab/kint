@@ -15,6 +15,9 @@ class AttendanceRecord(BaseModel):
     work_date: date
     check_in: datetime | None = None
     check_out: datetime | None = None
+    work_start: datetime | None = None
+    work_end: datetime | None = None
+    is_manual_work_time: bool = False
     source: Literal["webusb_nfc", "web_user_id", "admin_manual", "self_service"]
     updated_reason: str | None = None
     is_auto_completed: bool = False
@@ -30,6 +33,9 @@ class AttendanceCreateRequest(BaseModel):
 
     user_id: str
     work_date: date
+    work_start: datetime | None = None
+    work_end: datetime | None = None
+    # 互換性維持のための打刻フィールド
     check_in: datetime | None = None
     check_out: datetime | None = None
     reason: str
@@ -38,8 +44,9 @@ class AttendanceCreateRequest(BaseModel):
 class AttendancePatchRequest(BaseModel):
     """勤怠修正リクエスト。reason は必須。"""
 
-    check_in: datetime | None = None
-    check_out: datetime | None = None
+    work_start: datetime | None = None
+    work_end: datetime | None = None
+    reset_to_auto: bool = False
     reason: str
 
 
@@ -48,6 +55,8 @@ class AttendanceHistorySnapshot(BaseModel):
 
     check_in: datetime | None = None
     check_out: datetime | None = None
+    work_start: datetime | None = None
+    work_end: datetime | None = None
 
 
 class AttendanceHistoryEntry(BaseModel):

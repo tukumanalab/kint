@@ -31,6 +31,11 @@ class Attendance(Base):
     work_date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
     check_in: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    work_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    work_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_manual_work_time: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
     source: Mapped[str] = mapped_column(String, nullable=False)
     updated_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     is_auto_completed: Mapped[bool] = mapped_column(
@@ -90,6 +95,10 @@ class AttendanceChangeLog(Base):
     before_check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     after_check_in: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     after_check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    before_work_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    before_work_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    after_work_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    after_work_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     reason: Mapped[str] = mapped_column(String, nullable=False)
     changed_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), index=True
