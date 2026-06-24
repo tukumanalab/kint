@@ -86,7 +86,10 @@ export function useAuth(): UseAuth {
         setState((s) => ({ ...s, isLoading: false, error: null, pendingIdToken: idToken }));
         return;
       }
-      const message = 'ログインに失敗しました。もう一度お試しください。';
+      let message = 'ログインに失敗しました。もう一度お試しください。';
+      if (err instanceof ApiError && err.body && err.body.message) {
+        message = err.body.message;
+      }
       setState((s) => ({ ...s, isLoading: false, error: message, pendingIdToken: null }));
       throw err;
     }

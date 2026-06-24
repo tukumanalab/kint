@@ -473,4 +473,3 @@ async def test_short_attendance_correction_not_allowed(
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert resp.status_code == 201
-

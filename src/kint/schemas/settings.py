@@ -20,6 +20,7 @@ class SettingsResponse(BaseModel):
     punch_result_display_seconds: int
     monthly_report_time: str | None
     login_token_expire_hours: int
+    enable_google_signup: bool
 
 
 class SettingsPatchRequest(BaseModel):
@@ -34,6 +35,7 @@ class SettingsPatchRequest(BaseModel):
     punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
     monthly_report_time: str | None = None
     login_token_expire_hours: int | None = Field(default=None, ge=1, le=8760)
+    enable_google_signup: bool | None = None
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -68,6 +70,7 @@ class SettingsPatchRequest(BaseModel):
             and self.punch_result_display_seconds is None
             and self.monthly_report_time is None
             and self.login_token_expire_hours is None
+            and self.enable_google_signup is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):
@@ -119,3 +122,4 @@ class PublicSettingsResponse(BaseModel):
     site_name: str
     site_subtitle: str
     punch_result_display_seconds: int
+    enable_google_signup: bool

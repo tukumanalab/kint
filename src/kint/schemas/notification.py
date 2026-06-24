@@ -1,6 +1,7 @@
 """お知らせリクエスト・レスポンススキーマ。"""
 
 from datetime import datetime
+
 from pydantic import BaseModel, field_validator
 
 
@@ -21,6 +22,7 @@ class NotificationResponse(BaseModel):
     @classmethod
     def ensure_tz(cls, v: datetime) -> datetime:
         from datetime import UTC
+
         if v.tzinfo is None:
             return v.replace(tzinfo=UTC)
         return v

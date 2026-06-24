@@ -17,7 +17,6 @@ NOTIFICATION_CLEANUP_JOB_ID = "notification_cleanup_daily"
 MONTHLY_REPORT_JOB_ID = "monthly_attendance_report"
 
 
-
 async def _run_calendar_sync() -> None:
     """スケジューラから呼ばれる iCal 同期ジョブ。"""
     from kint.services.calendar_sync import CalendarSyncError, CalendarSyncService
@@ -59,18 +58,17 @@ async def _run_notification_cleanup() -> None:
             logger.exception("定期お知らせクリーンアップで予期しないエラー: %s", exc)
 
 
-
 async def _run_monthly_attendance_report() -> None:
     """スケジューラから呼ばれる月次勤怠レポート通知ジョブ。"""
+
     from kint.services.attendance import AttendanceService
-    from datetime import date
-    import logging
 
     logger.info("定期月次勤怠レポート通知バッチを開始します")
     async with AsyncSessionLocal() as session:
         service = AttendanceService(session)
         try:
-            from datetime import timezone, timedelta
+            from datetime import timedelta, timezone
+
             JST = timezone(timedelta(hours=9))
             today = datetime.now(JST).date()
 

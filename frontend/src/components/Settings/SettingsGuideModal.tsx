@@ -262,6 +262,28 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                   <br />
                   <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 1〜300の整数。</span>
                 </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  ログイン継続時間 (login_token_expire_hours)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  ユーザーがログインした状態（JWTアクセストークン）の有効期限を設定します。
+                  <br />
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 1〜8760の整数（時間）。デフォルトは 168時間（7日間）。最大365日。</span>
+                  <br />
+                  新しくログインしたセッションに対して適用されます。
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  Google新規登録の許可 (enable_google_signup)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  Googleログイン時の新規ユーザー自動登録（アカウント作成）の許可・禁止を切り替えます。
+                  <br />
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: トグルスイッチで切り替え。</span>
+                  <br />
+                  無効（OFF）にすると、登録済みのユーザーのみGoogleログインが可能になり、未登録のGoogleアカウントからの新規登録は拒否されます。
+                </p>
               </div>
             )}
 
@@ -290,6 +312,15 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                   毎日指定した時刻に、設定された iCal URL から最新のシフトを自動で取得・同期します。
                   <br />
                   <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: HH:MM 形式（例: 03:00）。空欄にすると自動同期は無効になります。</span>
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  直ちに同期する (手動同期)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  iCal 同期 URL からシフト予定を直ちに手動で取り込みます。自動同期の時間を待たずに今すぐデータを反映させたい場合や、設定した iCal 同期 URL から正しくデータが取得できるかを確認したい場合にクリックします。
+                  <br />
+                  同期結果（追加・更新・削除・スキップ件数）やエラー詳細を即座に確認できます。
                 </p>
               </div>
             )}

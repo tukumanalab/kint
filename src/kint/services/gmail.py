@@ -218,4 +218,3 @@ class GmailAdapter:
                 code="GMAIL_SEND_FAILED",
                 message="メールの送信に失敗しました",
             ) from e
-

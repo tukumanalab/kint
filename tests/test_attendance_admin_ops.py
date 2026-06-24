@@ -49,9 +49,7 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
 
     # DBにレコードが存在し、チェンジログが記録されているか確認
     att_id = data["id"]
-    db_result = await session.execute(
-        select(Attendance).where(Attendance.id == att_id)
-    )
+    db_result = await session.execute(select(Attendance).where(Attendance.id == att_id))
     att = db_result.scalar_one_or_none()
     assert att is not None
     assert att.check_in is None
@@ -73,7 +71,9 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
 
 
 @pytest.mark.asyncio
-async def test_employee_cannot_create_attendance(session: AsyncSession, client: AsyncClient) -> None:
+async def test_employee_cannot_create_attendance(
+    session: AsyncSession, client: AsyncClient
+) -> None:
     """一般従業員は勤怠を追加できない（403エラー）ことをテストする。"""
     await _create_user(
         session, id="empuser", name="従業員", email="emp@example.com", role="employee"
@@ -99,7 +99,9 @@ async def test_employee_cannot_create_attendance(session: AsyncSession, client: 
 
 
 @pytest.mark.asyncio
-async def test_create_attendance_overlap_restriction(session: AsyncSession, client: AsyncClient) -> None:
+async def test_create_attendance_overlap_restriction(
+    session: AsyncSession, client: AsyncClient
+) -> None:
     """重複する時間帯の勤怠追加がブロックされることをテストする。"""
     await _create_user(
         session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
@@ -140,7 +142,9 @@ async def test_create_attendance_overlap_restriction(session: AsyncSession, clie
 
 
 @pytest.mark.asyncio
-async def test_create_attendance_locked_restriction(session: AsyncSession, client: AsyncClient) -> None:
+async def test_create_attendance_locked_restriction(
+    session: AsyncSession, client: AsyncClient
+) -> None:
     """ロックされた期間に対する勤怠追加がブロックされることをテストする。"""
     await _create_user(
         session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
@@ -230,9 +234,7 @@ async def test_admin_delete_attendance_success(session: AsyncSession, client: As
     assert resp.status_code == 204
 
     # DBからレコードとチェンジログが消えていることを確認
-    db_result = await session.execute(
-        select(Attendance).where(Attendance.id == "att_to_delete")
-    )
+    db_result = await session.execute(select(Attendance).where(Attendance.id == "att_to_delete"))
     assert db_result.scalar_one_or_none() is None
 
     log_result = await session.execute(
@@ -242,7 +244,9 @@ async def test_admin_delete_attendance_success(session: AsyncSession, client: As
 
 
 @pytest.mark.asyncio
-async def test_employee_cannot_delete_attendance(session: AsyncSession, client: AsyncClient) -> None:
+async def test_employee_cannot_delete_attendance(
+    session: AsyncSession, client: AsyncClient
+) -> None:
     """一般従業員は勤怠を削除できないことをテストする。"""
     await _create_user(
         session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
@@ -275,7 +279,9 @@ async def test_employee_cannot_delete_attendance(session: AsyncSession, client: 
 
 
 @pytest.mark.asyncio
-async def test_delete_attendance_locked_restriction(session: AsyncSession, client: AsyncClient) -> None:
+async def test_delete_attendance_locked_restriction(
+    session: AsyncSession, client: AsyncClient
+) -> None:
     """ロックされた期間に対する勤怠削除がブロックされることをテストする。"""
     await _create_user(
         session, id="adminuser", name="管理者", email="admin@example.com", role="admin"

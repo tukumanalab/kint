@@ -135,6 +135,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [monthlyReportTime, setMonthlyReportTime] = useState('');
   const [enabledMonthlyReport, setEnabledMonthlyReport] = useState(false);
   const [loginTokenExpireHours, setLoginTokenExpireHours] = useState('');
+  const [enableGoogleSignup, setEnableGoogleSignup] = useState(false);
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -243,6 +244,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setMonthlyReportTime(s.monthly_report_time ?? '');
       setEnabledMonthlyReport(!!s.monthly_report_time);
       setLoginTokenExpireHours(String(s.login_token_expire_hours));
+      setEnableGoogleSignup(s.enable_google_signup);
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -266,6 +268,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setMonthlyReportTime(s.monthly_report_time ?? '');
         setEnabledMonthlyReport(!!s.monthly_report_time);
         setLoginTokenExpireHours(String(s.login_token_expire_hours));
+        setEnableGoogleSignup(s.enable_google_signup);
       })
       .catch((err: unknown) => {
         const msg =
@@ -338,6 +341,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
         monthly_report_time: enabledMonthlyReport ? (monthlyReportTime || null) : null,
         login_token_expire_hours: Number(loginTokenExpireHours),
+        enable_google_signup: enableGoogleSignup,
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -415,6 +419,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setMonthlyReportTime(result.applied.monthly_report_time ?? '');
         setEnabledMonthlyReport(!!result.applied.monthly_report_time);
         setLoginTokenExpireHours(String(result.applied.login_token_expire_hours));
+        setEnableGoogleSignup(result.applied.enable_google_signup);
       }
       setImportFile(null);
       setImportPreview(null);
@@ -511,6 +516,23 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">時間（1〜8760）</span>
             </div>
             <p className="settings-field__hint">ログイン後のセッションの有効期限を設定します。デフォルトは168時間（7日間）です。</p>
+          </div>
+          <div className="settings-field">
+            <div className="settings-field__switch-row">
+              <label htmlFor="enableGoogleSignup" className="settings-field__label">
+                Googleログインからの新規ユーザー登録を許可する
+              </label>
+              <label className="settings-switch">
+                <input
+                  id="enableGoogleSignup"
+                  type="checkbox"
+                  checked={enableGoogleSignup}
+                  onChange={(e) => setEnableGoogleSignup(e.target.checked)}
+                />
+                <span className="settings-switch__slider"></span>
+              </label>
+            </div>
+            <p className="settings-field__hint">無効にすると、登録済みのユーザーのみGoogleログインが可能になり、未登録のGoogleアカウントからの新規登録は拒否されます。</p>
           </div>
         </section>
 

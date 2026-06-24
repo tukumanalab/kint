@@ -1,10 +1,11 @@
-import pytest
-from datetime import date, datetime, UTC
-from unittest.mock import patch, MagicMock
+from datetime import UTC, date, datetime
+from unittest.mock import patch
 
-from kint.models.user import User
-from kint.models.shift import Shift
+import pytest
+
 from kint.models.attendance import Attendance
+from kint.models.shift import Shift
+from kint.models.user import User
 from kint.services.attendance import AttendanceService
 
 pytestmark = pytest.mark.asyncio
@@ -25,14 +26,21 @@ async def _create_user(session, **kwargs) -> User:
 
 import uuid
 
-async def _create_shift(session, user_id: str, shift_date: date, start_hour: int, end_hour: int) -> Shift:
+
+async def _create_shift(
+    session, user_id: str, shift_date: date, start_hour: int, end_hour: int
+) -> Shift:
     shift_id = str(uuid.uuid4())
     shift = Shift(
         id=shift_id,
         user_id=user_id,
         shift_date=shift_date,
-        start_time=datetime(shift_date.year, shift_date.month, shift_date.day, start_hour, 0, tzinfo=UTC),
-        end_time=datetime(shift_date.year, shift_date.month, shift_date.day, end_hour, 0, tzinfo=UTC),
+        start_time=datetime(
+            shift_date.year, shift_date.month, shift_date.day, start_hour, 0, tzinfo=UTC
+        ),
+        end_time=datetime(
+            shift_date.year, shift_date.month, shift_date.day, end_hour, 0, tzinfo=UTC
+        ),
         google_event_id=f"g_event_{shift_id}",
     )
     session.add(shift)
@@ -40,7 +48,9 @@ async def _create_shift(session, user_id: str, shift_date: date, start_hour: int
     return shift
 
 
-async def _create_attendance(session, user_id: str, work_date: date, in_hour: int, out_hour: int) -> Attendance:
+async def _create_attendance(
+    session, user_id: str, work_date: date, in_hour: int, out_hour: int
+) -> Attendance:
     att = Attendance(
         id=str(uuid.uuid4()),
         user_id=user_id,
@@ -69,6 +79,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
 
     # システム設定で site_name を設定
     from kint.models.system_setting import SystemSetting
+
     setting = SystemSetting(
         key="site_name",
         value="つくまな勤怠",
@@ -105,7 +116,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
     )
 
     # 2. シフトと勤務記録の準備
-    # 従業員1: 
+    # 従業員1:
     # 3月 (3/15): 8時間勤務 (9:00 - 17:00) ※年度開始前のデータ
     # 5月 (5/15): 8時間勤務 (9:00 - 17:00)
     # 6月 (6/10, 6/20): 各8時間勤務 (9:00 - 17:00)
@@ -142,7 +153,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
     # 各呼び出しの引数を確認
     calls = mock_send_email.call_args_list
     sent_emails = [call[0][0] for call in calls]
-    
+
     assert "emp1@example.com" in sent_emails
     assert "emp2@example.com" in sent_emails
     assert "admin@example.com" not in sent_emails
@@ -155,7 +166,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
 
         assert subject == "【つくまな勤怠】2026年6月 勤務実績レポート"
         assert "つくまな勤怠 勤怠管理システムより、当月の勤務実績レポートをお知らせします。" in body
-        
+
         if to_email == "emp1@example.com":
             assert "Employee One さん" in body
             assert "1か月ごとの勤務日数: 2 日" in body

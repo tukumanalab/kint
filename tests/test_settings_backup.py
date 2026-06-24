@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+
 from kint.models.user import User
 
 pytestmark = pytest.mark.asyncio
@@ -28,6 +29,7 @@ async def _create_user(session, **kwargs) -> User:
 
 async def _login(account_id: str) -> str:
     from kint.routers.auth import _create_access_token
+
     return _create_access_token(account_id, 1)
 
 
@@ -40,7 +42,9 @@ async def test_database_backup_restore_permissions(client: AsyncClient, session)
     resp = await client.get("/api/v1/settings/database/backup", headers=headers)
     assert resp.status_code == 403
 
-    resp = await client.post("/api/v1/settings/database/restore", headers=headers, files={"file": ("dummy.db", b"dummy")})
+    resp = await client.post(
+        "/api/v1/settings/database/restore", headers=headers, files={"file": ("dummy.db", b"dummy")}
+    )
     assert resp.status_code == 403
 
 

@@ -21,7 +21,6 @@ from kint.services.gmail import GmailAdapter
 from kint.services.notification import NotificationService
 from kint.services.user import UserService
 
-
 router = APIRouter(prefix="/me", tags=["User"])
 
 
@@ -135,4 +134,3 @@ async def read_all_notifications(
     service = NotificationService(session)
     await service.mark_all_as_read(current_user.id)
     return Response(status_code=204)
-

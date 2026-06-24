@@ -1,4 +1,3 @@
-import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
@@ -11,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kint.config import settings
 from kint.db import get_db
 from kint.dependencies import get_current_user
-from kint.exceptions import KintConflictError, KintUnauthorizedError
+from kint.exceptions import KintConflictError, KintForbiddenError, KintUnauthorizedError
 from kint.models.user import User
 from kint.schemas.auth import (
     GoogleLoginRequest,
@@ -26,9 +25,7 @@ _ALGORITHM = "HS256"
 _TOKEN_EXPIRE_HOURS = 8
 
 
-def _create_access_token(
-    user_id: str, token_version: int, expire_hours: int | None = None
-) -> str:
+def _create_access_token(user_id: str, token_version: int, expire_hours: int | None = None) -> str:
     """JWT アクセストークンを生成する。tv クレームでトークンバージョンを埋め込む。"""
     hours = expire_hours if expire_hours is not None else settings.login_token_expire_hours
     expire = datetime.now(tz=UTC) + timedelta(hours=hours)
@@ -57,6 +54,7 @@ def _verify_google_id_token(id_token: str) -> dict:
         )
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).exception("Google token verification failed: %s", str(e))
         raise KintUnauthorizedError(
             code="INVALID_GOOGLE_TOKEN",
@@ -71,6 +69,7 @@ async def google_login(
 ) -> LoginResponse:
     """Google ID Token を検証し、対応するユーザーの Kint JWT を返す。"""
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("Starting Google login flow...")
     claims = _verify_google_id_token(body.id_token)
@@ -79,20 +78,37 @@ async def google_login(
     logger.info("Token verified. sub: %s, email: %s", sub, email)
 
     # google_sub で既存ユーザーを検索（2回目以降ログイン）
-    result = await session.execute(select(User).where(User.google_sub == sub, User.is_active == 1))
+    result = await session.execute(select(User).where(User.google_sub == sub))
     user = result.scalar_one_or_none()
 
     if user is None:
         logger.info("User with google_sub %s not found. Searching by email %s...", sub, email)
         # メールアドレスで初回ログインのユーザーを検索
-        result = await session.execute(select(User).where(User.email == email, User.is_active == 1))
+        result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
         if user is None:
-            logger.warning("No active user found with email %s", email)
+            logger.warning("No user found with email %s", email)
+            from kint.services.settings import SettingsService
+
+            settings_service = SettingsService(session)
+            enable_google_signup = await settings_service.get_int("enable_google_signup")
+            if not enable_google_signup:
+                logger.warning("Google signup is disabled. Rejecting unregistered user %s", email)
+                raise KintForbiddenError(
+                    code="GOOGLE_SIGNUP_DISABLED",
+                    message="このアカウントは登録されていません。新規登録は、管理者へお問い合わせください。",
+                )
             raise KintUnauthorizedError(
                 code="USER_NOT_REGISTERED",
                 message="このGoogleアカウントは登録されていません",
+            )
+
+        if user.is_active == 0:
+            logger.warning("User %s is inactive (first login attempt)", user.id)
+            raise KintUnauthorizedError(
+                code="USER_INACTIVE",
+                message="アカウントが無効化されています",
             )
 
         # 初回ログイン: google_sub を紐付けて保存
@@ -111,6 +127,7 @@ async def google_login(
     logger.info("Login successful for user %s (%s)", user.name, user.email)
 
     from kint.services.settings import SettingsService
+
     service = SettingsService(session)
     expire_hours = await service.get_int("login_token_expire_hours")
     token = _create_access_token(user.id, user.token_version or 1, expire_hours=expire_hours)
@@ -127,6 +144,16 @@ async def register(
     session: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """新規ユーザーを Google アカウントで登録し、Kint JWT を返す。"""
+    from kint.services.settings import SettingsService
+
+    settings_service = SettingsService(session)
+    enable_google_signup = await settings_service.get_int("enable_google_signup")
+    if not enable_google_signup:
+        raise KintForbiddenError(
+            code="GOOGLE_SIGNUP_DISABLED",
+            message="Googleアカウントによる新規登録は現在無効化されています",
+        )
+
     claims = _verify_google_id_token(body.id_token)
     sub: str = claims["sub"]
     email: str = claims.get("email", "")
@@ -163,6 +190,7 @@ async def register(
     await session.refresh(user)
 
     from kint.services.settings import SettingsService
+
     service = SettingsService(session)
     expire_hours = await service.get_int("login_token_expire_hours")
     token = _create_access_token(user.id, user.token_version, expire_hours=expire_hours)

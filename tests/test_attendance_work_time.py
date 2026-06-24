@@ -1,12 +1,13 @@
 """打刻時間と勤務出勤/退勤時間の分離および管理者による直接編集機能のテスト。"""
 
 from datetime import UTC, date, datetime
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kint.models.attendance import Attendance, AttendanceChangeLog
+from kint.models.attendance import Attendance
 from tests.test_attendance_summary import _create_user, _login
 
 

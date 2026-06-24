@@ -232,7 +232,6 @@ class UserService:
         from kint.models.shift import Shift
         from kint.models.user_profile_change_log import UserProfileChangeLog
 
-
         # 1. ユーザーの勤怠レコードIDを収集
         att_stmt = select(Attendance.id).where(Attendance.user_id == user_id)
         att_result = await self.session.execute(att_stmt)
@@ -260,7 +259,9 @@ class UserService:
         # 5. ユーザーが作成した/承認した勤怠修正申請のクリーンアップ
         # ユーザー本人の申請を削除 (user_id が RESTRICT)
         await self.session.execute(
-            delete(AttendanceCorrectionRequest).where(AttendanceCorrectionRequest.user_id == user_id)
+            delete(AttendanceCorrectionRequest).where(
+                AttendanceCorrectionRequest.user_id == user_id
+            )
         )
         # ユーザーが承認した申請を NULL クリア
         await self.session.execute(
@@ -303,6 +304,7 @@ class UserService:
 
         # 10.5. システム設定の更新者を system ユーザーに変更（updated_by_user_id が RESTRICT のため）
         from kint.models.system_setting import SystemSetting
+
         system_user_exists = (
             await self.session.execute(select(User.id).where(User.id == "system"))
         ).scalar_one_or_none() is not None
@@ -326,7 +328,6 @@ class UserService:
 
         # 11. 最後にユーザーを物理削除
         await self.session.delete(user)
-
 
         await self.session.commit()
         return True

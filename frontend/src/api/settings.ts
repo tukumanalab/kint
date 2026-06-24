@@ -31,6 +31,7 @@ export interface PublicSettings {
   site_name: string;
   site_subtitle: string;
   punch_result_display_seconds: number;
+  enable_google_signup: boolean;
 }
 
 export async function getPublicSettings(): Promise<PublicSettings> {

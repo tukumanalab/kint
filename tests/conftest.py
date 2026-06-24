@@ -50,6 +50,7 @@ async def client(session):
 def clear_punch_cache():
     """テスト実行ごとに最終打刻時刻のメモリキャッシュをクリアする。"""
     from kint.services.attendance import _LAST_PUNCH_TIME
+
     _LAST_PUNCH_TIME.clear()
     yield
     _LAST_PUNCH_TIME.clear()

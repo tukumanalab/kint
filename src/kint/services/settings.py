@@ -26,6 +26,7 @@ ALLOWED_SETTING_KEYS = {
     "punch_result_display_seconds",
     "monthly_report_time",
     "login_token_expire_hours",
+    "enable_google_signup",
 }
 
 _KNOWN_VERSION = "1"
@@ -54,6 +55,7 @@ class SettingsService:
         display_seconds_raw = db_map.get("punch_result_display_seconds")
         monthly_report_time_raw = db_map.get("monthly_report_time")
         login_token_expire_hours_raw = db_map.get("login_token_expire_hours")
+        enable_google_signup_raw = db_map.get("enable_google_signup")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -67,7 +69,9 @@ class SettingsService:
             ical = None
         sync_time = sync_time_raw if sync_time_raw else None
         site_name = site_name_raw if site_name_raw is not None else env_settings.site_name
-        site_subtitle = site_subtitle_raw if site_subtitle_raw is not None else env_settings.site_subtitle
+        site_subtitle = (
+            site_subtitle_raw if site_subtitle_raw is not None else env_settings.site_subtitle
+        )
         display_seconds = (
             int(display_seconds_raw)
             if display_seconds_raw is not None
@@ -87,6 +91,12 @@ class SettingsService:
             else env_settings.login_token_expire_hours
         )
 
+        enable_google_signup = (
+            enable_google_signup_raw == "1"
+            if enable_google_signup_raw is not None
+            else env_settings.enable_google_signup
+        )
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -97,6 +107,7 @@ class SettingsService:
             punch_result_display_seconds=display_seconds,
             monthly_report_time=monthly_report_time,
             login_token_expire_hours=login_token_expire_hours,
+            enable_google_signup=enable_google_signup,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -152,6 +163,8 @@ class SettingsService:
             fields["monthly_report_time"] = ""
         if updates.login_token_expire_hours is not None:
             fields["login_token_expire_hours"] = str(updates.login_token_expire_hours)
+        if updates.enable_google_signup is not None:
+            fields["enable_google_signup"] = "1" if updates.enable_google_signup else "0"
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -227,6 +240,7 @@ class SettingsService:
             "punch_result_display_seconds": current.punch_result_display_seconds,
             "monthly_report_time": current.monthly_report_time,
             "login_token_expire_hours": current.login_token_expire_hours,
+            "enable_google_signup": current.enable_google_signup,
         }
 
         changes: list[SettingsImportChange] = []
@@ -239,8 +253,19 @@ class SettingsService:
                 continue
 
             # 値の正規化
-            if key in {"shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "monthly_report_time"}:
-                new_value: int | str | None = raw_value if raw_value else None
+            if key in {
+                "shift_ical_url",
+                "shift_sync_time",
+                "site_name",
+                "site_subtitle",
+                "monthly_report_time",
+            }:
+                new_value: int | str | bool | None = raw_value if raw_value else None
+            elif key == "enable_google_signup":
+                if isinstance(raw_value, bool):
+                    new_value = raw_value
+                else:
+                    new_value = str(raw_value) == "1" or str(raw_value).lower() == "true"
             else:
                 new_value = int(raw_value)
 

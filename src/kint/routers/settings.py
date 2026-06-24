@@ -1,14 +1,12 @@
 """システム設定 API ルーター。GET/PATCH /api/v1/settings および export/import を提供する。"""
 
-from datetime import UTC, datetime
+import inspect
 import os
 import shutil
 import sqlite3
 import tempfile
+from datetime import UTC, datetime
 
-import asyncio
-import anyio
-import inspect
 import aiosqlite
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -19,12 +17,12 @@ from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
 from kint.schemas.settings import (
+    PublicSettingsResponse,
     SettingsExportFile,
     SettingsImportRequest,
     SettingsImportResult,
     SettingsPatchRequest,
     SettingsResponse,
-    PublicSettingsResponse,
 )
 from kint.services.settings import SettingsService
 
@@ -35,15 +33,17 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 async def get_public_settings(
     session: AsyncSession = Depends(get_db),
 ) -> PublicSettingsResponse:
-    """認証不要で取得できる公開設定（サイト名およびサブタイトル、打刻結果表示時間）を返す。"""
+    """認証不要で取得できる公開設定（サイト名およびサブタイトル、打刻結果表示時間、Google新規登録のON/OFF）を返す。"""
     service = SettingsService(session)
     site_name = await service.get_str("site_name")
     site_subtitle = await service.get_str("site_subtitle")
     display_seconds = await service.get_int("punch_result_display_seconds")
+    enable_google_signup = await service.get_int("enable_google_signup")
     return PublicSettingsResponse(
         site_name=site_name or "Kint",
         site_subtitle=site_subtitle or "NFC 勤怠管理システム",
         punch_result_display_seconds=display_seconds,
+        enable_google_signup=bool(enable_google_signup),
     )
 
 
@@ -236,9 +236,7 @@ async def restore_database_api(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"復元処理中にエラーが発生しました: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"復元処理中にエラーが発生しました: {str(e)}")
     finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)

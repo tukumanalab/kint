@@ -45,7 +45,6 @@ class PunchResponse(BaseModel):
     has_unread_notifications: bool = False
 
 
-
 class PunchUserCandidate(BaseModel):
     """カード忘れ打刻用の公開ユーザー候補。"""
 

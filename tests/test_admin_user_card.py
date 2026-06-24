@@ -1,4 +1,3 @@
-import pytest
 from httpx import AsyncClient
 
 from kint.models.user import User
@@ -35,7 +34,9 @@ class TestAdminUserCard:
         """管理者が他のユーザーのカードを取得、登録、名前変更、削除できること。"""
         # 管理者と一般従業員を作成
         admin = await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
-        employee = await _create_user(session, id="empuser", role="employee", email="emp@example.com")
+        employee = await _create_user(
+            session, id="empuser", role="employee", email="emp@example.com"
+        )
 
         admin_token = await _login(client, "adminuser")
 
@@ -94,7 +95,9 @@ class TestAdminUserCard:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_non_admin_cannot_manage_user_cards(self, client: AsyncClient, session: object) -> None:
+    async def test_non_admin_cannot_manage_user_cards(
+        self, client: AsyncClient, session: object
+    ) -> None:
         """一般従業員は他人のカードを管理できないこと（403 Forbidden）。"""
         emp1 = await _create_user(session, id="emp1", role="employee", email="emp1@example.com")
         emp2 = await _create_user(session, id="emp2", role="employee", email="emp2@example.com")
@@ -131,7 +134,9 @@ class TestAdminUserCard:
         )
         assert resp.status_code == 403
 
-    async def test_admin_manage_nonexistent_user(self, client: AsyncClient, session: object) -> None:
+    async def test_admin_manage_nonexistent_user(
+        self, client: AsyncClient, session: object
+    ) -> None:
         """存在しないユーザーに対する操作は404エラーになること。"""
         await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
         admin_token = await _login(client, "adminuser")
@@ -149,7 +154,9 @@ class TestAdminUserCard:
         )
         assert resp.status_code == 404
 
-    async def test_admin_register_duplicate_card_idm(self, client: AsyncClient, session: object) -> None:
+    async def test_admin_register_duplicate_card_idm(
+        self, client: AsyncClient, session: object
+    ) -> None:
         """重複したカードIDmの登録は409エラーになること。"""
         await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
         emp1 = await _create_user(session, id="emp1", role="employee", email="emp1@example.com")

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -50,9 +50,7 @@ class TestUserHardDelete:
     async def test_hard_delete_success(self, client: AsyncClient, session) -> None:
         """物理削除(hard=true)が正常に動作し、関連する全レコードがクリーンアップされること。"""
         # 管理者作成（実行者） & 一般ユーザー作成（削除対象）
-        admin = await _create_user(
-            session, id="adminuser", email="admin@example.com", role="admin"
-        )
+        admin = await _create_user(session, id="adminuser", email="admin@example.com", role="admin")
         target = await _create_user(
             session, id="delete_target", email="target@example.com", role="employee"
         )
@@ -213,40 +211,63 @@ class TestUserHardDelete:
         headers = {"Authorization": f"Bearer {token}"}
 
         # 物理削除を実行
-        response = await client.delete(
-            f"/api/v1/users/{target_id}?hard=true", headers=headers
-        )
+        response = await client.delete(f"/api/v1/users/{target_id}?hard=true", headers=headers)
         assert response.status_code == 204
 
         # セッションキャッシュをクリア
         session.expire_all()
 
         # 各テーブルからデータが消えていることを検証
-        assert (await session.execute(select(User).where(User.id == target_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(Card).where(Card.user_id == target_id))).scalar_one_or_none() is None
-        assert (await session.execute(select(Shift).where(Shift.user_id == target_id))).scalar_one_or_none() is None
         assert (
-            (await session.execute(select(Attendance).where(Attendance.user_id == target_id)))
+            await session.execute(select(User).where(User.id == target_id))
         ).scalar_one_or_none() is None
         assert (
-            (await session.execute(select(AttendanceChangeLog).where(AttendanceChangeLog.actor_user_id == target_id)))
-        ).scalars().all() == []
-        assert (
-            (await session.execute(select(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == attendance_id)))
-        ).scalars().all() == []
-        assert (
-            (await session.execute(select(AttendanceCorrectionRequest).where(AttendanceCorrectionRequest.user_id == target_id)))
-        ).scalars().all() == []
-        assert (
-            (await session.execute(select(AttendanceLock).where(AttendanceLock.locked_by_user_id == target_id)))
+            await session.execute(select(Card).where(Card.user_id == target_id))
         ).scalar_one_or_none() is None
         assert (
-            (await session.execute(select(UserProfileChangeLog).where(
-                (UserProfileChangeLog.user_id == target_id) | (UserProfileChangeLog.actor_user_id == target_id)
-            )))
+            await session.execute(select(Shift).where(Shift.user_id == target_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(select(Attendance).where(Attendance.user_id == target_id))
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(
+                select(AttendanceChangeLog).where(AttendanceChangeLog.actor_user_id == target_id)
+            )
         ).scalars().all() == []
         assert (
-            (await session.execute(select(EmailVerificationRequest).where(EmailVerificationRequest.user_id == target_id)))
+            await session.execute(
+                select(AttendanceChangeLog).where(
+                    AttendanceChangeLog.attendance_id == attendance_id
+                )
+            )
+        ).scalars().all() == []
+        assert (
+            await session.execute(
+                select(AttendanceCorrectionRequest).where(
+                    AttendanceCorrectionRequest.user_id == target_id
+                )
+            )
+        ).scalars().all() == []
+        assert (
+            await session.execute(
+                select(AttendanceLock).where(AttendanceLock.locked_by_user_id == target_id)
+            )
+        ).scalar_one_or_none() is None
+        assert (
+            await session.execute(
+                select(UserProfileChangeLog).where(
+                    (UserProfileChangeLog.user_id == target_id)
+                    | (UserProfileChangeLog.actor_user_id == target_id)
+                )
+            )
+        ).scalars().all() == []
+        assert (
+            await session.execute(
+                select(EmailVerificationRequest).where(
+                    EmailVerificationRequest.user_id == target_id
+                )
+            )
         ).scalars().all() == []
 
         # targetが承認した他人の申請の承認者が NULL にクリアされていること
@@ -261,9 +282,7 @@ class TestUserHardDelete:
 
         # system_settings の updated_by_user_id が 'system' に変更されていること
         setting_db = (
-            await session.execute(
-                select(SystemSetting).where(SystemSetting.key == "test_key")
-            )
+            await session.execute(select(SystemSetting).where(SystemSetting.key == "test_key"))
         ).scalar_one()
         assert setting_db.updated_by_user_id == "system"
 
@@ -296,9 +315,7 @@ class TestUserHardDelete:
     @pytest.mark.asyncio
     async def test_permission_denied(self, client: AsyncClient, session) -> None:
         """一般従業員は物理削除を実行できないこと(403)。"""
-        emp = await _create_user(
-            session, id="empuser", email="emp@example.com", role="employee"
-        )
+        emp = await _create_user(session, id="empuser", email="emp@example.com", role="employee")
         target = await _create_user(
             session, id="target3", email="target3@example.com", role="employee"
         )
@@ -309,9 +326,7 @@ class TestUserHardDelete:
         token = await _login(account_id=emp_id)
         headers = {"Authorization": f"Bearer {token}"}
 
-        response = await client.delete(
-            f"/api/v1/users/{target_id}?hard=true", headers=headers
-        )
+        response = await client.delete(f"/api/v1/users/{target_id}?hard=true", headers=headers)
         assert response.status_code == 403
 
     @pytest.mark.asyncio
@@ -326,8 +341,6 @@ class TestUserHardDelete:
         token = await _login(account_id=admin_id)
         headers = {"Authorization": f"Bearer {token}"}
 
-        response = await client.delete(
-            f"/api/v1/users/{admin_id}?hard=true", headers=headers
-        )
+        response = await client.delete(f"/api/v1/users/{admin_id}?hard=true", headers=headers)
         assert response.status_code == 409
         assert "最後の有効な管理者" in response.json()["message"]

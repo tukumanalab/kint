@@ -10,7 +10,6 @@ from sqlalchemy.pool import Pool
 from kint.config import settings
 
 
-
 @listens_for(Pool, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record) -> None:
     """SQLite 接続時に外部キー制約を有効にする。"""

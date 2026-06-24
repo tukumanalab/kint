@@ -8,14 +8,14 @@ from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
 from kint.schemas.user import (
+    MeCardListItem,
+    MeCardPatchRequest,
+    MeCardRegistrationRequest,
+    MeCardRegistrationResponse,
     UserCreateRequest,
     UserPatchRequest,
     UserResponse,
     UsersListResponse,
-    MeCardListItem,
-    MeCardRegistrationRequest,
-    MeCardRegistrationResponse,
-    MeCardPatchRequest,
 )
 from kint.schemas.user_backup import ImportResultSchema, UserBackupSchema
 from kint.services.user import UserService

@@ -8,6 +8,7 @@ export interface SystemSettings {
   punch_result_display_seconds: number;
   monthly_report_time: string | null;
   login_token_expire_hours: number;
+  enable_google_signup: boolean;
 }
 
 export interface SettingsPatchRequest {
@@ -20,6 +21,7 @@ export interface SettingsPatchRequest {
   punch_result_display_seconds?: number;
   monthly_report_time?: string | null;
   login_token_expire_hours?: number;
+  enable_google_signup?: boolean;
 }
 
 export interface SettingsExportFile {

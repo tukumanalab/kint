@@ -42,6 +42,9 @@ function getInitialGuestPage(): GuestPage {
   if (isPunchPath()) {
     return 'punch';
   }
+  if (sessionStorage.getItem('google_credential')) {
+    return 'login';
+  }
   return 'home';
 }
 

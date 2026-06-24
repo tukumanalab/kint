@@ -130,11 +130,14 @@ class TestPunchRules:
         """クールダウン秒以内の連続打刻を拒否する。"""
         user = await _create_user(session)
         from kint.models.system_setting import SystemSetting
-        session.add(SystemSetting(
-            key="punch_cooldown_seconds",
-            value="60",
-            updated_by_user_id=user.id,
-        ))
+
+        session.add(
+            SystemSetting(
+                key="punch_cooldown_seconds",
+                value="60",
+                updated_by_user_id=user.id,
+            )
+        )
         await session.commit()
 
         await _create_card(session, user.id)
@@ -253,11 +256,17 @@ class TestPunchRules:
         """打刻時の丸め処理後の勤務出退勤時刻と労働時間の計算がレスポンスに含まれること。"""
         user = await _create_user(session, user_id="user-002")
         await _create_card(session, user.id, card_idm="2222222222222222")
-        
+
         # 9:00〜18:00 のシフトを作成
         shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
-        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-002")
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-002",
+        )
 
         # 1. 出勤打刻（シフト開始後: 9:03）
         # 5分切り上げで 9:05 に丸められるはず
@@ -306,11 +315,17 @@ class TestPunchRules:
         """シフト開始前および終了後の打刻で、それぞれシフト境界に補正されること。"""
         user = await _create_user(session, user_id="user-003")
         await _create_card(session, user.id, card_idm="3333333333333333")
-        
+
         # 9:00〜18:00 のシフトを作成
         shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
-        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-003")
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-003",
+        )
 
         # シフト開始前（8:50）に打刻
         # 9:00 に丸められるはず
@@ -451,7 +466,13 @@ class TestPunchRules:
         # 9:00〜18:00 のシフトを作成
         shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
-        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-1")
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-cancel-1",
+        )
 
         # 1. 出勤打刻 (9:01:00)
         punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)
@@ -503,7 +524,13 @@ class TestPunchRules:
         # 9:00〜18:00 のシフト
         shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
-        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-2")
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-cancel-2",
+        )
 
         # 1. 出勤打刻 (9:01:00)
         punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)
@@ -547,11 +574,14 @@ class TestPunchRules:
 
         # クールダウンを明示的に 60 秒に設定
         from kint.models.system_setting import SystemSetting
-        session.add(SystemSetting(
-            key="punch_cooldown_seconds",
-            value="60",
-            updated_by_user_id=user.id,
-        ))
+
+        session.add(
+            SystemSetting(
+                key="punch_cooldown_seconds",
+                value="60",
+                updated_by_user_id=user.id,
+            )
+        )
         await session.commit()
 
         await _create_card(session, user.id, card_idm="7777777777777777")
@@ -559,7 +589,13 @@ class TestPunchRules:
         # 9:00〜18:00 のシフトを作成
         shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
         shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
-        await _create_shift(session, user_id=user.id, start_time=shift_start, end_time=shift_end, event_id="event-cancel-cooldown")
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-cancel-cooldown",
+        )
 
         # 1. 出勤打刻 (9:01:00) -> 200 OK
         punch_in_time = datetime(2026, 5, 16, 9, 1, 0, tzinfo=UTC)

@@ -41,7 +41,9 @@ class TestNotificationAPI:
         await _create_user(session)
         token = await _login()
 
-        resp = await client.get("/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get(
+            "/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["items"] == []
@@ -53,6 +55,7 @@ class TestNotificationAPI:
         token = await _login()
 
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(session)
         notif1 = await notif_svc.create_notification(
             user_id=user.id,
@@ -67,7 +70,9 @@ class TestNotificationAPI:
         await session.commit()
 
         # 取得
-        resp = await client.get("/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get(
+            "/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["items"]) == 2
@@ -84,7 +89,9 @@ class TestNotificationAPI:
         assert resp_read.json()["is_read"] is True
 
         # 再取得で unread_count が1になっているか確認
-        resp2 = await client.get("/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"})
+        resp2 = await client.get(
+            "/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"}
+        )
         assert resp2.json()["unread_count"] == 1
 
         # 一括既読
@@ -95,7 +102,9 @@ class TestNotificationAPI:
         assert resp_all.status_code == 204
 
         # 再取得で unread_count が0になっているか確認
-        resp3 = await client.get("/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"})
+        resp3 = await client.get(
+            "/api/v1/me/notifications", headers={"Authorization": f"Bearer {token}"}
+        )
         assert resp3.json()["unread_count"] == 0
 
 
@@ -104,9 +113,7 @@ class TestAttendanceCorrectionNotification:
         """申請が却下された際、自動でお知らせが作成されること。"""
         # 一般ユーザーと管理者を作成
         user = await _create_user(session)
-        admin = await _create_user(
-            session, id="adminuser", role="admin", email="admin@example.com"
-        )
+        admin = await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
         admin_token = await _login("adminuser")
 
         # 勤怠レコードと申請を作成
@@ -141,11 +148,11 @@ class TestAttendanceCorrectionNotification:
             json={"approval_comment": "証拠がありません"},
         )
 
-
         assert resp.status_code == 200
 
         # 通知がDBにあるか確認
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(session)
         items, count = await notif_svc.list_notifications(user.id)
         assert count == 1
@@ -180,6 +187,7 @@ class TestPunchNotification:
 
         # 通知を作成する
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(session)
         await notif_svc.create_notification(
             user_id=user.id,
@@ -226,6 +234,7 @@ class TestNotificationCleanup:
         user = await _create_user(session)
 
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(session)
 
         # 古い通知（181日前）
@@ -267,6 +276,7 @@ class TestNotificationCascadeDelete:
         user = await _create_user(session)
 
         from kint.services.notification import NotificationService
+
         notif_svc = NotificationService(session)
         notif = await notif_svc.create_notification(
             user_id=user.id,
