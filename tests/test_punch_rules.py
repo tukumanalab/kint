@@ -453,6 +453,66 @@ class TestPunchRules:
         res_out_data = response_out.json()
         assert res_out_data["calculated_time"].startswith("2026-06-04T17:45:00")
 
+    async def test_punch_calculated_fields_truncates_seconds(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """打刻時刻の秒は切り捨てて分単位で丸めること（13:00:59 -> 13:00:00）。"""
+        user = await _create_user(session, user_id="user-006")
+        await _create_card(session, user.id, card_idm="6666666666666666")
+
+        # シフトを作成（13:00〜18:00）
+        shift_start = datetime(2026, 6, 4, 13, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 6, 4, 18, 0, tzinfo=UTC)
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-006",
+        )
+
+        # 出勤打刻 (13:00:59) -> 秒を切り捨てて 13:00 として扱い、13:00:00 に丸められるはず
+        punch_in_time = datetime(2026, 6, 4, 13, 0, 59, tzinfo=UTC)
+        response_in = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "6666666666666666",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+        assert response_in.status_code == 200
+        res_in_data = response_in.json()
+        assert res_in_data["action"] == "check_in"
+        assert res_in_data["calculated_time"].startswith("2026-06-04T13:00:00")
+
+    async def test_punch_calculated_fields_truncates_seconds_without_shift(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """シフトがない場合も打刻の秒を切り捨てて丸めること（13:00:59 -> 13:00:00）。"""
+        user = await _create_user(session, user_id="user-007")
+        await _create_card(session, user.id, card_idm="7777777777777777")
+
+        # 出勤打刻（シフトなし: 13:00:59）-> 秒を切り捨てて 13:00:00 に丸められるはず
+        punch_in_time = datetime(2026, 6, 4, 13, 0, 59, tzinfo=UTC)
+        response_in = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "7777777777777777",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+                "confirm": True,  # シフトがないため confirm=True が必要
+            },
+        )
+        assert response_in.status_code == 200
+        res_in_data = response_in.json()
+        assert res_in_data["action"] == "check_in"
+        assert res_in_data["calculated_time"].startswith("2026-06-04T13:00:00")
+
     async def test_punch_cancel_within_5_minutes(
         self,
         client: AsyncClient,

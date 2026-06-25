@@ -80,7 +80,8 @@ def calculate_working_time(
     calc_out = None
 
     if check_in is not None:
-        dt_in = check_in.replace(microsecond=0)
+        # 打刻時刻の秒は切り捨て、分単位に正規化したうえで丸める
+        dt_in = check_in.replace(second=0, microsecond=0)
         if shift_start is not None and dt_in <= shift_start:
             # シフト開始前の打刻はシフト開始時刻とする
             calc_in = shift_start
@@ -95,7 +96,8 @@ def calculate_working_time(
                 calc_in = dt_in
 
     if check_out is not None:
-        dt_out = check_out.replace(microsecond=0)
+        # 打刻時刻の秒は切り捨て、分単位に正規化したうえで丸める
+        dt_out = check_out.replace(second=0, microsecond=0)
         if shift_end is not None and dt_out >= shift_end:
             # シフト終了後の打刻はシフト終了時刻とする
             calc_out = shift_end
