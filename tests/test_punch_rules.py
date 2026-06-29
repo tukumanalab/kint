@@ -170,6 +170,66 @@ class TestPunchRules:
         assert second.status_code == 409
         assert second.json()["code"] == "PUNCH_COOLDOWN_ACTIVE"
 
+    async def test_ignores_rapid_consecutive_punch_within_10_seconds(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """10秒以内の連続打刻を無視（200 OK、ただしDB等への追加は無し、actionはNone）する。"""
+        user = await _create_user(session)
+        from kint.models.system_setting import SystemSetting
+
+        session.add(
+            SystemSetting(
+                key="punch_cooldown_seconds",
+                value="60",
+                updated_by_user_id=user.id,
+            )
+        )
+        await session.commit()
+
+        await _create_card(session, user.id)
+        base_time = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=base_time,
+            end_time=datetime(2026, 5, 16, 18, 0, tzinfo=UTC),
+        )
+
+        first = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "0123456789ABCDEF",
+                "device_id": "web-browser",
+                "occurred_at": base_time.isoformat(),
+            },
+        )
+        second = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "0123456789ABCDEF",
+                "device_id": "web-browser",
+                "occurred_at": (base_time + timedelta(seconds=5)).isoformat(),
+            },
+        )
+
+        assert first.status_code == 200
+        assert first.json()["action"] == "check_in"
+
+        assert second.status_code == 200
+        second_json = second.json()
+        assert second_json["status"] == "completed"
+        assert second_json["action"] is None
+        assert "無視されました" in second_json["message"]
+
+        # DB 上の勤怠レコードが1件（最初の打刻のみ）であることを確認
+        user_id = user.id
+        session.expire_all()
+        result = await session.execute(select(Attendance).where(Attendance.user_id == user_id))
+        rows = result.scalars().all()
+        assert len(rows) == 1
+
     async def test_requires_confirmation_when_check_in_without_shift(
         self,
         client: AsyncClient,

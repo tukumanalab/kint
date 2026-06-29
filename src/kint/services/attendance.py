@@ -202,8 +202,8 @@ class PunchService:
             return dt.replace(tzinfo=UTC)
         return dt.astimezone(UTC)
 
-    async def _validate_cooldown(self, user_id: str, occurred_at: datetime) -> None:
-        """直近打刻からクールダウン秒数以内の連続打刻を拒否する。"""
+    async def _get_cooldown_diff(self, user_id: str, occurred_at: datetime) -> float | None:
+        """直近打刻からの経過秒数を計算する。打刻がない場合は None を返す。"""
         latest = await self._get_latest_attendance(user_id)
         latest_punched_at = None
         if latest is not None:
@@ -218,27 +218,9 @@ class PunchService:
                 latest_punched_at = mem_latest
 
         if latest_punched_at is None:
-            return
+            return None
 
-        diff_seconds = (self._as_utc(occurred_at) - self._as_utc(latest_punched_at)).total_seconds()
-        svc = SettingsService(self.session)
-        cooldown_seconds = await svc.get_int("punch_cooldown_seconds")
-        if diff_seconds >= cooldown_seconds:
-            return
-
-        remaining_seconds = max(1, int(cooldown_seconds - diff_seconds))
-        raise KintConflictError(
-            code="PUNCH_COOLDOWN_ACTIVE",
-            message=(
-                "直前に打刻したばかりです。"
-                f"あと {remaining_seconds} 秒ほど待ってから再度打刻してください。"
-            ),
-            detail={
-                "user_id": user_id,
-                "cooldown_seconds": cooldown_seconds,
-                "remaining_seconds": remaining_seconds,
-            },
-        )
+        return (self._as_utc(occurred_at) - self._as_utc(latest_punched_at)).total_seconds()
 
     async def _has_shift_for_check_in(self, user_id: str, occurred_at: datetime) -> bool:
         """時刻がシフト範囲（開始前許容を含む）に入るかを判定する。"""
@@ -311,7 +293,44 @@ class PunchService:
             source = "web_user_id"
             method = "user_id"
 
-        await self._validate_cooldown(user.id, request.occurred_at)
+        diff_seconds = await self._get_cooldown_diff(user.id, request.occurred_at)
+        if diff_seconds is not None:
+            if diff_seconds < 10.0:
+                # 10秒以内の連続打刻は無視する
+                from kint.services.notification import NotificationService
+
+                notif_svc = NotificationService(self.session)
+                has_unread = await notif_svc.has_unread_notifications(user.id)
+
+                return PunchResponse(
+                    status="completed",
+                    attendance_id=None,
+                    user_id=user.id,
+                    user_name=user.name,
+                    action=None,
+                    occurred_at=request.occurred_at,
+                    method=method,  # type: ignore[arg-type]
+                    message="連続打刻のため無視されました（10秒以内）",
+                    has_unread_notifications=has_unread,
+                )
+
+            svc = SettingsService(self.session)
+            cooldown_seconds = await svc.get_int("punch_cooldown_seconds")
+            if diff_seconds < cooldown_seconds:
+                remaining_seconds = max(1, int(cooldown_seconds - diff_seconds))
+                raise KintConflictError(
+                    code="PUNCH_COOLDOWN_ACTIVE",
+                    message=(
+                        "直前に打刻したばかりです。"
+                        f"あと {remaining_seconds} 秒ほど待ってから再度打刻してください。"
+                    ),
+                    detail={
+                        "user_id": user.id,
+                        "cooldown_seconds": cooldown_seconds,
+                        "remaining_seconds": remaining_seconds,
+                    },
+                )
+
         attendance = await self._get_open_attendance(user.id)
 
         # 5分以内の退勤打刻の場合、出勤記録を取り消す（削除する）
