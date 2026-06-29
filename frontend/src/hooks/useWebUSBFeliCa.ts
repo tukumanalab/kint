@@ -303,7 +303,9 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
     }
     setStatus('reading', { errorMessage: null });
     try {
-      while (ctxRef.current === ctx && stateRef.current.status === 'reading') {
+      let isFirstRun = true;
+      while (ctxRef.current === ctx && (isFirstRun || stateRef.current.status === 'reading')) {
+        isFirstRun = false;
         const idm = await pollFeliCa(ctx);
         if (idm) {
           setStatus('success', { idm, errorMessage: null });
