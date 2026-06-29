@@ -279,6 +279,20 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
     }
   }, [setStatus]);
 
+  const disconnect = useCallback(async () => {
+    const ctx = ctxRef.current;
+    if (ctx) {
+      try {
+        await ctx.device.releaseInterface(ctx.interfaceNumber);
+        await ctx.device.close();
+      } catch {
+        // 切断エラーは無視
+      }
+      ctxRef.current = null;
+    }
+    setStatus('idle', { idm: null, errorMessage: null });
+  }, [setStatus]);
+
   const readIdm = useCallback(async (): Promise<string | null> => {
     const ctx = ctxRef.current;
     if (!ctx) {
@@ -305,20 +319,6 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
       return null;
     }
   }, [disconnect, setStatus]);
-
-  const disconnect = useCallback(async () => {
-    const ctx = ctxRef.current;
-    if (ctx) {
-      try {
-        await ctx.device.releaseInterface(ctx.interfaceNumber);
-        await ctx.device.close();
-      } catch {
-        // 切断エラーは無視
-      }
-      ctxRef.current = null;
-    }
-    setStatus('idle', { idm: null, errorMessage: null });
-  }, [setStatus]);
 
   const reset = useCallback(() => {
     setState({ status: ctxRef.current ? 'connected' : 'idle', idm: null, errorMessage: null });
