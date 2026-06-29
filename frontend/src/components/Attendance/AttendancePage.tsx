@@ -84,6 +84,10 @@ export function AttendancePage({ auth }: Props) {
     requestedCheckOut: '',
     originalCheckIn: '',
     originalCheckOut: '',
+    calculatedCheckIn: '',
+    calculatedCheckOut: '',
+    shiftStart: '',
+    shiftEnd: '',
     requestedCheckInDate: '',
     requestedCheckInTime: '',
     requestedCheckOutDate: '',
@@ -379,7 +383,9 @@ export function AttendancePage({ auth }: Props) {
     checkIn: string | null,
     checkOut: string | null,
     calcIn: string | null = null,
-    calcOut: string | null = null
+    calcOut: string | null = null,
+    shiftStart: string | null = null,
+    shiftEnd: string | null = null
   ) => {
     // 管理者であれば、初期表示する修正ターゲット日時は calcIn / calcOut (勤務時間) にする
     const targetIn = isAdmin ? calcIn : checkIn;
@@ -397,6 +403,10 @@ export function AttendancePage({ auth }: Props) {
       requestedCheckOut: targetOut || '',
       originalCheckIn: checkIn || '',
       originalCheckOut: checkOut || '',
+      calculatedCheckIn: calcIn || '',
+      calculatedCheckOut: calcOut || '',
+      shiftStart: shiftStart || '',
+      shiftEnd: shiftEnd || '',
       requestedCheckInDate: localIn.date,
       requestedCheckInTime: localIn.time,
       requestedCheckOutDate: localOut.date,
@@ -613,9 +623,56 @@ export function AttendancePage({ auth }: Props) {
     return <span className={className}>({weekday[day]})</span>;
   };
 
+  const calculateWorkingHours = (
+    checkIn: Date | null,
+    checkOut: Date | null,
+    shiftStartStr: string | null | undefined,
+    shiftEndStr: string | null | undefined
+  ) => {
+    if (!checkIn || !checkOut) return 0;
+
+    const shiftStart = shiftStartStr ? new Date(shiftStartStr) : null;
+    const shiftEnd = shiftEndStr ? new Date(shiftEndStr) : null;
+
+    // 出勤丸め
+    let calcIn = new Date(checkIn.getTime());
+    calcIn.setSeconds(0, 0);
+    calcIn.setMilliseconds(0);
+    if (shiftStart && calcIn.getTime() <= shiftStart.getTime()) {
+      calcIn = shiftStart;
+    } else {
+      const min = calcIn.getMinutes();
+      const roundedMin = Math.floor(min / 5) * 5;
+      calcIn.setMinutes(roundedMin);
+    }
+
+    // 退勤丸め
+    let calcOut = new Date(checkOut.getTime());
+    calcOut.setSeconds(0, 0);
+    calcOut.setMilliseconds(0);
+    if (shiftEnd && calcOut.getTime() >= shiftEnd.getTime()) {
+      calcOut = shiftEnd;
+    } else {
+      const min = calcOut.getMinutes();
+      const roundedMin = Math.ceil(min / 5) * 5;
+      if (roundedMin === 60) {
+        calcOut.setHours(calcOut.getHours() + 1);
+        calcOut.setMinutes(0);
+      } else {
+        calcOut.setMinutes(roundedMin);
+      }
+    }
+
+    const ms = calcOut.getTime() - calcIn.getTime();
+    return ms > 0 ? ms / (1000 * 60 * 60) : 0;
+  };
+
   const getRequestDiff = () => {
     const origIn = requestFormData.originalCheckIn ? new Date(requestFormData.originalCheckIn) : null;
     const origOut = requestFormData.originalCheckOut ? new Date(requestFormData.originalCheckOut) : null;
+
+    const calcOrigIn = requestFormData.calculatedCheckIn ? new Date(requestFormData.calculatedCheckIn) : null;
+    const calcOrigOut = requestFormData.calculatedCheckOut ? new Date(requestFormData.calculatedCheckOut) : null;
 
     const isoIn = toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
     const isoOut = toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
@@ -632,14 +689,8 @@ export function AttendancePage({ auth }: Props) {
       return `${year}-${month}-${day} ${hh}:${min}`;
     };
 
-    const calcHours = (start: Date | null, end: Date | null) => {
-      if (!start || !end) return 0;
-      const ms = end.getTime() - start.getTime();
-      return ms > 0 ? ms / (1000 * 60 * 60) : 0;
-    };
-
-    const origHours = calcHours(origIn, origOut);
-    const reqHours = calcHours(reqIn, reqOut);
+    const origHours = calcOrigIn && calcOrigOut ? (calcOrigOut.getTime() - calcOrigIn.getTime()) / (1000 * 60 * 60) : 0;
+    const reqHours = calculateWorkingHours(reqIn, reqOut, requestFormData.shiftStart, requestFormData.shiftEnd);
     const hoursDiff = reqHours - origHours;
 
     return {
@@ -682,14 +733,21 @@ export function AttendancePage({ auth }: Props) {
       return `${year}-${month}-${day} ${hh}:${min}`;
     };
 
-    const calcHours = (start: Date | null, end: Date | null) => {
-      if (!start || !end) return 0;
-      const ms = end.getTime() - start.getTime();
-      return ms > 0 ? ms / (1000 * 60 * 60) : 0;
-    };
+    // detailData.days から該当する日のシフト開始・終了時間を見つける
+    const requestDateStr = request.work_date;
+    const targetDay = detailData?.days.find(d => d.work_date === requestDateStr);
+    const shiftStart = targetDay?.shift_start;
+    const shiftEnd = targetDay?.shift_end;
 
-    const origHours = calcHours(origIn, origOut);
-    const reqHours = calcHours(reqIn, reqOut);
+    // 修正前の勤務時間は、すでにDB上の丸め後の calculated_check_in / calculated_check_out から計算するのが最も正確
+    const calcOrigIn = targetDay?.calculated_check_in ? new Date(targetDay.calculated_check_in) : null;
+    const calcOrigOut = targetDay?.calculated_check_out ? new Date(targetDay.calculated_check_out) : null;
+
+    const origHours = calcOrigIn && calcOrigOut 
+      ? (calcOrigOut.getTime() - calcOrigIn.getTime()) / (1000 * 60 * 60) 
+      : calculateWorkingHours(origIn, origOut, shiftStart, shiftEnd);
+
+    const reqHours = calculateWorkingHours(reqIn, reqOut, shiftStart, shiftEnd);
     const hoursDiff = reqHours - origHours;
 
     return {
@@ -811,7 +869,9 @@ export function AttendancePage({ auth }: Props) {
                                 p.check_in,
                                 p.check_out,
                                 p.calculated_check_in,
-                                p.calculated_check_out
+                                p.calculated_check_out,
+                                day.shift_start,
+                                day.shift_end
                               )
                             }
                           >
@@ -856,7 +916,9 @@ export function AttendancePage({ auth }: Props) {
                               day.check_in,
                               day.check_out,
                               day.calculated_check_in,
-                              day.calculated_check_out
+                              day.calculated_check_out,
+                              day.shift_start,
+                              day.shift_end
                             )
                           }
                         >
@@ -1015,7 +1077,9 @@ export function AttendancePage({ auth }: Props) {
                                   p.check_in,
                                   p.check_out,
                                   p.calculated_check_in,
-                                  p.calculated_check_out
+                                  p.calculated_check_out,
+                                  day.shift_start,
+                                  day.shift_end
                                 )
                               }
                             >
@@ -1120,7 +1184,9 @@ export function AttendancePage({ auth }: Props) {
                             day.punches![0].check_in,
                             day.punches![0].check_out,
                             day.punches![0].calculated_check_in,
-                            day.punches![0].calculated_check_out
+                            day.punches![0].calculated_check_out,
+                            day.shift_start,
+                            day.shift_end
                           )
                         }
                       >
@@ -1162,7 +1228,9 @@ export function AttendancePage({ auth }: Props) {
                             day.check_in,
                             day.check_out,
                             day.calculated_check_in,
-                            day.calculated_check_out
+                            day.calculated_check_out,
+                            day.shift_start,
+                            day.shift_end
                           )
                         }
                       >
