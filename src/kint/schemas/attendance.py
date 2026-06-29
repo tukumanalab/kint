@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AttendanceRecord(BaseModel):
@@ -173,7 +173,7 @@ class AttendanceCorrectionRequestCreate(BaseModel):
     attendance_id: str
     requested_check_in: datetime | None = None
     requested_check_out: datetime | None = None
-    reason: str
+    reason: str = Field(..., min_length=1)
 
 
 class AttendanceCorrectionRequestResponse(BaseModel):

@@ -111,7 +111,6 @@ def calculate_working_time(
     return calc_in, calc_out
 
 
-
 class PunchService:
     """打刻サービス。card_idm / user_id の両経路を処理する。"""
 
@@ -1587,6 +1586,11 @@ class AttendanceService:
                         message="出勤時刻から5分以内の退勤時刻への修正申請は受け付けられません。",
                     )
 
+        # 理由のトリムと必須チェック
+        reason = body.reason.strip()
+        if not reason:
+            raise KintBadRequestError(code="INVALID_REASON", message="修正理由は必須です。")
+
         # 申請作成
         now = datetime.now(tz=UTC)
         request = AttendanceCorrectionRequest(
@@ -1595,7 +1599,7 @@ class AttendanceService:
             user_id=attendance.user_id,
             requested_check_in=body.requested_check_in,
             requested_check_out=body.requested_check_out,
-            reason=body.reason,
+            reason=reason,
             status="pending",
             created_at=now,
             updated_at=now,
@@ -1790,7 +1794,7 @@ class AttendanceService:
             else request.created_at.strftime("%Y-%m-%d")
         )
         reason_comment = comment.strip() if (comment and comment.strip()) else "（理由未記入）"
-        message = f"{work_date_str} の勤怠修正申請が却下されました。理由: {reason_comment}"
+        message = f"{work_date_str} の打刻修正申請が却下されました。理由: {reason_comment}"
         await notif_svc.create_notification(
             user_id=request.user_id,
             message=message,

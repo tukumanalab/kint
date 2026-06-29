@@ -407,6 +407,11 @@ export function AttendancePage({ auth }: Props) {
   const handleSubmitRequest = async () => {
     if (!auth.token) return;
 
+    if (!isAdmin && !requestFormData.reason.trim()) {
+      alert('修正理由は必須です。');
+      return;
+    }
+
     const isoIn = resetToAuto
       ? null
       : toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
@@ -1670,7 +1675,7 @@ export function AttendancePage({ auth }: Props) {
           <div className="att-modal" onClick={() => setShowRequestModal(false)}>
             <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
               <h3 className="att-modal__title">
-                {isAdmin ? '勤務時間の直接修正 (管理者)' : '勤怠修正申請'}
+                {isAdmin ? '勤務時間の直接修正 (管理者)' : '打刻修正申請'}
               </h3>
               
               <div className="att-form-group">
@@ -1767,8 +1772,8 @@ export function AttendancePage({ auth }: Props) {
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">分</option>
-                            {Array.from({ length: 12 }).map((_, i) => {
-                              const mStr = String(i * 5).padStart(2, '0');
+                            {Array.from({ length: isAdmin ? 12 : 60 }).map((_, i) => {
+                              const mStr = String(i * (isAdmin ? 5 : 1)).padStart(2, '0');
                               return <option key={mStr} value={mStr}>{mStr}</option>;
                             })}
                           </select>
@@ -1841,8 +1846,8 @@ export function AttendancePage({ auth }: Props) {
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">分</option>
-                            {Array.from({ length: 12 }).map((_, i) => {
-                              const mStr = String(i * 5).padStart(2, '0');
+                            {Array.from({ length: isAdmin ? 12 : 60 }).map((_, i) => {
+                              const mStr = String(i * (isAdmin ? 5 : 1)).padStart(2, '0');
                               return <option key={mStr} value={mStr}>{mStr}</option>;
                             })}
                           </select>
@@ -1913,14 +1918,18 @@ export function AttendancePage({ auth }: Props) {
 
               <div className="att-form-group" style={{ marginTop: '16px' }}>
                 <label>
-                  {isAdmin ? '修正理由（変更ログに記録されます、任意）' : '修正理由（任意）'}
+                  {isAdmin ? '修正理由（変更ログに記録されます、任意）' : (
+                    <>
+                      修正理由 <span style={{ color: '#d73a49', fontWeight: 'bold' }}>*必須</span>
+                    </>
+                  )}
                 </label>
                 <textarea
                   value={requestFormData.reason}
                   onChange={(e) =>
                     setRequestFormData({ ...requestFormData, reason: e.target.value })
                   }
-                  placeholder={isAdmin ? "勤務時間を直接修正する理由を入力してください" : "修正が必要な理由を入力してください"}
+                  placeholder={isAdmin ? "勤務時間を直接修正する理由を入力してください" : "修正が必要な理由を入力してください（必須）"}
                 />
               </div>
               <div className="att-modal__buttons">

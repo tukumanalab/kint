@@ -180,6 +180,33 @@ async def test_correction_request_lifecycle(session: AsyncSession, client: Async
     )
     assert resp.status_code == 403
 
+    # 1-2. 理由が空文字列の場合は 422 バリデーションエラー
+    resp = await client.post(
+        "/api/v1/attendance/requests",
+        json={
+            "attendance_id": "att_emp1_1110",
+            "requested_check_in": "2023-11-10T09:15:00Z",
+            "requested_check_out": "2023-11-10T18:15:00Z",
+            "reason": "",
+        },
+        headers={"Authorization": f"Bearer {emp1_token}"},
+    )
+    assert resp.status_code == 422
+
+    # 1-3. 理由がスペースのみの場合は 400 Bad Request
+    resp = await client.post(
+        "/api/v1/attendance/requests",
+        json={
+            "attendance_id": "att_emp1_1110",
+            "requested_check_in": "2023-11-10T09:15:00Z",
+            "requested_check_out": "2023-11-10T18:15:00Z",
+            "reason": "    ",
+        },
+        headers={"Authorization": f"Bearer {emp1_token}"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "INVALID_REASON"
+
     # 2. 従業員1が自分の勤怠に申請（正常系）
     resp = await client.post(
         "/api/v1/attendance/requests",
