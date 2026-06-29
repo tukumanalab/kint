@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Sony PaSoRi ベンダー ID
 const SONY_VENDOR_ID = 0x054c;
@@ -300,10 +300,11 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      await disconnect();
       setStatus('error', { errorMessage: `読み取りに失敗しました: ${msg}` });
       return null;
     }
-  }, [setStatus]);
+  }, [disconnect, setStatus]);
 
   const disconnect = useCallback(async () => {
     const ctx = ctxRef.current;
@@ -322,6 +323,92 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
   const reset = useCallback(() => {
     setState({ status: ctxRef.current ? 'connected' : 'idle', idm: null, errorMessage: null });
   }, []);
+
+  // USBデバイスの脱着イベントの監視
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.usb) return;
+
+    const handleDisconnect = (event: USBConnectionEvent) => {
+      if (ctxRef.current && ctxRef.current.device === event.device) {
+        console.log('[useWebUSBFeliCa] Device disconnected:', event.device);
+        disconnect();
+      }
+    };
+
+    const handleConnect = async (event: USBConnectionEvent) => {
+      const isPasori =
+        event.device.vendorId === SONY_VENDOR_ID &&
+        PASORI_PRODUCT_IDS.includes(event.device.productId);
+
+      if (!ctxRef.current && isPasori) {
+        console.log('[useWebUSBFeliCa] PaSoRi connected, attempting auto-connect:', event.device);
+        setStatus('connecting', { errorMessage: null });
+        try {
+          const ctx = await setupDevice(event.device);
+          ctxRef.current = ctx;
+          setStatus('connected', { errorMessage: null });
+        } catch (err) {
+          console.error('[useWebUSBFeliCa] Auto-connect failed:', err);
+          ctxRef.current = null;
+          setStatus('idle');
+        }
+      }
+    };
+
+    navigator.usb.addEventListener('disconnect', handleDisconnect);
+    navigator.usb.addEventListener('connect', handleConnect);
+
+    return () => {
+      navigator.usb.removeEventListener('disconnect', handleDisconnect);
+      navigator.usb.removeEventListener('connect', handleConnect);
+    };
+  }, [disconnect, setStatus]);
+
+  // 初期マウント時にすでにペアリング済みのデバイスが接続されていれば自動接続する
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.usb) return;
+
+    let isMounted = true;
+
+    const attemptAutoConnect = async () => {
+      if (ctxRef.current) return;
+
+      try {
+        const devices = await navigator.usb.getDevices();
+        const pasoriDevice = devices.find(
+          (d) =>
+            d.vendorId === SONY_VENDOR_ID &&
+            PASORI_PRODUCT_IDS.includes(d.productId)
+        );
+
+        if (pasoriDevice && isMounted && !ctxRef.current) {
+          console.log('[useWebUSBFeliCa] Found paired PaSoRi device on mount, auto-connecting...');
+          setStatus('connecting', { errorMessage: null });
+          const ctx = await setupDevice(pasoriDevice);
+          if (isMounted) {
+            ctxRef.current = ctx;
+            setStatus('connected', { errorMessage: null });
+          } else {
+            try {
+              await ctx.device.releaseInterface(ctx.interfaceNumber);
+              await ctx.device.close();
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('[useWebUSBFeliCa] Mount auto-connect failed:', err);
+        if (isMounted) {
+          setStatus('idle');
+        }
+      }
+    };
+
+    attemptAutoConnect();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setStatus]);
 
   return { ...state, connect, readIdm, disconnect, reset };
 }
