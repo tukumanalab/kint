@@ -27,15 +27,17 @@ import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
 import { formatHours } from '../../utils/time';
 
-const parseTimeStr = (timeStr: string | null) => {
+const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
   if (!timeStr) return { hour: '', minute: '' };
   const parts = timeStr.split(':');
   if (parts.length < 2) return { hour: '', minute: '' };
   let min = parts[1];
-  const minVal = parseInt(min, 10);
-  if (!isNaN(minVal) && minVal % 5 !== 0) {
-    const roundedMin = Math.round(minVal / 5) * 5;
-    min = String(roundedMin === 60 ? 55 : roundedMin).padStart(2, '0');
+  if (roundTo5) {
+    const minVal = parseInt(min, 10);
+    if (!isNaN(minVal) && minVal % 5 !== 0) {
+      const roundedMin = Math.round(minVal / 5) * 5;
+      min = String(roundedMin === 60 ? 55 : roundedMin).padStart(2, '0');
+    }
   }
   return { hour: parts[0], minute: min };
 };
@@ -1741,7 +1743,7 @@ export function AttendancePage({ auth }: Props) {
                       disabled={resetToAuto}
                     />
                     {(() => {
-                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckInTime);
+                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckInTime, isAdmin);
                       return (
                         <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <select
@@ -1815,7 +1817,7 @@ export function AttendancePage({ auth }: Props) {
                       disabled={resetToAuto}
                     />
                     {(() => {
-                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckOutTime);
+                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckOutTime, isAdmin);
                       return (
                         <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <select
@@ -2176,7 +2178,7 @@ export function AttendancePage({ auth }: Props) {
                     className="att-date-input"
                   />
                   {(() => {
-                    const { hour, minute } = parseTimeStr(addFormData.checkInTime);
+                    const { hour, minute } = parseTimeStr(addFormData.checkInTime, true);
                     return (
                       <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <select
@@ -2238,7 +2240,7 @@ export function AttendancePage({ auth }: Props) {
                     className="att-date-input"
                   />
                   {(() => {
-                    const { hour, minute } = parseTimeStr(addFormData.checkOutTime);
+                    const { hour, minute } = parseTimeStr(addFormData.checkOutTime, true);
                     return (
                       <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <select
