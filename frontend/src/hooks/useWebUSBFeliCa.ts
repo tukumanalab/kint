@@ -17,7 +17,6 @@ const RC_S300_IDS = new Set([0x0dc8, 0x0dc9]);
 // RC-S380 系の Product ID
 const RC_S380_IDS = new Set([0x06c1, 0x06c3, 0x0bb7, 0x02e1]);
 
-const NFC_TIMEOUT_MS = 5000;
 
 export type WebUSBStatus = 'idle' | 'connecting' | 'connected' | 'reading' | 'success' | 'error';
 
@@ -248,6 +247,9 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
     errorMessage: null,
   });
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const setStatus = useCallback(
     (status: WebUSBStatus, extra?: Partial<Omit<WebUSBFeliCaState, 'status'>>) => {
       setState((prev) => ({ ...prev, status, ...extra }));
@@ -300,9 +302,8 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
       return null;
     }
     setStatus('reading', { errorMessage: null });
-    const deadline = Date.now() + NFC_TIMEOUT_MS;
     try {
-      while (Date.now() < deadline) {
+      while (ctxRef.current === ctx && stateRef.current.status === 'reading') {
         const idm = await pollFeliCa(ctx);
         if (idm) {
           setStatus('success', { idm, errorMessage: null });
@@ -310,7 +311,6 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
         }
         await sleep(300);
       }
-      setStatus('error', { errorMessage: 'タイムアウトしました。カードをかざしてから再試行してください。' });
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

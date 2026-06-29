@@ -805,7 +805,7 @@ function UserNfcCardsModal({ user, token, onClose }: UserNfcCardsModalProps) {
     idle: '未接続',
     connecting: '接続中...',
     connected: '接続済み',
-    reading: 'カードをかざしてください（最大5秒）...',
+    reading: 'カードをかざしてください...',
     success: '読み取り成功',
     error: 'エラー',
   };
