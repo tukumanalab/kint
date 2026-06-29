@@ -269,7 +269,7 @@ class TestPunchRules:
         )
 
         # 1. 出勤打刻（シフト開始後: 9:03）
-        # 5分切り上げで 9:05 に丸められるはず
+        # 5分切り捨てで 9:00 に丸められるはず
         punch_in_time = datetime(2026, 5, 16, 9, 3, tzinfo=UTC)
         response_in = await client.post(
             "/api/v1/punches",
@@ -283,14 +283,14 @@ class TestPunchRules:
         res_in_data = response_in.json()
         assert res_in_data["action"] == "check_in"
         # ISO8601表記で確認 (タイムゾーンはZまたは+00:00になる可能性があるためstartswithで一致を見る)
-        assert res_in_data["calculated_time"].startswith("2026-05-16T09:05:00")
+        assert res_in_data["calculated_time"].startswith("2026-05-16T09:00:00")
         assert res_in_data["current_working_hours"] is None
         assert res_in_data["daily_working_hours_total"] is None
 
         # 2. 退勤打刻（シフト終了前: 17:58）
-        # 5分切り捨てで 17:55 に丸められるはず
-        # 9:05〜17:55 は 8時間50分 = 8.83時間
-        # 1日の合計も 8.83時間になるはず
+        # 5分切り上げで 18:00 に丸められるはず
+        # 9:00〜18:00 は 9.0時間
+        # 1日の合計も 9.0時間になるはず
         punch_out_time = datetime(2026, 5, 16, 17, 58, tzinfo=UTC)
         response_out = await client.post(
             "/api/v1/punches",
@@ -303,9 +303,9 @@ class TestPunchRules:
         assert response_out.status_code == 200
         res_out_data = response_out.json()
         assert res_out_data["action"] == "check_out"
-        assert res_out_data["calculated_time"].startswith("2026-05-16T17:55:00")
-        assert res_out_data["current_working_hours"] == 8.83
-        assert res_out_data["daily_working_hours_total"] == 8.83
+        assert res_out_data["calculated_time"].startswith("2026-05-16T18:00:00")
+        assert res_out_data["current_working_hours"] == 9.0
+        assert res_out_data["daily_working_hours_total"] == 9.0
 
     async def test_punch_calculated_fields_with_shift_edge(
         self,
@@ -370,7 +370,7 @@ class TestPunchRules:
         await _create_card(session, user.id, card_idm="4444444444444444")
 
         # 1. 出勤打刻（シフトなし: 9:02）
-        # 5分切り上げで 9:05 に丸められるはず
+        # 5分切り捨てで 9:00 に丸められるはず
         punch_in_time = datetime(2026, 5, 16, 9, 2, tzinfo=UTC)
         response_in = await client.post(
             "/api/v1/punches",
@@ -384,11 +384,11 @@ class TestPunchRules:
         assert response_in.status_code == 200
         res_in_data = response_in.json()
         assert res_in_data["action"] == "check_in"
-        assert res_in_data["calculated_time"].startswith("2026-05-16T09:05:00")
+        assert res_in_data["calculated_time"].startswith("2026-05-16T09:00:00")
 
         # 2. 退勤打刻（シフトなし: 18:04）
-        # 5分切り捨てで 18:00 に丸められるはず
-        # 9:05〜18:00 は 8時間55分 = 8.92時間
+        # 5分切り上げで 18:05 に丸められるはず
+        # 9:00〜18:05 は 9時間5分 = 9.08時間
         punch_out_time = datetime(2026, 5, 16, 18, 4, tzinfo=UTC)
         response_out = await client.post(
             "/api/v1/punches",
@@ -401,9 +401,9 @@ class TestPunchRules:
         assert response_out.status_code == 200
         res_out_data = response_out.json()
         assert res_out_data["action"] == "check_out"
-        assert res_out_data["calculated_time"].startswith("2026-05-16T18:00:00")
-        assert res_out_data["current_working_hours"] == 8.92
-        assert res_out_data["daily_working_hours_total"] == 8.92
+        assert res_out_data["calculated_time"].startswith("2026-05-16T18:05:00")
+        assert res_out_data["current_working_hours"] == 9.08
+        assert res_out_data["daily_working_hours_total"] == 9.08
 
     async def test_punch_calculated_fields_with_microseconds(
         self,
@@ -439,7 +439,7 @@ class TestPunchRules:
         res_in_data = response_in.json()
         assert res_in_data["calculated_time"].startswith("2026-06-04T09:00:00")
 
-        # 2. 退勤打刻 (17:47:32.440000) -> 17:45:00 に丸められるはず
+        # 2. 退勤打刻 (17:47:32.440000) -> 17:50:00 に丸められるはず
         punch_out_time = datetime(2026, 6, 4, 17, 47, 32, 440000, tzinfo=UTC)
         response_out = await client.post(
             "/api/v1/punches",
@@ -451,7 +451,7 @@ class TestPunchRules:
         )
         assert response_out.status_code == 200
         res_out_data = response_out.json()
-        assert res_out_data["calculated_time"].startswith("2026-06-04T17:45:00")
+        assert res_out_data["calculated_time"].startswith("2026-06-04T17:50:00")
 
     async def test_punch_calculated_fields_truncates_seconds(
         self,

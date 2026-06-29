@@ -86,14 +86,11 @@ def calculate_working_time(
             # シフト開始前の打刻はシフト開始時刻とする
             calc_in = shift_start
         else:
-            # シフト開始後、またはシフトなしの打刻は5分区切りで切り上げ
+            # シフト開始後、またはシフトなしの打刻は5分区切りで切り捨て
             base = dt_in.replace(hour=0, minute=0, second=0)
             delta_seconds = int((dt_in - base).total_seconds())
             remainder = delta_seconds % 300
-            if remainder > 0:
-                calc_in = dt_in + timedelta(seconds=(300 - remainder))
-            else:
-                calc_in = dt_in
+            calc_in = dt_in - timedelta(seconds=remainder)
 
     if check_out is not None:
         # 打刻時刻の秒は切り捨て、分単位に正規化したうえで丸める
@@ -102,13 +99,17 @@ def calculate_working_time(
             # シフト終了後の打刻はシフト終了時刻とする
             calc_out = shift_end
         else:
-            # シフト終了前、またはシフトなしの打刻は5分区切りで切り捨て
+            # シフト終了前、またはシフトなしの打刻は5分区切りで切り上げ
             base = dt_out.replace(hour=0, minute=0, second=0)
             delta_seconds = int((dt_out - base).total_seconds())
             remainder = delta_seconds % 300
-            calc_out = dt_out - timedelta(seconds=remainder)
+            if remainder > 0:
+                calc_out = dt_out + timedelta(seconds=(300 - remainder))
+            else:
+                calc_out = dt_out
 
     return calc_in, calc_out
+
 
 
 class PunchService:
