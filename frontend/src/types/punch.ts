@@ -4,6 +4,8 @@ export interface PunchRequestByCard {
   device_id: string;
   occurred_at: string;
   confirm?: boolean;
+  overtime_reason?: string;
+  confirm_no_overtime?: boolean;
 }
 
 /** user_id（カード忘れ）による打刻リクエスト */
@@ -13,12 +15,14 @@ export interface PunchRequestByUserId {
   device_id: string;
   occurred_at: string;
   confirm?: boolean;
+  overtime_reason?: string;
+  confirm_no_overtime?: boolean;
 }
 
 export type PunchRequest = PunchRequestByCard | PunchRequestByUserId;
 
 export interface PunchResponse {
-  status: 'completed' | 'requires_confirmation';
+  status: 'completed' | 'requires_confirmation' | 'requires_overtime_reason';
   attendance_id: string | null;
   user_id: string;
   user_name: string;

@@ -136,6 +136,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [enabledMonthlyReport, setEnabledMonthlyReport] = useState(false);
   const [loginTokenExpireHours, setLoginTokenExpireHours] = useState('');
   const [enableGoogleSignup, setEnableGoogleSignup] = useState(false);
+  const [overtimeAllowanceMinutes, setOvertimeAllowanceMinutes] = useState('');
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -245,6 +246,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setEnabledMonthlyReport(!!s.monthly_report_time);
       setLoginTokenExpireHours(String(s.login_token_expire_hours));
       setEnableGoogleSignup(s.enable_google_signup);
+      setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -269,6 +271,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEnabledMonthlyReport(!!s.monthly_report_time);
         setLoginTokenExpireHours(String(s.login_token_expire_hours));
         setEnableGoogleSignup(s.enable_google_signup);
+        setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
       })
       .catch((err: unknown) => {
         const msg =
@@ -316,6 +319,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     if (!Number.isInteger(l) || l < 1 || l > 8760) {
       return 'ログイン継続時間は 1〜8760 の整数で入力してください';
     }
+    const oa = Number(overtimeAllowanceMinutes);
+    if (!Number.isInteger(oa) || oa < 0 || oa > 120) {
+      return 'シフト超過許容時間は 0〜120 の整数で入力してください';
+    }
     return null;
   }
 
@@ -342,6 +349,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         monthly_report_time: enabledMonthlyReport ? (monthlyReportTime || null) : null,
         login_token_expire_hours: Number(loginTokenExpireHours),
         enable_google_signup: enableGoogleSignup,
+        overtime_allowance_minutes: Number(overtimeAllowanceMinutes),
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -420,6 +428,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEnabledMonthlyReport(!!result.applied.monthly_report_time);
         setLoginTokenExpireHours(String(result.applied.login_token_expire_hours));
         setEnableGoogleSignup(result.applied.enable_google_signup);
+        setOvertimeAllowanceMinutes(String(result.applied.overtime_allowance_minutes ?? 30));
       }
       setImportFile(null);
       setImportPreview(null);
@@ -541,7 +550,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
 
           <div className="settings-field">
             <label htmlFor="earlyMinutes" className="settings-field__label">
-              シフト開始前チェックイン許容時間
+              シフト開始前打刻の許容時間
             </label>
             <div className="settings-field__input-row">
               <input
@@ -555,6 +564,26 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               />
               <span className="settings-field__unit">分（0〜120）</span>
             </div>
+            <p className="settings-field__hint">シフト開始時刻より前に出勤打刻した際、シフト開始時刻に丸めるための許容時間です</p>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="overtimeAllowanceMinutes" className="settings-field__label">
+              シフト超過許容時間
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="overtimeAllowanceMinutes"
+                type="number"
+                className="settings-field__input"
+                min={0}
+                max={120}
+                value={overtimeAllowanceMinutes}
+                onChange={(e) => setOvertimeAllowanceMinutes(e.target.value)}
+              />
+              <span className="settings-field__unit">分（0〜120）</span>
+            </div>
+            <p className="settings-field__hint">シフト終了時刻より後に退勤打刻した際、シフト終了時刻に丸めるための許容時間です</p>
           </div>
 
           <div className="settings-field">

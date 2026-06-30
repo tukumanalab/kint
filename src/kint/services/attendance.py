@@ -74,6 +74,7 @@ def calculate_working_time(
     check_out: datetime | None,
     shift_start: datetime | None,
     shift_end: datetime | None,
+    overtime_reason: str | None = None,
 ) -> tuple[datetime | None, datetime | None]:
     """打刻時刻から勤務時間の出勤/退勤時刻を計算する。"""
     calc_in = None
@@ -95,11 +96,11 @@ def calculate_working_time(
     if check_out is not None:
         # 打刻時刻の秒は切り捨て、分単位に正規化したうえで丸める
         dt_out = check_out.replace(second=0, microsecond=0)
-        if shift_end is not None and dt_out >= shift_end:
+        if shift_end is not None and dt_out >= shift_end and not overtime_reason:
             # シフト終了後の打刻はシフト終了時刻とする
             calc_out = shift_end
         else:
-            # シフト終了前、またはシフトなしの打刻は5分区切りで切り上げ
+            # シフト終了前、またはシフトなしの打刻（または超過理由ありの打刻）は5分区切りで切り上げ
             base = dt_out.replace(hour=0, minute=0, second=0)
             delta_seconds = int((dt_out - base).total_seconds())
             remainder = delta_seconds % 300
@@ -387,11 +388,38 @@ class PunchService:
                     message="対象年月の勤怠は締め処理が完了しているため、退勤打刻は行えません。",
                 )
 
+            # 超過勤務チェック
+            active_shift = await self._find_active_shift(user.id, request.occurred_at)
+            shift_end = active_shift.end_time if active_shift else None
+            if shift_end is not None:
+                settings_svc = SettingsService(self.session)
+                overtime_allowance = await settings_svc.get_int("overtime_allowance_minutes")
+                occurred_utc = self._as_utc(request.occurred_at)
+                shift_end_utc = self._as_utc(shift_end)
+                if occurred_utc > (shift_end_utc + timedelta(minutes=overtime_allowance)):
+                    if not request.confirm_no_overtime and (not request.overtime_reason or not request.overtime_reason.strip()):
+                        from kint.services.notification import NotificationService
+
+                        notif_svc = NotificationService(self.session)
+                        has_unread = await notif_svc.has_unread_notifications(user.id)
+                        return PunchResponse(
+                            status="requires_overtime_reason",
+                            attendance_id=attendance.id,
+                            user_id=user.id,
+                            user_name=user.name,
+                            action="check_out",
+                            occurred_at=request.occurred_at,
+                            method=method,  # type: ignore[arg-type]
+                            message=f"シフト終了時刻を {overtime_allowance} 分以上超過しています。許可済みの超過勤務の場合は、理由を入力して申請してください。",
+                            has_unread_notifications=has_unread,
+                        )
+
             await self._do_check_out(
                 attendance=attendance,
                 occurred_at=request.occurred_at,
                 method=method,
                 reason=request.reason,
+                overtime_reason=request.overtime_reason,
                 actor_user=user,
             )
             action = "check_out"
@@ -466,6 +494,7 @@ class PunchService:
                 self._as_utc(request.occurred_at),
                 _ensure_utc(shift_start),
                 _ensure_utc(shift_end),
+                request.overtime_reason or attendance.overtime_reason,
             )
             calculated_time = calc_out
             if calc_in and calc_out:
@@ -484,7 +513,9 @@ class PunchService:
             for a in day_atts:
                 a_cin = _ensure_utc(a.check_in)
                 a_cout = _ensure_utc(a.check_out)
-                c_in, c_out = calculate_working_time(a_cin, a_cout, shift_start_utc, shift_end_utc)
+                c_in, c_out = calculate_working_time(
+                    a_cin, a_cout, shift_start_utc, shift_end_utc, a.overtime_reason
+                )
                 if c_in and c_out:
                     daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
             daily_working_hours_total = round(daily_working_hours_total, 2)
@@ -567,6 +598,7 @@ class PunchService:
         occurred_at: datetime,
         method: str,
         reason: str | None,
+        overtime_reason: str | None = None,
         actor_user: User,
     ) -> None:
         """チェックアウト処理。既存 Attendance レコードを更新する。"""
@@ -574,6 +606,9 @@ class PunchService:
         before_check_in = attendance.check_in
 
         attendance.check_out = occurred_at
+        if overtime_reason is not None:
+            attendance.overtime_reason = overtime_reason
+
         # BE-04: user_id 打刻時は updated_reason / last_updated_* を更新する
         if method == "user_id" and reason is not None:
             attendance.updated_reason = reason
@@ -967,6 +1002,7 @@ class AttendanceService:
                             ensure_utc(a.check_out),
                             shift_start_utc,
                             shift_end_utc,
+                            a.overtime_reason,
                         )
                         if c_in is not None:
                             calculated_ins.append(c_in)
@@ -991,7 +1027,7 @@ class AttendanceService:
                             a_cin_utc = ensure_utc(a.check_in)
                             a_cout_utc = ensure_utc(a.check_out)
                             c_in, c_out = calculate_working_time(
-                                a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc
+                                a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc, a.overtime_reason
                             )
                             if c_in and c_out:
                                 working_hours += (c_out - c_in).total_seconds() / 3600.0
@@ -1103,7 +1139,7 @@ class AttendanceService:
                         p_calc_out = ensure_utc(a.work_end)
                     else:
                         p_calc_in, p_calc_out = calculate_working_time(
-                            p_cin, p_cout, shift_start_utc, shift_end_utc
+                            p_cin, p_cout, shift_start_utc, shift_end_utc, a.overtime_reason
                         )
                     punches.append(
                         PunchPeriod(
@@ -1113,6 +1149,7 @@ class AttendanceService:
                             calculated_check_in=p_calc_in,
                             calculated_check_out=p_calc_out,
                             source=a.source,
+                            overtime_reason=a.overtime_reason,
                         )
                     )
 
@@ -1373,8 +1410,9 @@ class AttendanceService:
                     "退勤",
                     "勤務時間",
                     "勤怠ステータス",
-                    "打刻ソース",
+                                    "打刻ソース",
                     "修正理由",
+                    "超過理由",
                 ]
             )
 
@@ -1428,7 +1466,11 @@ class AttendanceService:
                             day_shift_end_utc = ensure_utc(day.shift_end)
 
                             calc_cin, calc_cout = calculate_working_time(
-                                att_cin_utc, att_cout_utc, day_shift_start_utc, day_shift_end_utc
+                                att_cin_utc,
+                                att_cout_utc,
+                                day_shift_start_utc,
+                                day_shift_end_utc,
+                                att.overtime_reason,
                             )
 
                             # 実労働時間（このエントリー単体、丸め後ベース）
@@ -1458,6 +1500,7 @@ class AttendanceService:
                                     entry_status_label,
                                     att.source if att.source else "",
                                     att.updated_reason if att.updated_reason else "",
+                                    att.overtime_reason if att.overtime_reason else "",
                                 ]
                             )
 

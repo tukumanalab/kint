@@ -27,6 +27,7 @@ ALLOWED_SETTING_KEYS = {
     "monthly_report_time",
     "login_token_expire_hours",
     "enable_google_signup",
+    "overtime_allowance_minutes",
 }
 
 _KNOWN_VERSION = "1"
@@ -56,6 +57,7 @@ class SettingsService:
         monthly_report_time_raw = db_map.get("monthly_report_time")
         login_token_expire_hours_raw = db_map.get("login_token_expire_hours")
         enable_google_signup_raw = db_map.get("enable_google_signup")
+        overtime_allowance_minutes_raw = db_map.get("overtime_allowance_minutes")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -97,6 +99,12 @@ class SettingsService:
             else env_settings.enable_google_signup
         )
 
+        overtime_allowance_minutes = (
+            int(overtime_allowance_minutes_raw)
+            if overtime_allowance_minutes_raw is not None
+            else env_settings.overtime_allowance_minutes
+        )
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -108,6 +116,7 @@ class SettingsService:
             monthly_report_time=monthly_report_time,
             login_token_expire_hours=login_token_expire_hours,
             enable_google_signup=enable_google_signup,
+            overtime_allowance_minutes=overtime_allowance_minutes,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -165,6 +174,8 @@ class SettingsService:
             fields["login_token_expire_hours"] = str(updates.login_token_expire_hours)
         if updates.enable_google_signup is not None:
             fields["enable_google_signup"] = "1" if updates.enable_google_signup else "0"
+        if updates.overtime_allowance_minutes is not None:
+            fields["overtime_allowance_minutes"] = str(updates.overtime_allowance_minutes)
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -241,6 +252,7 @@ class SettingsService:
             "monthly_report_time": current.monthly_report_time,
             "login_token_expire_hours": current.login_token_expire_hours,
             "enable_google_signup": current.enable_google_signup,
+            "overtime_allowance_minutes": current.overtime_allowance_minutes,
         }
 
         changes: list[SettingsImportChange] = []

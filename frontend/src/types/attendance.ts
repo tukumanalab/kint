@@ -31,6 +31,7 @@ export interface PunchPeriod {
   calculated_check_in?: string | null;
   calculated_check_out?: string | null;
   source?: string | null;
+  overtime_reason?: string | null;
 }
 
 export interface DailyAttendanceDetail {
@@ -131,5 +132,6 @@ export interface AttendanceRecord {
   auto_completed_at: string | null;
   last_updated_at: string | null;
   last_updated_by_user_id: string | null;
+  overtime_reason?: string | null;
 }
 

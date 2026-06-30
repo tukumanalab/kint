@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     monthly_report_time: str = "20:00"
     login_token_expire_hours: int = 168
     enable_google_signup: bool = True
+    overtime_allowance_minutes: int = 30
 
 
 settings = Settings()

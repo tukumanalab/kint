@@ -15,6 +15,8 @@ class PunchRequest(BaseModel):
     card_idm: str | None = None
     user_id: str | None = None
     reason: str | None = None
+    overtime_reason: str | None = None
+    confirm_no_overtime: bool = False
 
     @model_validator(mode="after")
     def validate_punch_method(self) -> "PunchRequest":
@@ -31,7 +33,7 @@ class PunchRequest(BaseModel):
 class PunchResponse(BaseModel):
     """打刻レスポンス。"""
 
-    status: Literal["completed", "requires_confirmation"] = "completed"
+    status: Literal["completed", "requires_confirmation", "requires_overtime_reason"] = "completed"
     attendance_id: str | None = None
     user_id: str
     user_name: str

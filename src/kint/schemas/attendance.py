@@ -24,6 +24,7 @@ class AttendanceRecord(BaseModel):
     auto_completed_at: datetime | None = None
     last_updated_at: datetime | None = None
     last_updated_by_user_id: str | None = None
+    overtime_reason: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -117,6 +118,7 @@ class PunchPeriod(BaseModel):
     calculated_check_in: datetime | None = None
     calculated_check_out: datetime | None = None
     source: str | None = None
+    overtime_reason: str | None = None
 
 
 class ShiftPeriod(BaseModel):

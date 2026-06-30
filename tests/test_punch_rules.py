@@ -760,3 +760,113 @@ class TestPunchRules:
         )
         assert resp3.status_code == 409
         assert resp3.json()["code"] == "PUNCH_COOLDOWN_ACTIVE"
+
+    async def test_overtime_punch_requires_reason(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+    ) -> None:
+        """シフト終了時間を超過して退勤打刻する際、超過理由を求められること。また、超過理由を指定して打刻した場合は丸めが回避されること。"""
+        user = await _create_user(session, user_id="user-overtime")
+        await _create_card(session, user.id, card_idm="8888888888888888")
+
+        # 9:00〜18:00 のシフトを作成
+        shift_start = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        shift_end = datetime(2026, 5, 16, 18, 0, tzinfo=UTC)
+        await _create_shift(
+            session,
+            user_id=user.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-overtime",
+        )
+
+        # 出勤打刻 (9:00)
+        punch_in_time = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+        await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "8888888888888888",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+
+        # 退勤打刻 (18:40) -> 許容時間 (デフォルト30分) を超えているため requires_overtime_reason が返るはず
+        punch_out_time = datetime(2026, 5, 16, 18, 40, tzinfo=UTC)
+        resp1 = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "8888888888888888",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+            },
+        )
+        assert resp1.status_code == 200
+        assert resp1.json()["status"] == "requires_overtime_reason"
+
+        # 超過理由を指定して再度退勤打刻
+        resp2 = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "8888888888888888",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+                "overtime_reason": "会議が長引いたため",
+            },
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["status"] == "completed"
+        assert resp2.json()["action"] == "check_out"
+        # 18:40 は 5分切り上げで 18:40
+        assert resp2.json()["calculated_time"].startswith("2026-05-16T18:40:00")
+
+        # DB のレコードを確認
+        session.expire_all()
+        result = await session.execute(select(Attendance).where(Attendance.user_id == "user-overtime"))
+        att = result.scalars().one()
+        assert att.overtime_reason == "会議が長引いたため"
+
+        # 5. 超過申請をせず、通常の丸め（シフト終了時刻への切り下げ）を適用して退勤打刻するケース
+        user_no_ot = await _create_user(session, user_id="user-no-overtime-apply")
+        await _create_card(session, user_no_ot.id, card_idm="9999999999999999")
+        await _create_shift(
+            session,
+            user_id=user_no_ot.id,
+            start_time=shift_start,
+            end_time=shift_end,
+            event_id="event-no-overtime-apply",
+        )
+
+        # 出勤打刻 (9:00)
+        await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "9999999999999999",
+                "device_id": "web-browser",
+                "occurred_at": punch_in_time.isoformat(),
+            },
+        )
+
+        # 退勤打刻 (18:40) で confirm_no_overtime=True を指定
+        resp_no_ot = await client.post(
+            "/api/v1/punches",
+            json={
+                "card_idm": "9999999999999999",
+                "device_id": "web-browser",
+                "occurred_at": punch_out_time.isoformat(),
+                "confirm_no_overtime": True,
+            },
+        )
+        assert resp_no_ot.status_code == 200
+        assert resp_no_ot.json()["status"] == "completed"
+        # シフト終了時刻(18:00)に丸められる
+        assert resp_no_ot.json()["calculated_time"].startswith("2026-05-16T18:00:00")
+
+        # DBの超過理由が None であることを確認
+        session.expire_all()
+        result_no_ot = await session.execute(
+            select(Attendance).where(Attendance.user_id == "user-no-overtime-apply")
+        )
+        att_no_ot = result_no_ot.scalars().one()
+        assert att_no_ot.overtime_reason is None

@@ -852,6 +852,19 @@ export function AttendancePage({ auth }: Props) {
             )}
           </td>
           <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item" style={{ fontStyle: 'italic', color: '#586069' }}>
+                    {p.overtime_reason || '-'}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              '-'
+            )}
+          </td>
+          <td>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {day.punches && day.punches.length > 0 ? (
                 <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1063,6 +1076,14 @@ export function AttendancePage({ auth }: Props) {
                         </span>
                       </div>
                     </div>
+                    {p.overtime_reason && (
+                      <div className="att-mobile-card__row" style={{ marginTop: '4px' }}>
+                        <span className="att-mobile-card__label">超過理由</span>
+                        <span className="att-mobile-card__value" style={{ fontStyle: 'italic', color: '#586069' }}>
+                          {p.overtime_reason}
+                        </span>
+                      </div>
+                    )}
                     {(detailData && !detailData.is_locked && p.attendance_id || p.attendance_id) && (
                       <div className="att-mobile-punch-sub__actions">
                         {detailData && !detailData.is_locked && p.attendance_id && (
@@ -1154,6 +1175,14 @@ export function AttendancePage({ auth }: Props) {
                     )}
                   </span>
                 </div>
+                {day.punches && day.punches.length === 1 && day.punches[0].overtime_reason && (
+                  <div className="att-mobile-card__row">
+                    <span className="att-mobile-card__label">超過理由</span>
+                    <span className="att-mobile-card__value" style={{ fontStyle: 'italic', color: '#586069' }}>
+                      {day.punches[0].overtime_reason}
+                    </span>
+                  </div>
+                )}
               </>
             )}
 
@@ -1721,6 +1750,7 @@ export function AttendancePage({ auth }: Props) {
                         <th>勤務時間</th>
                         <th>状態</th>
                         <th>打刻元</th>
+                        <th>超過理由</th>
                         <th style={{ minWidth: '180px' }}>操作</th>
                       </tr>
                     </thead>

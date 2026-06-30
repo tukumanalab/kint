@@ -80,6 +80,12 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const [userCandidates, setUserCandidates] = useState<PunchUserCandidate[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [userSearchError, setUserSearchError] = useState<string | null>(null);
+  const [overtimeRequest, setOvertimeRequest] = useState<{
+    payload: PunchRequest;
+    message: string;
+  } | null>(null);
+  const [overtimeReason, setOvertimeReason] = useState('');
+  const [showOvertimeField, setShowOvertimeField] = useState(false);
 
   const nfc = useWebUSBFeliCa();
   const pollingRef = useRef(false);
@@ -138,8 +144,17 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
     };
   }, []);
 
-  async function submitPunchWithConfirmation(payload: PunchRequest): Promise<PunchResponse | null> {
+  async function submitPunchWithConfirmation(
+    payload: PunchRequest
+  ): Promise<PunchResponse | 'requires_overtime_reason' | null> {
     const response = await postPunch(payload);
+    if (response.status === 'requires_overtime_reason') {
+      setOvertimeRequest({ payload, message: response.message });
+      setShowOvertimeField(false);
+      setOvertimeReason('');
+      return 'requires_overtime_reason';
+    }
+
     if (response.status !== 'requires_confirmation') {
       return response;
     }
@@ -149,7 +164,14 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
       return null;
     }
 
-    return postPunch({ ...payload, confirm: true });
+    const secondResponse = await postPunch({ ...payload, confirm: true });
+    if (secondResponse.status === 'requires_overtime_reason') {
+      setOvertimeRequest({ payload: { ...payload, confirm: true }, message: secondResponse.message });
+      setShowOvertimeField(false);
+      setOvertimeReason('');
+      return 'requires_overtime_reason';
+    }
+    return secondResponse;
   }
 
   // 接続済みになったら自動でカード読み取り → 打刻 → リセット を繰り返す
@@ -173,7 +195,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
               device_id: DEVICE_ID,
               occurred_at: new Date().toISOString(),
             });
-            if (resp) {
+            if (resp && resp !== 'requires_overtime_reason') {
               showPunchResultWithTimeout(resp, displaySeconds);
             }
           } catch (err) {
@@ -272,8 +294,11 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
         device_id: DEVICE_ID,
         occurred_at: new Date().toISOString(),
       });
-      if (resp) {
+      if (resp && resp !== 'requires_overtime_reason') {
         showPunchResultWithTimeout(resp, displaySeconds);
+        setFallback({ userQuery: '', selectedUser: null, reason: '' });
+        setUserCandidates([]);
+      } else if (resp === 'requires_overtime_reason') {
         setFallback({ userQuery: '', selectedUser: null, reason: '' });
         setUserCandidates([]);
       }
@@ -331,138 +356,259 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
         </div>
       )}
 
-      {/* ===== NFC モード ===== */}
-      {mode === 'nfc' && webUSBSupported && (
-        <section className="punch-section" aria-label="NFC カード打刻">
-          {/* 接続状態インジケータ */}
-          <div className="nfc-status">
-            <span className={`nfc-status__dot ${statusInfo.className}`} aria-hidden="true" />
-            <span className="nfc-status__label">{statusInfo.label}</span>
+      {/* ===== 超過勤務申請モード ===== */}
+      {overtimeRequest ? (
+        <section className="punch-section" aria-label="超過勤務理由の入力">
+          <div className="punch-error" role="alert" style={{ background: '#fff3cd', color: '#856404', borderColor: '#ffeeba' }}>
+            <p>{overtimeRequest.message}</p>
           </div>
 
-          {nfc.errorMessage && (
-            <div className="punch-error" role="alert">
-              <p>{nfc.errorMessage}</p>
-              <p className="punch-error__hint">
-                解決しない場合は「カード忘れ打刻」タブに切り替えてください。
-              </p>
-            </div>
-          )}
-
-          <div className="nfc-actions">
-            {nfc.status === 'idle' || nfc.status === 'error' ? (
+          {!showOvertimeField ? (
+            <div className="nfc-actions" style={{ justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <button
                 className="btn btn--primary"
                 onClick={() => {
                   void initAudio();
-                  nfc.connect();
+                  setShowOvertimeField(true);
                 }}
               >
-                PaSoRi に接続
+                許可済みの超過勤務
               </button>
-            ) : null}
-
-            {nfc.status !== 'idle' && (
-              <button className="btn btn--secondary" onClick={nfc.disconnect}>
-                切断
+              <button
+                className="btn btn--secondary"
+                disabled={isPunching}
+                onClick={async () => {
+                  void initAudio();
+                  setIsPunching(true);
+                  try {
+                    const resp = await postPunch({
+                      ...overtimeRequest.payload,
+                      confirm_no_overtime: true,
+                    });
+                    showPunchResultWithTimeout(resp, displaySeconds);
+                    setOvertimeRequest(null);
+                  } catch (err) {
+                    if (err instanceof ApiError) {
+                      showPunchErrorWithTimeout(apiErrorMessage(err), displaySeconds);
+                    } else {
+                      showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', displaySeconds);
+                    }
+                  } finally {
+                    setIsPunching(false);
+                  }
+                }}
+              >
+                {isPunching ? '打刻中...' : '超過申請せず打刻'}
               </button>
-            )}
-          </div>
-
-          {(nfc.status === 'connected' || nfc.status === 'reading' || nfc.status === 'success') && !isPunching && !punchResult && (
-            <p className="nfc-hint">
-              カードをかざしてください
-            </p>
-          )}
-
-          {isPunching && (
-            <p className="nfc-hint">打刻中...</p>
+              <button
+                className="btn btn--outline"
+                style={{
+                  border: '1px solid #cbd5e1',
+                  background: 'transparent',
+                  color: '#475569',
+                  padding: '0.625rem 1.25rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+                disabled={isPunching}
+                onClick={() => setOvertimeRequest(null)}
+              >
+                キャンセル
+              </button>
+            </div>
+          ) : (
+            <div className="fallback-form" style={{ marginTop: '1.5rem' }}>
+              <div className="form-field">
+                <label htmlFor="overtimeReason" className="form-label">
+                  超過理由 <span className="form-required">*</span>
+                </label>
+                <input
+                  id="overtimeReason"
+                  type="text"
+                  className="form-input"
+                  value={overtimeReason}
+                  onChange={(e) => setOvertimeReason(e.target.value)}
+                  placeholder="例: 会議が長引いたため"
+                  required
+                  autoComplete="off"
+                />
+              </div>
+              <div className="nfc-actions" style={{ marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={isPunching || !overtimeReason.trim()}
+                  onClick={async () => {
+                    setIsPunching(true);
+                    try {
+                      const resp = await postPunch({
+                        ...overtimeRequest.payload,
+                        overtime_reason: overtimeReason.trim(),
+                      });
+                      showPunchResultWithTimeout(resp, displaySeconds);
+                      setOvertimeRequest(null);
+                    } catch (err) {
+                      if (err instanceof ApiError) {
+                        showPunchErrorWithTimeout(apiErrorMessage(err), displaySeconds);
+                      } else {
+                        showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', displaySeconds);
+                      }
+                    } finally {
+                      setIsPunching(false);
+                    }
+                  }}
+                >
+                  {isPunching ? '申請中...' : '超過勤務申請'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => setOvertimeRequest(null)}
+                  disabled={isPunching}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
           )}
         </section>
-      )}
+      ) : (
+        <>
+          {/* ===== NFC モード ===== */}
+          {mode === 'nfc' && webUSBSupported && (
+            <section className="punch-section" aria-label="NFC カード打刻">
+              {/* 接続状態インジケータ */}
+              <div className="nfc-status">
+                <span className={`nfc-status__dot ${statusInfo.className}`} aria-hidden="true" />
+                <span className="nfc-status__label">{statusInfo.label}</span>
+              </div>
 
-      {/* ===== フォールバックモード ===== */}
-      {(mode === 'fallback' || !webUSBSupported) && (
-        <section className="punch-section" aria-label="カード忘れ打刻">
-          {webUSBSupported && (
-            <p className="fallback-description">
-              NFC カードをお忘れの場合は、表示名または氏名でユーザーを検索し、理由を入力して打刻できます。
-            </p>
-          )}
-          <form className="fallback-form" onSubmit={handleFallbackPunch}>
-            <div className="form-field">
-              <label htmlFor="userSearch" className="form-label">
-                ユーザー検索 <span className="form-required">*</span>
-              </label>
-              <input
-                id="userSearch"
-                type="text"
-                className="form-input"
-                value={fallback.userQuery}
-                onChange={(e) => handleUserQueryChange(e.target.value)}
-                placeholder="表示名または氏名を入力"
-                required
-                autoComplete="off"
-                aria-describedby="userSearchHint"
-              />
-              <p id="userSearchHint" className="form-hint">
-                表示名・氏名・ユーザー ID の一部で検索できます。
-              </p>
-              {fallback.selectedUser && (
-                <p className="selected-user" role="status">
-                  選択中: {formatUserLabel(fallback.selectedUser)}
-                </p>
-              )}
-              {isSearchingUsers && <p className="form-hint">候補を検索中...</p>}
-              {userSearchError && (
-                <p className="form-error" role="alert">
-                  {userSearchError}
-                </p>
-              )}
-              {!isSearchingUsers && !userSearchError && fallback.userQuery.trim() && !fallback.selectedUser && (
-                <div className="user-candidate-list" role="listbox" aria-label="ユーザー候補">
-                  {userCandidates.length > 0 ? (
-                    userCandidates.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        className="user-candidate"
-                        onClick={() => handleSelectUser(user)}
-                      >
-                        <span className="user-candidate__name">{user.full_name}</span>
-                        <span className="user-candidate__meta">{user.name} / {user.id}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="form-hint">候補が見つかりません。</p>
-                  )}
+              {nfc.errorMessage && (
+                <div className="punch-error" role="alert">
+                  <p>{nfc.errorMessage}</p>
+                  <p className="punch-error__hint">
+                    解決しない場合は「カード忘れ打刻」タブに切り替えてください。
+                  </p>
                 </div>
               )}
-            </div>
-            <div className="form-field">
-              <label htmlFor="reason" className="form-label">
-                打刻理由 <span className="form-required">*</span>
-              </label>
-              <input
-                id="reason"
-                type="text"
-                className="form-input"
-                value={fallback.reason}
-                onChange={(e) => setFallback((f) => ({ ...f, reason: e.target.value }))}
-                placeholder="例: カード忘れのため"
-                required
-                autoComplete="off"
-              />
-            </div>
-            <button
-              type="submit"
-              className="btn btn--primary"
-              disabled={isPunching || !fallback.selectedUser || !fallback.reason.trim()}
-            >
-              {isPunching ? '打刻中...' : '打刻'}
-            </button>
-          </form>
-        </section>
+
+              <div className="nfc-actions">
+                {nfc.status === 'idle' || nfc.status === 'error' ? (
+                  <button
+                    className="btn btn--primary"
+                    onClick={() => {
+                      void initAudio();
+                      nfc.connect();
+                    }}
+                  >
+                    PaSoRi に接続
+                  </button>
+                ) : null}
+
+                {nfc.status !== 'idle' && (
+                  <button className="btn btn--secondary" onClick={nfc.disconnect}>
+                    切断
+                  </button>
+                )}
+              </div>
+
+              {(nfc.status === 'connected' || nfc.status === 'reading' || nfc.status === 'success') && !isPunching && !punchResult && (
+                <p className="nfc-hint">
+                  カードをかざしてください
+                </p>
+              )}
+
+              {isPunching && (
+                <p className="nfc-hint">打刻中...</p>
+              )}
+            </section>
+          )}
+
+          {/* ===== フォールバックモード ===== */}
+          {(mode === 'fallback' || !webUSBSupported) && (
+            <section className="punch-section" aria-label="カード忘れ打刻">
+              {webUSBSupported && (
+                <p className="fallback-description">
+                  NFC カードをお忘れの場合は、表示名または氏名でユーザーを検索し、理由を入力して打刻できます。
+                </p>
+              )}
+              <form className="fallback-form" onSubmit={handleFallbackPunch}>
+                <div className="form-field">
+                  <label htmlFor="userSearch" className="form-label">
+                    ユーザー検索 <span className="form-required">*</span>
+                  </label>
+                  <input
+                    id="userSearch"
+                    type="text"
+                    className="form-input"
+                    value={fallback.userQuery}
+                    onChange={(e) => handleUserQueryChange(e.target.value)}
+                    placeholder="表示名または氏名を入力"
+                    required
+                    autoComplete="off"
+                    aria-describedby="userSearchHint"
+                  />
+                  <p id="userSearchHint" className="form-hint">
+                    表示名・氏名・ユーザー ID の一部で検索できます。
+                  </p>
+                  {fallback.selectedUser && (
+                    <p className="selected-user" role="status">
+                      選択中: {formatUserLabel(fallback.selectedUser)}
+                    </p>
+                  )}
+                  {isSearchingUsers && <p className="form-hint">候補を検索中...</p>}
+                  {userSearchError && (
+                    <p className="form-error" role="alert">
+                      {userSearchError}
+                    </p>
+                  )}
+                  {!isSearchingUsers && !userSearchError && fallback.userQuery.trim() && !fallback.selectedUser && (
+                    <div className="user-candidate-list" role="listbox" aria-label="ユーザー候補">
+                      {userCandidates.length > 0 ? (
+                        userCandidates.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className="user-candidate"
+                            onClick={() => handleSelectUser(user)}
+                          >
+                            <span className="user-candidate__name">{user.full_name}</span>
+                            <span className="user-candidate__meta">{user.name} / {user.id}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="form-hint">候補が見つかりません。</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="form-field">
+                  <label htmlFor="reason" className="form-label">
+                    打刻理由 <span className="form-required">*</span>
+                  </label>
+                  <input
+                    id="reason"
+                    type="text"
+                    className="form-input"
+                    value={fallback.reason}
+                    onChange={(e) => setFallback((f) => ({ ...f, reason: e.target.value }))}
+                    placeholder="例: カード忘れのため"
+                    required
+                    autoComplete="off"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={isPunching || !fallback.selectedUser || !fallback.reason.trim()}
+                >
+                  {isPunching ? '打刻中...' : '打刻'}
+                </button>
+              </form>
+            </section>
+          )}
+        </>
       )}
 
       {/* ===== 打刻結果 ===== */}

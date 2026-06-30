@@ -21,6 +21,7 @@ class SettingsResponse(BaseModel):
     monthly_report_time: str | None
     login_token_expire_hours: int
     enable_google_signup: bool
+    overtime_allowance_minutes: int
 
 
 class SettingsPatchRequest(BaseModel):
@@ -36,6 +37,7 @@ class SettingsPatchRequest(BaseModel):
     monthly_report_time: str | None = None
     login_token_expire_hours: int | None = Field(default=None, ge=1, le=8760)
     enable_google_signup: bool | None = None
+    overtime_allowance_minutes: int | None = Field(default=None, ge=0, le=120)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -71,6 +73,7 @@ class SettingsPatchRequest(BaseModel):
             and self.monthly_report_time is None
             and self.login_token_expire_hours is None
             and self.enable_google_signup is None
+            and self.overtime_allowance_minutes is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):

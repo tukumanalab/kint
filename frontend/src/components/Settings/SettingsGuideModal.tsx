@@ -237,10 +237,19 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
-                  シフト開始前チェックイン許容時間 (shift_checkin_early_minutes)
+                  シフト開始前打刻の許容時間 (shift_checkin_early_minutes)
                 </h4>
                 <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
-                  予定されているシフト開始時刻の何分前から出勤打刻を許可するかを設定します。これより早い打刻はエラーとなります。
+                  シフト開始時刻より前に出勤打刻した際、シフト開始時刻に丸めるための許容時間です。
+                  <br />
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜120の整数。</span>
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  シフト超過許容時間 (overtime_allowance_minutes)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  シフト終了時刻より後に退勤打刻した際、シフト終了時刻に丸めるための許容時間です。これを超過して退勤する際は、打刻画面で超過勤務の有無を選択します（申請する場合は理由を入力し、申請しない場合は通常の丸めが適用されます）。
                   <br />
                   <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜120の整数。</span>
                 </p>

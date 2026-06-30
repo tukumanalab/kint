@@ -281,6 +281,7 @@ class TestAttendanceExportAPI:
             "勤怠ステータス",
             "打刻ソース",
             "修正理由",
+            "超過理由",
         ]
 
     async def test_export_summary_csv_admin(self, client: AsyncClient, session) -> None:
