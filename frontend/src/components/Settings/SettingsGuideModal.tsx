@@ -237,21 +237,21 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
-                  連続打刻クールダウン (punch_cooldown_seconds)
-                </h4>
-                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
-                  同一カードで連続して打刻した際、重複打刻とみなして無視する時間（秒）です。これにより、誤って2度かざしてしまった場合の誤入力を防ぎます。
-                  <br />
-                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜3600の整数。0にするとクールダウンは無効になります。</span>
-                </p>
-
-                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
                   シフト開始前チェックイン許容時間 (shift_checkin_early_minutes)
                 </h4>
                 <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
                   予定されているシフト開始時刻の何分前から出勤打刻を許可するかを設定します。これより早い打刻はエラーとなります。
                   <br />
                   <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜120の整数。</span>
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  連続打刻クールダウン (punch_cooldown_seconds)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  同一カードで連続して打刻した際、重複打刻とみなして無視する時間（秒）です。これにより、誤って2度かざしてしまった場合の誤入力を防ぎます。
+                  <br />
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜3600の整数。0にするとクールダウンは無効になります。</span>
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>

@@ -2,6 +2,7 @@
   max-width: 700px;
   margin: 0 auto;
   padding: 2rem 1rem;
+  text-align: left;
 }
 
 .settings-page__title {
@@ -179,6 +180,7 @@
   max-height: 85vh;
   overflow-y: auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  text-align: left;
 }
 
 .settings-modal__title {
@@ -299,6 +301,7 @@
   max-width: 850px;
   width: 90%;
   overflow: hidden;
+  text-align: left;
 }
 
 .settings-guide-dialog::backdrop {

@@ -540,24 +540,6 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
           <h2 className="settings-section__title">打刻規則</h2>
 
           <div className="settings-field">
-            <label htmlFor="cooldown" className="settings-field__label">
-              連続打刻クールダウン
-            </label>
-            <div className="settings-field__input-row">
-              <input
-                id="cooldown"
-                type="number"
-                className="settings-field__input"
-                min={0}
-                max={3600}
-                value={cooldown}
-                onChange={(e) => setCooldown(e.target.value)}
-              />
-              <span className="settings-field__unit">秒（0〜3600）</span>
-            </div>
-          </div>
-
-          <div className="settings-field">
             <label htmlFor="earlyMinutes" className="settings-field__label">
               シフト開始前チェックイン許容時間
             </label>
@@ -572,6 +554,24 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
                 onChange={(e) => setEarlyMinutes(e.target.value)}
               />
               <span className="settings-field__unit">分（0〜120）</span>
+            </div>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="cooldown" className="settings-field__label">
+              連続打刻クールダウン
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="cooldown"
+                type="number"
+                className="settings-field__input"
+                min={0}
+                max={3600}
+                value={cooldown}
+                onChange={(e) => setCooldown(e.target.value)}
+              />
+              <span className="settings-field__unit">秒（0〜3600）</span>
             </div>
           </div>
 
