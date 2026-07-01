@@ -5,8 +5,8 @@ module.exports = {
       // uvコマンドを使用してFastAPIサーバーを起動します。
       // グローバルに uv がインストールされていない場合は、script に './.venv/bin/uvicorn'
       // を指定し、args に 'src.kint.main:app --host 127.0.0.1 --port 8000' を指定してください。
-      script: 'uv',
-      args: 'run uvicorn src.kint.main:app --host 127.0.0.1 --port 8000',
+      script: './.venv/bin/uvicorn',
+      args: 'src.kint.main:app --host 127.0.0.1 --port 8000',
       interpreter: 'none',
       cwd: './',
       instances: 1,
