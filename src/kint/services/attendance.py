@@ -795,13 +795,22 @@ class AttendanceService:
         before_work_start = attendance.work_start
         before_work_end = attendance.work_end
 
-        if patch.reset_to_auto:
+        if patch.edit_mode == "auto" or patch.reset_to_auto:
             attendance.is_manual_work_time = False
             attendance.work_start = None
             attendance.work_end = None
-        else:
+        elif patch.edit_mode == "punch":
+            attendance.check_in = patch.check_in
+            attendance.check_out = patch.check_out
+            attendance.is_manual_work_time = False
+            attendance.work_start = None
+            attendance.work_end = None
+        else:  # "work"
             attendance.work_start = patch.work_start
             attendance.work_end = patch.work_end
+            # check_in/check_out にも同じ値をセットする（CSV出力等で打刻時刻が必要なため）
+            attendance.check_in = patch.work_start
+            attendance.check_out = patch.work_end
             attendance.is_manual_work_time = True
 
         # 重複勤務時間のチェック
@@ -1153,12 +1162,14 @@ class AttendanceService:
                             calculated_check_out=p_calc_out,
                             source=a.source,
                             overtime_reason=a.overtime_reason,
+                            is_manual_work_time=a.is_manual_work_time,
                         )
                     )
 
                 # attendance_id: その日の最初の打刻レコードのIDを使用（修正申請用）
                 attendance_id = sorted_atts[0].id if sorted_atts else None
                 is_auto_completed = any(a.is_auto_completed for a in day_atts)
+                is_manual_day = any(a.is_manual_work_time for a in day_atts)
 
                 detail = DailyAttendanceDetail(
                     work_date=curr_date,
@@ -1176,6 +1187,7 @@ class AttendanceService:
                     status=status,
                     source=source,
                     is_auto_completed=is_auto_completed,
+                    is_manual_work_time=is_manual_day,
                     punches=punches,
                     shifts=[
                         ShiftPeriod(
@@ -2040,16 +2052,28 @@ class AttendanceService:
                 message="対象年月の勤怠は締め処理が完了しているため、追加できません。",
             )
 
-        # 互換性フォールバック（work_startがない場合はcheck_in/check_outを使用）
-        work_start = request.work_start if request.work_start is not None else request.check_in
-        work_end = request.work_end if request.work_end is not None else request.check_out
+        if request.edit_mode == "punch":
+            # 打刻追加モード
+            check_in = request.check_in if request.check_in is not None else request.work_start
+            check_out = request.check_out if request.check_out is not None else request.work_end
+            work_start = None
+            work_end = None
+            is_manual = False
+        else:
+            # 勤務時間追加モード (従来通り)
+            work_start = request.work_start if request.work_start is not None else request.check_in
+            work_end = request.work_end if request.work_end is not None else request.check_out
+            # check_in/check_out にも同じ値をセットする（CSV出力等で打刻時刻が必要なため）
+            check_in = work_start
+            check_out = work_end
+            is_manual = True
 
         # 重複チェック
         await self._check_overlap(
             user_id=request.user_id,
             attendance_id=None,
-            check_in=work_start,
-            check_out=work_end,
+            check_in=check_in if not is_manual else work_start,
+            check_out=check_out if not is_manual else work_end,
         )
 
         now = datetime.now(tz=UTC)
@@ -2057,11 +2081,11 @@ class AttendanceService:
             id=str(uuid.uuid4()),
             user_id=request.user_id,
             work_date=request.work_date,
-            check_in=None,
-            check_out=None,
+            check_in=check_in,
+            check_out=check_out,
             work_start=work_start,
             work_end=work_end,
-            is_manual_work_time=True,
+            is_manual_work_time=is_manual,
             source="admin_manual",
             updated_reason=request.reason,
             last_updated_by_user_id=actor.id,
@@ -2078,8 +2102,8 @@ class AttendanceService:
             actor_role=actor.role,
             before_check_in=None,
             before_check_out=None,
-            after_check_in=None,
-            after_check_out=None,
+            after_check_in=check_in,
+            after_check_out=check_out,
             before_work_start=None,
             before_work_end=None,
             after_work_start=work_start,
@@ -2117,8 +2141,9 @@ class AttendanceService:
 
         now = datetime.now(tz=UTC)
 
-        # 打刻データが存在する場合（カードタッチ等）は物理削除せず、勤務時間のみ削除（NULL）して手動上書きとする
-        if attendance.check_in is not None or attendance.check_out is not None:
+        # NFC打刻やWebUSB等の実打刻レコードは物理削除せず、勤務時間のみクリアして手動上書きとする
+        # 管理者手動追加レコード (source == "admin_manual") は物理削除する
+        if attendance.source != "admin_manual":
             before_work_start = attendance.work_start
             before_work_end = attendance.work_end
 
@@ -2149,7 +2174,7 @@ class AttendanceService:
             self.session.add(log)
             await self.session.commit()
         else:
-            # 打刻データがない（管理者手動追加されただけの）レコードは物理削除する
+            # 管理者手動追加されたレコードは物理削除する
             # 関連するチェンジログを削除
             await self.session.execute(
                 delete(AttendanceChangeLog).where(

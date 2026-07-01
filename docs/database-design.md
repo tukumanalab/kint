@@ -79,6 +79,10 @@
 | `work_date`                | DATE     | NOT NULL                                               | 勤務日（YYYY-MM-DD）                 |
 | `check_in`                 | DATETIME | NULL                                                   | 出勤日時                             |
 | `check_out`                | DATETIME | NULL                                                   | 退勤日時                             |
+| `work_start`               | DATETIME | NULL                                                   | 勤務出勤日時（手動修正時等に使用）   |
+| `work_end`                 | DATETIME | NULL                                                   | 勤務退勤日時（手動修正時等に使用）   |
+| `is_manual_work_time`      | INTEGER  | NOT NULL, DEFAULT 0                                    | 手動勤務時間修正フラグ（1=手動）     |
+| `overtime_reason`          | TEXT     | NULL                                                   | 残業理由                             |
 | `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service')) | 打刻元 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
@@ -112,10 +116,14 @@
 | `attendance_id`   | TEXT     | NOT NULL, FK → attendances.id ON DELETE RESTRICT               | 対象勤怠レコード             |
 | `actor_user_id`   | TEXT     | NOT NULL, FK → users.id ON DELETE RESTRICT                     | 修正を実行したユーザー       |
 | `actor_role`      | TEXT     | NOT NULL, CHECK(actor_role IN ('admin','employee'))             | 実行時のロール               |
-| `before_check_in` | DATETIME | NULL                                                            | 変更前の出勤日時             |
-| `before_check_out`| DATETIME | NULL                                                            | 変更前の退勤日時             |
-| `after_check_in`  | DATETIME | NULL                                                            | 変更後の出勤日時             |
-| `after_check_out` | DATETIME | NULL                                                            | 変更後の退勤日時             |
+| `before_check_in`   | DATETIME | NULL                                                            | 変更前の出勤日時             |
+| `before_check_out`  | DATETIME | NULL                                                            | 変更前の退勤日時             |
+| `after_check_in`    | DATETIME | NULL                                                            | 変更後の出勤日時             |
+| `after_check_out`   | DATETIME | NULL                                                            | 変更後の退勤日時             |
+| `before_work_start` | DATETIME | NULL                                                            | 変更前の勤務出勤日時         |
+| `before_work_end`   | DATETIME | NULL                                                            | 変更前の勤務退勤日時         |
+| `after_work_start`  | DATETIME | NULL                                                            | 変更後の勤務出勤日時         |
+| `after_work_end`    | DATETIME | NULL                                                            | 変更後の勤務退勤日時         |
 | `reason`          | TEXT     | NOT NULL                                                        | 修正理由（空文字不可）       |
 | `changed_at`      | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                             | 修正日時                     |
 

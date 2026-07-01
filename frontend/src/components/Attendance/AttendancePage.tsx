@@ -43,8 +43,10 @@ const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
 };
 
 const makeTimeStr = (hour: string, minute: string) => {
-  if (!hour || !minute) return '';
-  return `${hour}:${minute}`;
+  if (!hour && !minute) return '';
+  const h = hour || '00';
+  const m = minute || '00';
+  return `${h}:${m}`;
 };
 
 interface Props {
@@ -76,6 +78,7 @@ export function AttendancePage({ auth }: Props) {
   const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
   const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [editMode, setEditMode] = useState<'punch' | 'work'>('work');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [requestFormData, setRequestFormData] = useState({
     attendanceId: '',
@@ -110,6 +113,7 @@ export function AttendancePage({ auth }: Props) {
 
   // 手動勤怠追加関連 (管理者用)
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addEditMode, setAddEditMode] = useState<'punch' | 'work'>('work');
   const [addFormData, setAddFormData] = useState({
     workDate: '',
     checkInDate: '',
@@ -169,25 +173,26 @@ export function AttendancePage({ auth }: Props) {
     const targetUserId = selectedUser?.user_id || auth.user?.id;
     if (!targetUserId) return;
 
-    // 修正理由はオプション化
-
-    if (addFormData.checkInTime) {
-      const parts = addFormData.checkInTime.split(':');
-      if (parts.length >= 2) {
-        const minutes = parseInt(parts[1], 10);
-        if (minutes % 5 !== 0) {
-          alert('出勤時刻の分は5分刻み（00, 05, 10...）で指定してください。');
-          return;
+    // 5分刻みチェックは addEditMode === 'work' の時だけ適用
+    if (addEditMode === 'work') {
+      if (addFormData.checkInTime) {
+        const parts = addFormData.checkInTime.split(':');
+        if (parts.length >= 2) {
+          const minutes = parseInt(parts[1], 10);
+          if (minutes % 5 !== 0) {
+            alert('出勤時刻の分は5分刻み（00, 05, 10...）で指定してください。');
+            return;
+          }
         }
       }
-    }
-    if (addFormData.checkOutTime) {
-      const parts = addFormData.checkOutTime.split(':');
-      if (parts.length >= 2) {
-        const minutes = parseInt(parts[1], 10);
-        if (minutes % 5 !== 0) {
-          alert('退勤時刻の分は5分刻み（00, 05, 10...）で指定してください。');
-          return;
+      if (addFormData.checkOutTime) {
+        const parts = addFormData.checkOutTime.split(':');
+        if (parts.length >= 2) {
+          const minutes = parseInt(parts[1], 10);
+          if (minutes % 5 !== 0) {
+            alert('退勤時刻の分は5分刻み（00, 05, 10...）で指定してください。');
+            return;
+          }
         }
       }
     }
@@ -203,13 +208,27 @@ export function AttendancePage({ auth }: Props) {
     }
 
     try {
-      await createAttendance(auth.token, {
-        user_id: targetUserId,
-        work_date: addFormData.workDate,
-        work_start: checkInStr,
-        work_end: checkOutStr,
-        reason: addFormData.reason,
-      });
+      if (addEditMode === 'punch') {
+        await createAttendance(auth.token, {
+          user_id: targetUserId,
+          work_date: addFormData.workDate,
+          work_start: null,
+          work_end: null,
+          check_in: checkInStr,
+          check_out: checkOutStr,
+          edit_mode: 'punch',
+          reason: addFormData.reason,
+        });
+      } else {
+        await createAttendance(auth.token, {
+          user_id: targetUserId,
+          work_date: addFormData.workDate,
+          work_start: checkInStr,
+          work_end: checkOutStr,
+          edit_mode: 'work',
+          reason: addFormData.reason,
+        });
+      }
       setShowAddModal(false);
       // 再読み込み
       await fetchSummary();
@@ -376,6 +395,21 @@ export function AttendancePage({ auth }: Props) {
     return d.toISOString();
   };
 
+  const handleEditModeChange = (mode: 'punch' | 'work') => {
+    setEditMode(mode);
+    const targetIn = mode === 'work' ? requestFormData.calculatedCheckIn : requestFormData.originalCheckIn;
+    const targetOut = mode === 'work' ? requestFormData.calculatedCheckOut : requestFormData.originalCheckOut;
+    const localIn = toLocalValues(targetIn, requestFormData.workDate);
+    const localOut = toLocalValues(targetOut, requestFormData.workDate);
+    setRequestFormData(prev => ({
+      ...prev,
+      requestedCheckInDate: localIn.date,
+      requestedCheckInTime: localIn.time,
+      requestedCheckOutDate: localOut.date,
+      requestedCheckOutTime: localOut.time,
+    }));
+  };
+
   // 修正申請の作成 / 管理者による直接修正
   const handleOpenRequestModal = (
     attendanceId: string,
@@ -385,11 +419,15 @@ export function AttendancePage({ auth }: Props) {
     calcIn: string | null = null,
     calcOut: string | null = null,
     shiftStart: string | null = null,
-    shiftEnd: string | null = null
+    shiftEnd: string | null = null,
+    isManual: boolean = false
   ) => {
-    // 管理者であれば、初期表示する修正ターゲット日時は calcIn / calcOut (勤務時間) にする
-    const targetIn = isAdmin ? calcIn : checkIn;
-    const targetOut = isAdmin ? calcOut : checkOut;
+    const initialMode = isManual ? 'work' : 'punch';
+    setEditMode(initialMode);
+
+    // 管理者であれば、初期表示する修正ターゲット日時は選択されたモード（または既存状態）に合わせる
+    const targetIn = isAdmin ? (initialMode === 'work' ? calcIn : checkIn) : checkIn;
+    const targetOut = isAdmin ? (initialMode === 'work' ? calcOut : checkOut) : checkOut;
 
     const localIn = toLocalValues(targetIn, workDate);
     const localOut = toLocalValues(targetOut, workDate);
@@ -424,14 +462,15 @@ export function AttendancePage({ auth }: Props) {
       return;
     }
 
-    const isoIn = resetToAuto
+    const isoIn = (isAdmin && editMode === 'work' && resetToAuto)
       ? null
       : toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
-    const isoOut = resetToAuto
+    const isoOut = (isAdmin && editMode === 'work' && resetToAuto)
       ? null
       : toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
 
-    if (isAdmin && !resetToAuto) {
+    // 5分刻みチェックは editMode === 'work' の時だけ適用する
+    if (isAdmin && editMode === 'work' && !resetToAuto) {
       if (requestFormData.requestedCheckInTime) {
         const parts = requestFormData.requestedCheckInTime.split(':');
         if (parts.length >= 2) {
@@ -454,7 +493,7 @@ export function AttendancePage({ auth }: Props) {
       }
     }
 
-    if (!resetToAuto && isoIn && isoOut) {
+    if (!(isAdmin && editMode === 'work' && resetToAuto) && isoIn && isoOut) {
       const inTime = new Date(isoIn).getTime();
       const outTime = new Date(isoOut).getTime();
       if (inTime >= outTime) {
@@ -469,12 +508,24 @@ export function AttendancePage({ auth }: Props) {
 
     try {
       if (isAdmin) {
-        await updateAttendance(auth.token, requestFormData.attendanceId, {
-          work_start: isoIn,
-          work_end: isoOut,
-          reset_to_auto: resetToAuto,
-          reason: requestFormData.reason,
-        });
+        if (editMode === 'punch') {
+          await updateAttendance(auth.token, requestFormData.attendanceId, {
+            work_start: null,
+            work_end: null,
+            check_in: isoIn,
+            check_out: isoOut,
+            edit_mode: 'punch',
+            reason: requestFormData.reason,
+          });
+        } else {
+          await updateAttendance(auth.token, requestFormData.attendanceId, {
+            work_start: isoIn,
+            work_end: isoOut,
+            reset_to_auto: resetToAuto,
+            edit_mode: resetToAuto ? 'auto' : 'work',
+            reason: requestFormData.reason,
+          });
+        }
         alert('勤怠を修正しました');
       } else {
         await createCorrectionRequest(auth.token, {
@@ -690,7 +741,9 @@ export function AttendancePage({ auth }: Props) {
     };
 
     const origHours = calcOrigIn && calcOrigOut ? (calcOrigOut.getTime() - calcOrigIn.getTime()) / (1000 * 60 * 60) : 0;
-    const reqHours = calculateWorkingHours(reqIn, reqOut, requestFormData.shiftStart, requestFormData.shiftEnd);
+    const reqHours = (isAdmin && editMode === 'work')
+      ? (reqIn && reqOut ? Math.max(0, (reqOut.getTime() - reqIn.getTime()) / (1000 * 60 * 60)) : 0)
+      : calculateWorkingHours(reqIn, reqOut, requestFormData.shiftStart, requestFormData.shiftEnd);
     const hoursDiff = reqHours - origHours;
 
     return {
@@ -884,7 +937,8 @@ export function AttendancePage({ auth }: Props) {
                                 p.calculated_check_in,
                                 p.calculated_check_out,
                                 day.shift_start,
-                                day.shift_end
+                                day.shift_end,
+                                p.is_manual_work_time
                               )
                             }
                           >
@@ -931,7 +985,8 @@ export function AttendancePage({ auth }: Props) {
                               day.calculated_check_in,
                               day.calculated_check_out,
                               day.shift_start,
-                              day.shift_end
+                              day.shift_end,
+                              day.is_manual_work_time
                             )
                           }
                         >
@@ -1100,7 +1155,8 @@ export function AttendancePage({ auth }: Props) {
                                   p.calculated_check_in,
                                   p.calculated_check_out,
                                   day.shift_start,
-                                  day.shift_end
+                                  day.shift_end,
+                                  p.is_manual_work_time
                                 )
                               }
                             >
@@ -1215,7 +1271,8 @@ export function AttendancePage({ auth }: Props) {
                             day.punches![0].calculated_check_in,
                             day.punches![0].calculated_check_out,
                             day.shift_start,
-                            day.shift_end
+                            day.shift_end,
+                            day.punches![0].is_manual_work_time
                           )
                         }
                       >
@@ -1259,7 +1316,8 @@ export function AttendancePage({ auth }: Props) {
                             day.calculated_check_in,
                             day.calculated_check_out,
                             day.shift_start,
-                            day.shift_end
+                            day.shift_end,
+                            day.is_manual_work_time
                           )
                         }
                       >
@@ -1775,13 +1833,44 @@ export function AttendancePage({ auth }: Props) {
           <div className="att-modal" onClick={() => setShowRequestModal(false)}>
             <div className="att-modal__content att-modal__content--wide" onClick={(e) => e.stopPropagation()}>
               <h3 className="att-modal__title">
-                {isAdmin ? '勤務時間の直接修正 (管理者)' : '打刻修正申請'}
+                {isAdmin ? '勤怠の修正 (管理者)' : '打刻修正申請'}
               </h3>
               
               <div className="att-form-group">
                 <label>対象日</label>
                 <input type="text" value={requestFormData.workDate} disabled style={{ backgroundColor: '#f6f8fa', cursor: 'not-allowed' }} />
               </div>
+
+              {/* 管理者の場合：編集モード選択 */}
+              {isAdmin && (
+                <div className="att-form-group" style={{ marginBottom: '16px' }}>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>修正対象の選択</label>
+                  <div style={{ display: 'flex', gap: '20px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="editMode"
+                        value="punch"
+                        checked={editMode === 'punch'}
+                        onChange={() => handleEditModeChange('punch')}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span>打刻（実時刻）を修正（勤務時間は自動計算）</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="editMode"
+                        value="work"
+                        checked={editMode === 'work'}
+                        onChange={() => handleEditModeChange('work')}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span>勤務時間（丸め後）を手動で直接指定</span>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* 修正前の情報 */}
               <div className="att-section-box">
@@ -1804,8 +1893,8 @@ export function AttendancePage({ auth }: Props) {
                 </div>
               </div>
 
-              {/* 管理者の場合：自動計算に戻すチェックボックス */}
-              {isAdmin && (
+              {/* 管理者の場合：自動計算に戻すチェックボックス（勤務時間修正モードのみ） */}
+              {isAdmin && editMode === 'work' && (
                 <div className="att-form-group" style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="checkbox"
@@ -1823,12 +1912,16 @@ export function AttendancePage({ auth }: Props) {
               {/* 修正後の希望入力 */}
               <div className="att-section-box" style={{ marginTop: '16px' }}>
                 <h4 className="att-section-box__title">
-                  {isAdmin ? '修正後の勤務時間（ローカル時刻）' : '修正後の希望時間（ローカル時刻）'}
+                  {isAdmin 
+                    ? (editMode === 'work' ? '修正後の勤務時間（ローカル時刻）' : '修正後の打刻時間（ローカル時刻）')
+                    : '修正後の希望時間（ローカル時刻）'}
                 </h4>
                 
                 <div className="att-form-group">
                   <label className="att-sub-label">
-                    {isAdmin ? '勤務出勤日時' : '出勤希望日時'}
+                    {isAdmin 
+                      ? (editMode === 'work' ? '勤務出勤日時' : '出勤打刻日時') 
+                      : '出勤希望日時'}
                   </label>
                   <div className="att-datetime-picker-row">
                     <input
@@ -1838,10 +1931,11 @@ export function AttendancePage({ auth }: Props) {
                         setRequestFormData({ ...requestFormData, requestedCheckInDate: e.target.value })
                       }
                       className="att-date-input"
-                      disabled={resetToAuto}
+                      disabled={isAdmin && editMode === 'work' && resetToAuto}
                     />
                     {(() => {
-                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckInTime, isAdmin);
+                      const roundTo5 = isAdmin && editMode === 'work';
+                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckInTime, roundTo5);
                       return (
                         <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <select
@@ -1851,7 +1945,7 @@ export function AttendancePage({ auth }: Props) {
                               setRequestFormData({ ...requestFormData, requestedCheckInTime: newTime });
                             }}
                             className="att-time-select"
-                            disabled={resetToAuto}
+                            disabled={isAdmin && editMode === 'work' && resetToAuto}
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">時</option>
@@ -1868,12 +1962,12 @@ export function AttendancePage({ auth }: Props) {
                               setRequestFormData({ ...requestFormData, requestedCheckInTime: newTime });
                             }}
                             className="att-time-select"
-                            disabled={resetToAuto}
+                            disabled={isAdmin && editMode === 'work' && resetToAuto}
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">分</option>
-                            {Array.from({ length: isAdmin ? 12 : 60 }).map((_, i) => {
-                              const mStr = String(i * (isAdmin ? 5 : 1)).padStart(2, '0');
+                            {Array.from({ length: roundTo5 ? 12 : 60 }).map((_, i) => {
+                              const mStr = String(i * (roundTo5 ? 5 : 1)).padStart(2, '0');
                               return <option key={mStr} value={mStr}>{mStr}</option>;
                             })}
                           </select>
@@ -1885,7 +1979,8 @@ export function AttendancePage({ auth }: Props) {
                       type="button"
                       className="att-btn att-btn--link"
                       onClick={() => {
-                        const localIn = toLocalValues(requestFormData.originalCheckIn, requestFormData.workDate);
+                        const targetVal = (isAdmin && editMode === 'work') ? requestFormData.calculatedCheckIn : requestFormData.originalCheckIn;
+                        const localIn = toLocalValues(targetVal, requestFormData.workDate);
                         setRequestFormData(prev => ({
                           ...prev,
                           requestedCheckInDate: localIn.date,
@@ -1893,7 +1988,7 @@ export function AttendancePage({ auth }: Props) {
                         }));
                       }}
                       title="修正前の時刻に戻す"
-                      disabled={resetToAuto}
+                      disabled={isAdmin && editMode === 'work' && resetToAuto}
                     >
                       リセット
                     </button>
@@ -1902,7 +1997,9 @@ export function AttendancePage({ auth }: Props) {
 
                 <div className="att-form-group" style={{ marginTop: '12px' }}>
                   <label className="att-sub-label">
-                    {isAdmin ? '勤務退勤日時' : '退勤希望日時'}
+                    {isAdmin 
+                      ? (editMode === 'work' ? '勤務退勤日時' : '退勤打刻日時') 
+                      : '退勤希望日時'}
                   </label>
                   <div className="att-datetime-picker-row">
                     <input
@@ -1912,10 +2009,11 @@ export function AttendancePage({ auth }: Props) {
                         setRequestFormData({ ...requestFormData, requestedCheckOutDate: e.target.value })
                       }
                       className="att-date-input"
-                      disabled={resetToAuto}
+                      disabled={isAdmin && editMode === 'work' && resetToAuto}
                     />
                     {(() => {
-                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckOutTime, isAdmin);
+                      const roundTo5 = isAdmin && editMode === 'work';
+                      const { hour, minute } = parseTimeStr(requestFormData.requestedCheckOutTime, roundTo5);
                       return (
                         <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <select
@@ -1925,7 +2023,7 @@ export function AttendancePage({ auth }: Props) {
                               setRequestFormData({ ...requestFormData, requestedCheckOutTime: newTime });
                             }}
                             className="att-time-select"
-                            disabled={resetToAuto}
+                            disabled={isAdmin && editMode === 'work' && resetToAuto}
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">時</option>
@@ -1942,12 +2040,12 @@ export function AttendancePage({ auth }: Props) {
                               setRequestFormData({ ...requestFormData, requestedCheckOutTime: newTime });
                             }}
                             className="att-time-select"
-                            disabled={resetToAuto}
+                            disabled={isAdmin && editMode === 'work' && resetToAuto}
                             style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                           >
                             <option value="">分</option>
-                            {Array.from({ length: isAdmin ? 12 : 60 }).map((_, i) => {
-                              const mStr = String(i * (isAdmin ? 5 : 1)).padStart(2, '0');
+                            {Array.from({ length: roundTo5 ? 12 : 60 }).map((_, i) => {
+                              const mStr = String(i * (roundTo5 ? 5 : 1)).padStart(2, '0');
                               return <option key={mStr} value={mStr}>{mStr}</option>;
                             })}
                           </select>
@@ -1959,7 +2057,8 @@ export function AttendancePage({ auth }: Props) {
                       type="button"
                       className="att-btn att-btn--link"
                       onClick={() => {
-                        const localOut = toLocalValues(requestFormData.originalCheckOut, requestFormData.workDate);
+                        const targetVal = (isAdmin && editMode === 'work') ? requestFormData.calculatedCheckOut : requestFormData.originalCheckOut;
+                        const localOut = toLocalValues(targetVal, requestFormData.workDate);
                         setRequestFormData(prev => ({
                           ...prev,
                           requestedCheckOutDate: localOut.date,
@@ -1967,7 +2066,7 @@ export function AttendancePage({ auth }: Props) {
                         }));
                       }}
                       title="修正前の時刻に戻す"
-                      disabled={resetToAuto}
+                      disabled={isAdmin && editMode === 'work' && resetToAuto}
                     >
                       リセット
                     </button>
@@ -1992,7 +2091,9 @@ export function AttendancePage({ auth }: Props) {
                   <div className="att-preview-rows">
                     <div className="att-preview-row">
                       <span className="att-preview-label">
-                        {isAdmin ? '修正後勤務時刻：' : '修正希望時刻：'}
+                        {isAdmin 
+                          ? (editMode === 'work' ? '修正後勤務時刻：' : '修正後打刻時刻：') 
+                          : '修正希望時刻：'}
                       </span>
                       <span className="att-preview-val">
                         {diff.reqInStr} 〜 {diff.reqOutStr}
@@ -2261,11 +2362,44 @@ export function AttendancePage({ auth }: Props) {
               <input type="text" value={addFormData.workDate} disabled style={{ backgroundColor: '#f6f8fa', cursor: 'not-allowed' }} />
             </div>
 
+            {/* 追加モード選択 */}
+            <div className="att-form-group" style={{ marginBottom: '16px' }}>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>追加対象の選択</label>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="addEditMode"
+                    value="punch"
+                    checked={addEditMode === 'punch'}
+                    onChange={() => setAddEditMode('punch')}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>打刻（実時刻）を追加（勤務時間は自動計算）</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="addEditMode"
+                    value="work"
+                    checked={addEditMode === 'work'}
+                    onChange={() => setAddEditMode('work')}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>勤務時間（丸め後）を手動で直接指定</span>
+                </label>
+              </div>
+            </div>
+
             <div className="att-section-box" style={{ marginTop: '16px' }}>
-              <h4 className="att-section-box__title">勤務時刻（ローカル時刻）</h4>
+              <h4 className="att-section-box__title">
+                {addEditMode === 'work' ? '勤務時刻（ローカル時刻）' : '打刻時刻（ローカル時刻）'}
+              </h4>
               
               <div className="att-form-group">
-                <label className="att-sub-label">勤務出勤日時</label>
+                <label className="att-sub-label">
+                  {addEditMode === 'work' ? '勤務出勤日時' : '出勤打刻日時'}
+                </label>
                 <div className="att-datetime-picker-row">
                   <input
                     type="date"
@@ -2276,7 +2410,8 @@ export function AttendancePage({ auth }: Props) {
                     className="att-date-input"
                   />
                   {(() => {
-                    const { hour, minute } = parseTimeStr(addFormData.checkInTime, true);
+                    const roundTo5 = addEditMode === 'work';
+                    const { hour, minute } = parseTimeStr(addFormData.checkInTime, roundTo5);
                     return (
                       <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <select
@@ -2305,8 +2440,8 @@ export function AttendancePage({ auth }: Props) {
                           style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                         >
                           <option value="">分</option>
-                          {Array.from({ length: 12 }).map((_, i) => {
-                            const mStr = String(i * 5).padStart(2, '0');
+                          {Array.from({ length: roundTo5 ? 12 : 60 }).map((_, i) => {
+                            const mStr = String(i * (roundTo5 ? 5 : 1)).padStart(2, '0');
                             return <option key={mStr} value={mStr}>{mStr}</option>;
                           })}
                         </select>
@@ -2327,7 +2462,9 @@ export function AttendancePage({ auth }: Props) {
               </div>
 
               <div className="att-form-group" style={{ marginTop: '12px' }}>
-                <label className="att-sub-label">勤務退勤日時</label>
+                <label className="att-sub-label">
+                  {addEditMode === 'work' ? '勤務退勤日時' : '退勤打刻日時'}
+                </label>
                 <div className="att-datetime-picker-row">
                   <input
                     type="date"
@@ -2338,7 +2475,8 @@ export function AttendancePage({ auth }: Props) {
                     className="att-date-input"
                   />
                   {(() => {
-                    const { hour, minute } = parseTimeStr(addFormData.checkOutTime, true);
+                    const roundTo5 = addEditMode === 'work';
+                    const { hour, minute } = parseTimeStr(addFormData.checkOutTime, roundTo5);
                     return (
                       <div className="att-time-select-pair" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <select
@@ -2367,8 +2505,8 @@ export function AttendancePage({ auth }: Props) {
                           style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                         >
                           <option value="">分</option>
-                          {Array.from({ length: 12 }).map((_, i) => {
-                            const mStr = String(i * 5).padStart(2, '0');
+                          {Array.from({ length: roundTo5 ? 12 : 60 }).map((_, i) => {
+                            const mStr = String(i * (roundTo5 ? 5 : 1)).padStart(2, '0');
                             return <option key={mStr} value={mStr}>{mStr}</option>;
                           })}
                         </select>

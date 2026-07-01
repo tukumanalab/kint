@@ -373,11 +373,19 @@ components:
           nullable: true
           description: 打刻ソース
           example: "webusb_nfc"
+        is_manual_work_time:
+          type: boolean
+          default: false
         shifts:
           type: array
           items:
             $ref: '#/components/schemas/ShiftPeriod'
           description: その日の全シフト予定時間リスト
+        punches:
+          type: array
+          items:
+            $ref: '#/components/schemas/PunchPeriod'
+          description: その日の全打刻ペアリスト
 
     ShiftPeriod:
       type: object

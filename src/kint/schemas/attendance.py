@@ -39,6 +39,7 @@ class AttendanceCreateRequest(BaseModel):
     # 互換性維持のための打刻フィールド
     check_in: datetime | None = None
     check_out: datetime | None = None
+    edit_mode: Literal["punch", "work"] = "work"
     reason: str
 
 
@@ -47,6 +48,9 @@ class AttendancePatchRequest(BaseModel):
 
     work_start: datetime | None = None
     work_end: datetime | None = None
+    check_in: datetime | None = None
+    check_out: datetime | None = None
+    edit_mode: Literal["punch", "work", "auto"] = "work"
     reset_to_auto: bool = False
     reason: str
 
@@ -119,6 +123,7 @@ class PunchPeriod(BaseModel):
     calculated_check_out: datetime | None = None
     source: str | None = None
     overtime_reason: str | None = None
+    is_manual_work_time: bool = False
 
 
 class ShiftPeriod(BaseModel):
@@ -155,6 +160,7 @@ class DailyAttendanceDetail(BaseModel):
     ]
     source: str | None = None
     is_auto_completed: bool = False
+    is_manual_work_time: bool = False
     punches: list[PunchPeriod] = []
     shifts: list[ShiftPeriod] = []
 

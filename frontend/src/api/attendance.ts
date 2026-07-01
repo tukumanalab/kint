@@ -212,6 +212,9 @@ export async function createAttendance(
     work_date: string;
     work_start: string | null;
     work_end: string | null;
+    check_in?: string | null;
+    check_out?: string | null;
+    edit_mode?: 'punch' | 'work';
     reason: string;
   },
 ): Promise<AttendanceRecord> {
@@ -231,6 +234,9 @@ export async function updateAttendance(
   body: {
     work_start: string | null;
     work_end: string | null;
+    check_in?: string | null;
+    check_out?: string | null;
+    edit_mode?: 'punch' | 'work' | 'auto';
     reset_to_auto?: boolean;
     reason: string;
   },

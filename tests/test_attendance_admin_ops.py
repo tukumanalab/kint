@@ -52,8 +52,9 @@ async def test_admin_create_attendance_success(session: AsyncSession, client: As
     db_result = await session.execute(select(Attendance).where(Attendance.id == att_id))
     att = db_result.scalar_one_or_none()
     assert att is not None
-    assert att.check_in is None
-    assert att.check_out is None
+    # 勤務時間追加モードでも check_in/check_out は work_start/work_end と同値がセットされる
+    assert att.check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
+    assert att.check_out.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
     assert att.work_start.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
     assert att.work_end.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:00:00Z"
 
@@ -320,3 +321,124 @@ async def test_delete_attendance_locked_restriction(
 
     assert resp.status_code == 400
     assert resp.json()["code"] == "ATTENDANCE_LOCKED"
+
+
+@pytest.mark.asyncio
+async def test_admin_create_attendance_punch_mode(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """管理者が打刻追加モードで勤怠レコードを正常に追加できることをテストする。"""
+    await _create_user(
+        session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
+    )
+    await _create_user(
+        session, id="empuser", name="従業員", email="emp@example.com", role="employee"
+    )
+
+    admin_token = await _login(client, "adminuser", "Password123")
+
+    work_date = date(2026, 6, 1)
+    check_in = datetime(2026, 6, 1, 9, 3, tzinfo=UTC)
+    check_out = datetime(2026, 6, 1, 18, 5, tzinfo=UTC)
+
+    resp = await client.post(
+        "/api/v1/attendance",
+        json={
+            "user_id": "empuser",
+            "work_date": work_date.isoformat(),
+            "check_in": check_in.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "check_out": check_out.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "edit_mode": "punch",
+            "reason": "打刻追加テスト",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["user_id"] == "empuser"
+    assert data["work_date"] == work_date.isoformat()
+    assert data["source"] == "admin_manual"
+
+    att_id = data["id"]
+    db_result = await session.execute(select(Attendance).where(Attendance.id == att_id))
+    att = db_result.scalar_one_or_none()
+    assert att is not None
+    assert att.check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:03:00Z"
+    assert att.check_out.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:05:00Z"
+    assert att.work_start is None
+    assert att.work_end is None
+    assert att.is_manual_work_time is False
+
+    log_result = await session.execute(
+        select(AttendanceChangeLog).where(AttendanceChangeLog.attendance_id == att_id)
+    )
+    logs = list(log_result.scalars().all())
+    assert len(logs) == 1
+    assert logs[0].after_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:03:00Z"
+    assert logs[0].after_check_out.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T18:05:00Z"
+
+
+@pytest.mark.asyncio
+async def test_admin_patch_attendance_punch_mode(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """管理者が打刻修正モードで既存勤怠レコードを正常に修正できることをテストする。"""
+    await _create_user(
+        session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
+    )
+    await _create_user(
+        session, id="empuser", name="従業員", email="emp@example.com", role="employee"
+    )
+
+    admin_token = await _login(client, "adminuser", "Password123")
+
+    att = Attendance(
+        id="att_patch_punch",
+        user_id="empuser",
+        work_date=date(2026, 6, 1),
+        check_in=datetime(2026, 6, 1, 9, 0, tzinfo=UTC),
+        check_out=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+        source="webusb_nfc",
+    )
+    session.add(att)
+    await session.commit()
+
+    new_check_in = datetime(2026, 6, 1, 9, 15, tzinfo=UTC)
+    new_check_out = datetime(2026, 6, 1, 18, 20, tzinfo=UTC)
+
+    resp = await client.patch(
+        "/api/v1/attendance/att_patch_punch",
+        json={
+            "check_in": new_check_in.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "check_out": new_check_out.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "edit_mode": "punch",
+            "reason": "打刻修正テスト",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["check_in"].endswith("09:15:00Z")
+    assert data["check_out"].endswith("18:20:00Z")
+    assert data["is_manual_work_time"] is False
+
+    db_result = await session.execute(select(Attendance).where(Attendance.id == "att_patch_punch"))
+    db_att = db_result.scalar_one_or_none()
+    assert db_att is not None
+    assert db_att.check_in == new_check_in
+    assert db_att.check_out == new_check_out
+    assert db_att.work_start is None
+    assert db_att.work_end is None
+    assert db_att.is_manual_work_time is False
+
+    log_result = await session.execute(
+        select(AttendanceChangeLog)
+        .where(AttendanceChangeLog.attendance_id == "att_patch_punch")
+        .order_by(AttendanceChangeLog.changed_at.desc())
+    )
+    logs = list(log_result.scalars().all())
+    assert len(logs) == 1
+    assert logs[0].before_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
+    assert logs[0].after_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:15:00Z"

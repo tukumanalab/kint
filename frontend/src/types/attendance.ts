@@ -32,6 +32,7 @@ export interface PunchPeriod {
   calculated_check_out?: string | null;
   source?: string | null;
   overtime_reason?: string | null;
+  is_manual_work_time?: boolean;
 }
 
 export interface DailyAttendanceDetail {
@@ -50,6 +51,7 @@ export interface DailyAttendanceDetail {
   status: DailyAttendanceStatus;
   source: string | null;
   is_auto_completed?: boolean;
+  is_manual_work_time?: boolean;
   punches?: PunchPeriod[];
   shifts?: { start_time: string; end_time: string }[];
 }

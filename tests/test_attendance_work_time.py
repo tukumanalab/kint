@@ -41,8 +41,9 @@ async def test_work_time_calculation_and_direct_admin_edits(
     assert resp.status_code == 201
     data = resp.json()
     att_id = data["id"]
-    assert data["check_in"] is None
-    assert data["check_out"] is None
+    # 勤務時間追加モードでも check_in/check_out は work_start/work_end と同値がセットされる
+    assert data["check_in"] == "2026-06-01T09:00:00Z"
+    assert data["check_out"] == "2026-06-01T18:00:00Z"
     assert data["work_start"] == "2026-06-01T09:00:00Z"
     assert data["work_end"] == "2026-06-01T18:00:00Z"
     assert data["is_manual_work_time"] is True
@@ -81,8 +82,9 @@ async def test_work_time_calculation_and_direct_admin_edits(
     )
     assert resp_patch.status_code == 200
     data = resp_patch.json()
-    assert data["check_in"] == "2026-06-02T09:02:00Z"  # 打刻は影響を受けない
-    assert data["check_out"] == "2026-06-02T18:04:00Z"
+    # work モード修正時は check_in/check_out も work_start/work_end と同値に更新される
+    assert data["check_in"] == "2026-06-02T09:00:00Z"
+    assert data["check_out"] == "2026-06-02T18:00:00Z"
     assert data["work_start"] == "2026-06-02T09:00:00Z"
     assert data["work_end"] == "2026-06-02T18:00:00Z"
     assert data["is_manual_work_time"] is True
