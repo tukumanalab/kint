@@ -123,6 +123,22 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
     )
     session.add(att_today_with_shift)
 
+    # 4. シフト終了予定時刻よりも後にチェックインした前日レコード（補完対象外・スキップ）
+    # シフト終了: 18:00 (UTC 18:00 とするが、shift_endはhour=18 UTCで作成されているので18:00)
+    # チェックイン: 18:30
+    att_yesterday_late_checkin = Attendance(
+        id="att-y-late-checkin",
+        user_id=user.id,
+        card_idm="0000000000000001",
+        work_date=yesterday,
+        check_in=datetime.combine(yesterday, datetime.min.time()).replace(
+            hour=18, minute=30, tzinfo=UTC
+        ),
+        check_out=None,
+        source="webusb_nfc",
+    )
+    session.add(att_yesterday_late_checkin)
+
     await session.commit()
 
     # 自動補完メソッドを実行
@@ -130,7 +146,7 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
 
     # 補完統計の検証
     assert stats["processed"] == 1
-    assert stats["skipped"] == 1
+    assert stats["skipped"] == 2
 
     # 各レコードの状態を検証
     # 1. 補完された前日レコード（シフトあり）
@@ -163,3 +179,9 @@ async def test_auto_complete_missing_checkouts(session: AsyncSession) -> None:
     att3 = res3.scalar_one()
     assert att3.check_out is None
     assert att3.is_auto_completed is False
+
+    # 4. 補完されなかった前日レコード（シフト終了時刻以前にチェックイン）
+    res4 = await session.execute(select(Attendance).where(Attendance.id == "att-y-late-checkin"))
+    att4 = res4.scalar_one()
+    assert att4.check_out is None
+    assert att4.is_auto_completed is False

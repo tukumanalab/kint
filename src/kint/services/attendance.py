@@ -3,8 +3,11 @@
 import calendar
 import csv
 import io
+import logging
 import uuid
 from datetime import UTC, date, datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1971,11 +1974,30 @@ class AttendanceService:
             if shift is not None and shift.end_time is not None:
                 before_check_in = att.check_in
                 # シフトの終了時刻で補完
-                att.check_out = (
+                proposed_check_out = (
                     shift.end_time.replace(tzinfo=UTC)
                     if shift.end_time.tzinfo is None
                     else shift.end_time.astimezone(UTC)
                 )
+
+                check_in_utc = (
+                    att.check_in.replace(tzinfo=UTC)
+                    if att.check_in.tzinfo is None
+                    else att.check_in.astimezone(UTC)
+                )
+
+                if proposed_check_out <= check_in_utc:
+                    logger.warning(
+                        "シフト終了時刻がチェックイン時刻以前のため、自動補完をスキップします。 "
+                        "attendance_id=%s, check_in=%s, shift_end=%s",
+                        att.id,
+                        att.check_in,
+                        proposed_check_out,
+                    )
+                    skipped += 1
+                    continue
+
+                att.check_out = proposed_check_out
                 att.is_auto_completed = True
                 att.auto_completed_at = now
                 att.updated_reason = "退勤忘れのためシフト終了時刻でシステム自動補完"
