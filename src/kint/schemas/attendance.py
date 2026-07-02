@@ -241,3 +241,32 @@ class AttendanceLockResponse(BaseModel):
     locked_by_user_id: str
 
     model_config = {"from_attributes": True}
+
+
+class AttendanceImportRowError(BaseModel):
+    """CSVインポート時の行エラー。"""
+
+    line: int
+    raw_name: str | None = None
+    message: str
+
+
+class AttendanceImportUnmatchedRow(BaseModel):
+    """登録アカウントが見つからなかった行の情報。"""
+
+    line: int
+    raw_name: str
+    normalized_name: str
+    work_date: str | None = None
+
+
+class AttendanceImportResponse(BaseModel):
+    """CSVインポート結果レスポンス。"""
+
+    total_rows: int
+    imported_count: int
+    created_count: int
+    updated_count: int
+    unmatched_names: list[str]
+    unmatched_rows: list[AttendanceImportUnmatchedRow]
+    errors: list[AttendanceImportRowError]

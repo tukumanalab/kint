@@ -6,6 +6,7 @@ import type {
   AttendanceLock,
   AttendanceHistoryResponse,
   AttendanceRecord,
+  AttendanceImportResponse,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -261,4 +262,31 @@ export async function deleteAttendance(
     token,
   );
 }
+
+export async function importAttendanceCsv(
+  token: string,
+  file: File,
+): Promise<AttendanceImportResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${BASE}/attendance/import-csv`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body: ErrorResponse = await res.json().catch(() => ({
+      code: 'unknown',
+      message: res.statusText,
+    }));
+    throw new ApiError(res.status, body);
+  }
+
+  return res.json() as Promise<AttendanceImportResponse>;
+}
+
 

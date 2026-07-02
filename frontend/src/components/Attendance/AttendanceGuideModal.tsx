@@ -6,7 +6,7 @@ interface AttendanceGuideModalProps {
   onClose: () => void;
 }
 
-type AdminTabType = 'admin_modify' | 'admin_approve' | 'admin_lock' | 'history' | 'source';
+type AdminTabType = 'admin_modify' | 'admin_approve' | 'admin_lock' | 'admin_csv_import' | 'history' | 'source';
 type EmpTabType = 'emp_request' | 'emp_status' | 'history' | 'source' | 'emp_lock';
 type TabType = AdminTabType | EmpTabType;
 
@@ -121,6 +121,14 @@ export function AttendanceGuideModal({ isAdmin, onClose }: AttendanceGuideModalP
                   style={getTabStyle(activeTab === 'admin_lock')}
                 >
                   <span>🔒</span> 月次の締め処理
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('admin_csv_import')}
+                  className={`guide-tab-btn ${activeTab === 'admin_csv_import' ? 'active' : ''}`}
+                  style={getTabStyle(activeTab === 'admin_csv_import')}
+                >
+                  <span>📥</span> 報告書CSVインポート
                 </button>
               </>
             ) : (
@@ -306,6 +314,47 @@ export function AttendanceGuideModal({ isAdmin, onClose }: AttendanceGuideModalP
                 </p>
               </div>
             )}
+
+            {activeTab === 'admin_csv_import' && (
+              <div className="guide-section animate-fade-in">
+                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem', fontWeight: '700', color: '#1e293b' }}>
+                  📥 勤務時間報告書 CSV の一括インポート
+                </h3>
+                <p style={{ fontSize: '0.95rem', marginBottom: '1.25rem' }}>
+                  『教学系予算パートタイム職員等 勤務時間報告書』形式の CSV ファイルをアップロードし、複数の従業員の出退勤打刻を一括で登録・更新できます。
+                </p>
+
+                <h4 style={{ fontSize: '0.95rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.5rem 0' }}>インポート手順:</h4>
+                <ol style={{ paddingLeft: '1.25rem', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    勤怠管理画面の右上にある <strong>「📥 報告書CSVインポート」</strong> ボタンをクリックします。
+                  </li>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    ダイアログから対象の CSV ファイル（<code>.csv</code>）を選択し、<strong>「インポート実行」</strong> をクリックします。
+                  </li>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    処理完了後、反映成功件数および登録アカウントが見つからなかった氏名一覧が報告されます。
+                  </li>
+                </ol>
+
+                <h4 style={{ fontSize: '0.95rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.5rem 0' }}>取り扱い仕様・ルール:</h4>
+                <ul style={{ paddingLeft: '1.25rem', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    <strong>氏名のスペース無視:</strong> 氏名に含まれる全角・半角スペースやタブは自動除去され、登録済みアカウント（<code>User.full_name</code>）と照合されます。
+                  </li>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    <strong>重複データの上書き:</strong> 同一ユーザーの同一勤務日に既に勤怠記録が存在する場合、出退勤打刻が最新データで上書き更新されます。
+                  </li>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    <strong>未登録ユーザーの報告:</strong> 登録アカウントに見つからなかった氏名はインポートがスキップされ、モーダル上に未一致氏名としてリスト表示されます。
+                  </li>
+                  <li style={{ marginBottom: '0.5rem' }}>
+                    <strong>実働時間数:</strong> CSV内の「実働時間数」列は無視され、出退勤打刻に基づき勤務時間・丸め処理が自動計算されます。
+                  </li>
+                </ul>
+              </div>
+            )}
+
 
 
             {/* === 一般従業員用タブコンテンツ === */}

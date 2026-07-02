@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ from kint.schemas.attendance import (
     AttendanceCorrectionRequestResponse,
     AttendanceCreateRequest,
     AttendanceHistoryResponse,
+    AttendanceImportResponse,
     AttendanceListResponse,
     AttendanceLockRequest,
     AttendanceLockResponse,
@@ -388,3 +389,21 @@ async def delete_attendance(
 
     service = AttendanceService(session)
     await service.delete_attendance(attendance_id, current_user)
+
+
+@router.post("/import-csv", response_model=AttendanceImportResponse)
+async def import_attendance_csv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceImportResponse:
+    """勤務時間報告書 CSV をアップロードして一括インポートする。管理者（admin）のみ利用可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    file_bytes = await file.read()
+    service = AttendanceService(session)
+    return await service.import_csv_report(file_bytes, current_user)

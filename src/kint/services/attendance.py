@@ -4,8 +4,9 @@ import calendar
 import csv
 import io
 import logging
+import re
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ from kint.schemas.attendance import (
     AttendanceCreateRequest,
     AttendanceHistoryEntry,
     AttendanceHistoryResponse,
+    AttendanceImportResponse,
+    AttendanceImportRowError,
+    AttendanceImportUnmatchedRow,
     AttendanceHistorySnapshot,
     AttendanceListResponse,
     AttendanceMonthlyDetailResponse,
@@ -400,7 +404,9 @@ class PunchService:
                 occurred_utc = self._as_utc(request.occurred_at)
                 shift_end_utc = self._as_utc(shift_end)
                 if occurred_utc > (shift_end_utc + timedelta(minutes=overtime_allowance)):
-                    if not request.confirm_no_overtime and (not request.overtime_reason or not request.overtime_reason.strip()):
+                    if not request.confirm_no_overtime and (
+                        not request.overtime_reason or not request.overtime_reason.strip()
+                    ):
                         from kint.services.notification import NotificationService
 
                         notif_svc = NotificationService(self.session)
@@ -1039,7 +1045,11 @@ class AttendanceService:
                             a_cin_utc = ensure_utc(a.check_in)
                             a_cout_utc = ensure_utc(a.check_out)
                             c_in, c_out = calculate_working_time(
-                                a_cin_utc, a_cout_utc, shift_start_utc, shift_end_utc, a.overtime_reason
+                                a_cin_utc,
+                                a_cout_utc,
+                                shift_start_utc,
+                                shift_end_utc,
+                                a.overtime_reason,
                             )
                             if c_in and c_out:
                                 working_hours += (c_out - c_in).total_seconds() / 3600.0
@@ -1425,7 +1435,7 @@ class AttendanceService:
                     "退勤",
                     "勤務時間",
                     "勤怠ステータス",
-                                    "打刻ソース",
+                    "打刻ソース",
                     "修正理由",
                     "超過理由",
                 ]
@@ -2184,3 +2194,221 @@ class AttendanceService:
             # 勤怠レコードを削除
             await self.session.delete(attendance)
             await self.session.commit()
+
+    async def import_csv_report(self, file_bytes: bytes, actor: User) -> AttendanceImportResponse:
+        """勤務時間報告書 CSV をパースし、勤怠記録を一括登録・更新 (Upsert) する。"""
+        if actor.role != "admin":
+            raise KintForbiddenError(
+                code="FORBIDDEN",
+                message="CSVインポートは管理者のみ許可されています",
+            )
+
+        # 文字コードの判定とデコード
+        content_str = ""
+        for encoding in ["utf-8-sig", "utf-8", "cp932", "shift_jis"]:
+            try:
+                content_str = file_bytes.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if not content_str:
+            raise KintBadRequestError(
+                code="INVALID_CSV_ENCODING",
+                message="CSVファイルのエンコーディングを判定できませんでした。UTF-8またはShift_JIS形式で保存してください。",
+            )
+
+        # 全ユーザーのマップを作成（User.full_nameの空白除外）
+        result = await self.session.execute(select(User))
+        all_users = result.scalars().all()
+        user_map: dict[str, User] = {}
+        for u in all_users:
+            if u.full_name:
+                norm_fn = re.sub(r"\s+", "", u.full_name)
+                if norm_fn:
+                    user_map[norm_fn] = u
+
+        reader = csv.reader(io.StringIO(content_str))
+        rows = list(reader)
+
+        if not rows:
+            return AttendanceImportResponse(
+                total_rows=0,
+                imported_count=0,
+                created_count=0,
+                updated_count=0,
+                unmatched_names=[],
+                unmatched_rows=[],
+                errors=[],
+            )
+
+        # ヘッダー解析
+        header = [c.strip() for c in rows[0]]
+        name_col_idx = -1
+        start_col_idx = -1
+        end_col_idx = -1
+
+        for idx, col in enumerate(header):
+            col_clean = re.sub(r"\s+", "", col)
+            if col_clean == "氏名":
+                name_col_idx = idx
+            elif col_clean in ("勤務開始日時", "出勤日時", "出勤打刻"):
+                start_col_idx = idx
+            elif col_clean in ("勤務終了日時", "退勤日時", "退勤打刻"):
+                end_col_idx = idx
+
+        if name_col_idx == -1 or start_col_idx == -1 or end_col_idx == -1:
+            raise KintBadRequestError(
+                code="INVALID_CSV_HEADER",
+                message="CSVファイルのヘッダーに「氏名」「勤務開始日時」「勤務終了日時」が含まれていません",
+            )
+
+        total_rows = 0
+        created_count = 0
+        updated_count = 0
+        unmatched_rows: list[AttendanceImportUnmatchedRow] = []
+        unmatched_names_set: set[str] = set()
+        errors: list[AttendanceImportRowError] = []
+
+        jst = timezone(timedelta(hours=9))
+
+        date_formats = [
+            "%Y/%m/%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y/%m/%d %H:%M",
+            "%Y-%m-%d %H:%M",
+        ]
+
+        def parse_datetime(val_str: str) -> tuple[datetime | None, date | None]:
+            """日時文字列をローカル時刻(JST)としてパースし、(UTC datetime, JST date) のタプルを返す。"""
+            v = val_str.strip()
+            if not v:
+                return None, None
+            for fmt in date_formats:
+                try:
+                    dt_naive = datetime.strptime(v, fmt)
+                    dt_jst = dt_naive.replace(tzinfo=jst)
+                    dt_utc = dt_jst.astimezone(UTC)
+                    return dt_utc, dt_jst.date()
+                except ValueError:
+                    continue
+            return None, None
+
+        for line_idx, row in enumerate(rows[1:], start=2):
+            if not row or not any(field.strip() for field in row):
+                continue
+
+            total_rows += 1
+
+            raw_name = row[name_col_idx].strip() if name_col_idx < len(row) else ""
+            raw_start = row[start_col_idx].strip() if start_col_idx < len(row) else ""
+            raw_end = row[end_col_idx].strip() if end_col_idx < len(row) else ""
+
+            if not raw_name:
+                errors.append(
+                    AttendanceImportRowError(
+                        line=line_idx,
+                        raw_name=None,
+                        message="氏名が空です",
+                    )
+                )
+                continue
+
+            norm_raw_name = re.sub(r"\s+", "", raw_name)
+            target_user = user_map.get(norm_raw_name)
+
+            # 日時パース (ローカル時刻 JST から UTC へ変換)
+            check_in_dt, w_date_in = parse_datetime(raw_start)
+            check_out_dt, _ = parse_datetime(raw_end)
+
+            work_date_str = w_date_in.strftime("%Y-%m-%d") if w_date_in else None
+
+            if not target_user:
+                unmatched_names_set.add(raw_name)
+                unmatched_rows.append(
+                    AttendanceImportUnmatchedRow(
+                        line=line_idx,
+                        raw_name=raw_name,
+                        normalized_name=norm_raw_name,
+                        work_date=work_date_str,
+                    )
+                )
+                continue
+
+            if not check_in_dt or not check_out_dt or not w_date_in:
+                errors.append(
+                    AttendanceImportRowError(
+                        line=line_idx,
+                        raw_name=raw_name,
+                        message=f"日時のフォーマットを解釈できませんでした (開始: '{raw_start}', 終了: '{raw_end}')",
+                    )
+                )
+                continue
+
+            if check_out_dt <= check_in_dt:
+                errors.append(
+                    AttendanceImportRowError(
+                        line=line_idx,
+                        raw_name=raw_name,
+                        message=f"退勤日時 ({raw_end}) は出勤日時 ({raw_start}) より後である必要があります",
+                    )
+                )
+                continue
+
+            w_date = w_date_in
+
+            # CSVで報告された勤務開始・終了日時をそのまま出退勤および勤務時間として設定する
+            work_start_dt = check_in_dt
+            work_end_dt = check_out_dt
+
+            # 既存の Attendance レコードを検索 (Upsert)
+            att_res = await self.session.execute(
+                select(Attendance).where(
+                    Attendance.user_id == target_user.id,
+                    Attendance.work_date == w_date,
+                )
+            )
+            existing_att = att_res.scalar_one_or_none()
+
+            now_dt = datetime.now()
+
+            if existing_att:
+                existing_att.check_in = check_in_dt
+                existing_att.check_out = check_out_dt
+                existing_att.work_start = work_start_dt
+                existing_att.work_end = work_end_dt
+                existing_att.is_manual_work_time = True
+                existing_att.source = "admin_manual"
+                existing_att.last_updated_by_user_id = actor.id
+                existing_att.updated_at = now_dt
+                updated_count += 1
+            else:
+                new_att = Attendance(
+                    id=str(uuid.uuid4()),
+                    user_id=target_user.id,
+                    work_date=w_date,
+                    check_in=check_in_dt,
+                    check_out=check_out_dt,
+                    work_start=work_start_dt,
+                    work_end=work_end_dt,
+                    is_manual_work_time=True,
+                    source="admin_manual",
+                    last_updated_by_user_id=actor.id,
+                    created_at=now_dt,
+                    updated_at=now_dt,
+                )
+                self.session.add(new_att)
+                created_count += 1
+
+        await self.session.commit()
+
+        imported_count = created_count + updated_count
+        return AttendanceImportResponse(
+            total_rows=total_rows,
+            imported_count=imported_count,
+            created_count=created_count,
+            updated_count=updated_count,
+            unmatched_names=sorted(list(unmatched_names_set)),
+            unmatched_rows=unmatched_rows,
+            errors=errors,
+        )

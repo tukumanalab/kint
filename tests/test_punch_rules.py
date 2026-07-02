@@ -823,7 +823,9 @@ class TestPunchRules:
 
         # DB のレコードを確認
         session.expire_all()
-        result = await session.execute(select(Attendance).where(Attendance.user_id == "user-overtime"))
+        result = await session.execute(
+            select(Attendance).where(Attendance.user_id == "user-overtime")
+        )
         att = result.scalars().one()
         assert att.overtime_reason == "会議が長引いたため"
 

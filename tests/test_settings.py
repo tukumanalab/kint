@@ -233,14 +233,14 @@ async def test_google_login_inactive_user_returns_error(
         email="inactive@example.com",
         role="employee",
         is_active=0,
-        google_sub="inactive-google-sub"
+        google_sub="inactive-google-sub",
     )
 
     # 2. Google ID Token 検証をモック
     fake_claims = {
         "sub": "inactive-google-sub",
         "email": "inactive@example.com",
-        "name": "Inactive User"
+        "name": "Inactive User",
     }
     monkeypatch.setattr("kint.routers.auth._verify_google_id_token", lambda token: fake_claims)
 
@@ -249,4 +249,3 @@ async def test_google_login_inactive_user_returns_error(
     assert resp.status_code == 401
     assert resp.json()["code"] == "USER_INACTIVE"
     assert resp.json()["message"] == "アカウントが無効化されています"
-

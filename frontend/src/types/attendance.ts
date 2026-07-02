@@ -137,3 +137,27 @@ export interface AttendanceRecord {
   overtime_reason?: string | null;
 }
 
+export interface AttendanceImportRowError {
+  line: number;
+  raw_name: string | null;
+  message: string;
+}
+
+export interface AttendanceImportUnmatchedRow {
+  line: number;
+  raw_name: string;
+  normalized_name: string;
+  work_date: string | null;
+}
+
+export interface AttendanceImportResponse {
+  total_rows: number;
+  imported_count: number;
+  created_count: number;
+  updated_count: number;
+  unmatched_names: string[];
+  unmatched_rows: AttendanceImportUnmatchedRow[];
+  errors: AttendanceImportRowError[];
+}
+
+

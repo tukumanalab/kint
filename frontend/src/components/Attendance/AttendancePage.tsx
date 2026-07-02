@@ -14,6 +14,7 @@ import {
   createAttendance,
   updateAttendance,
   deleteAttendance,
+  importAttendanceCsv,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
@@ -22,6 +23,7 @@ import type {
   DailyAttendanceDetail,
   AttendanceCorrectionRequest,
   AttendanceHistoryEntry,
+  AttendanceImportResponse,
 } from '../../types/attendance';
 import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
@@ -73,6 +75,12 @@ export function AttendancePage({ auth }: Props) {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  // CSVインポート関連
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<AttendanceImportResponse | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // 修正申請関連
   const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
@@ -335,6 +343,28 @@ export function AttendancePage({ auth }: Props) {
       alert(err instanceof Error ? err.message : 'CSVのダウンロードに失敗しました');
     }
   };
+
+  // CSVインポート実行
+  const handleImportCsv = async () => {
+    if (!auth.token || !importFile) return;
+    setImportLoading(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const res = await importAttendanceCsv(auth.token, importFile);
+      setImportResult(res);
+      await fetchSummary();
+      if (selectedUser) {
+        const updatedDetail = await getMonthlyAttendanceDetail(auth.token, yearMonth, selectedUser.user_id);
+        setDetailData(updatedDetail);
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'CSVのインポートに失敗しました');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
 
   // ロック/アンロック操作
   const handleLockToggle = async () => {
@@ -1431,6 +1461,18 @@ export function AttendancePage({ auth }: Props) {
 
           {isAdmin && (
             <div className="attendance-page__csv-buttons">
+              <button
+                type="button"
+                className="att-btn att-btn--secondary"
+                onClick={() => {
+                  setShowImportModal(true);
+                  setImportFile(null);
+                  setImportResult(null);
+                  setImportError(null);
+                }}
+              >
+                📥 報告書CSVインポート
+              </button>
               <button
                 type="button"
                 className="att-btn att-btn--secondary"
@@ -2554,6 +2596,113 @@ export function AttendancePage({ auth }: Props) {
                 onClick={handleSubmitAdd}
               >
                 追加する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="att-modal">
+          <div className="att-modal__content" style={{ maxWidth: '600px', background: '#ffffff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700', color: '#1e293b' }}>勤務時間報告書 CSV インポート</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                  setImportError(null);
+                }}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="att-modal__body" style={{ padding: '0 0 1rem 0' }}>
+              <p style={{ fontSize: '0.9rem', color: '#4b5563', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                『勤務時間報告書』形式の CSV ファイルを選択してアップロードしてください。<br />
+                氏名のスペースは自動的に除去され、同日の重複データは最新の出退勤打刻で上書き更新されます。
+              </p>
+
+              <div style={{ marginBottom: '1.2rem' }}>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setImportFile(file);
+                    setImportResult(null);
+                    setImportError(null);
+                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {importError && (
+                <div className="att-alert att-alert--danger" style={{ marginBottom: '1rem' }}>
+                  {importError}
+                </div>
+              )}
+
+              {importResult && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b' }}>🎉 インポート処理結果</h4>
+                  <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.9rem', color: '#334155' }}>
+                    <li>読み込み総行数: <strong>{importResult.total_rows}</strong> 件</li>
+                    <li>反映成功件数: <strong>{importResult.imported_count}</strong> 件 (新規: {importResult.created_count} 件 / 上書き: {importResult.updated_count} 件)</li>
+                  </ul>
+
+                  {importResult.unmatched_names.length > 0 && (
+                    <div style={{ marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px dashed #cbd5e1' }}>
+                      <strong style={{ color: '#dc2626', fontSize: '0.9rem' }}>
+                        ⚠️ 登録アカウント（User.full_name）に見つからなかった氏名 ({importResult.unmatched_names.length}名):
+                      </strong>
+                      <div style={{ maxHeight: '120px', overflowY: 'auto', background: '#ffffff', border: '1px solid #e2e8f0', padding: '0.5rem', borderRadius: '6px', marginTop: '0.4rem', fontSize: '0.85rem' }}>
+                        {importResult.unmatched_names.map((name, idx) => (
+                          <span key={idx} style={{ display: 'inline-block', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 8px', margin: '3px' }}>
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {importResult.errors.length > 0 && (
+                    <div style={{ marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px dashed #cbd5e1' }}>
+                      <strong style={{ color: '#dc2626', fontSize: '0.9rem' }}>❌ エラー行 ({importResult.errors.length}件):</strong>
+                      <ul style={{ margin: '0.3rem 0 0 0', paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#dc2626' }}>
+                        {importResult.errors.map((err, idx) => (
+                          <li key={idx}>行 {err.line}: {err.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="att-modal__buttons" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                className="att-btn att-btn--secondary"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                  setImportError(null);
+                }}
+              >
+                閉じる
+              </button>
+              <button
+                type="button"
+                className="att-btn att-btn--primary"
+                disabled={!importFile || importLoading}
+                onClick={handleImportCsv}
+              >
+                {importLoading ? 'インポート中...' : 'インポート実行'}
               </button>
             </div>
           </div>
