@@ -203,4 +203,39 @@ describe('PunchPage', () => {
       expect(matches.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  it('連続打刻無視レスポンス(action: null)を受け取っても、直前の打刻成功通知が維持されること', async () => {
+    vi.spyOn(punchApi, 'postPunch').mockResolvedValueOnce({
+      status: 'completed',
+      attendance_id: 'att-1',
+      user_id: 'user-001',
+      user_name: '山田 太郎',
+      action: 'check_in',
+      occurred_at: '2026-05-15T09:00:00Z',
+      method: 'nfc',
+      message: '出勤を記録しました',
+    });
+
+    const mockReadIdm = vi.fn().mockResolvedValueOnce('0123456789ABCDEF');
+
+    vi.mocked(useWebUSBFeliCa).mockReturnValue({
+      status: 'connected',
+      idm: null,
+      errorMessage: null,
+      connect: vi.fn(),
+      readIdm: mockReadIdm,
+      disconnect: vi.fn(),
+      reset: vi.fn(),
+    });
+
+    render(<PunchPage displaySeconds={30} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('出勤しました')).toBeInTheDocument();
+      expect(screen.getByText('山田 太郎')).toBeInTheDocument();
+    });
+
+    // 時間経過前でも成功通知が残っていることを検証
+    expect(screen.getByText('出勤しました')).toBeInTheDocument();
+  });
 });

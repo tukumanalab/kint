@@ -92,6 +92,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const searchRequestRef = useRef(0);
   const resultTimerRef = useRef<number | null>(null);
   const errorTimerRef = useRef<number | null>(null);
+  const lastPunchRef = useRef<{ idm: string; timestamp: number } | null>(null);
 
   const statusInfo = statusLabel(nfc.status);
 
@@ -110,6 +111,10 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   };
 
   const showPunchResultWithTimeout = (resp: PunchResponse, seconds: number) => {
+    if (!resp.action) {
+      // actionがnull（連続打刻無視など）の場合は直前の打刻成功結果を上書き・削除せず維持する
+      return;
+    }
     clearResultTimer();
     clearErrorTimer();
     setPunchResult(resp);
@@ -187,6 +192,17 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
         const idm = await nfc.readIdm();
         if (idm) {
           console.log('[Punch] IDm:', idm);
+
+          const now = Date.now();
+          if (
+            lastPunchRef.current &&
+            lastPunchRef.current.idm === idm &&
+            now - lastPunchRef.current.timestamp < 3000
+          ) {
+            console.log('[Punch] Duplicate IDm detected within 3s, skipping API call:', idm);
+            return;
+          }
+          lastPunchRef.current = { idm, timestamp: now };
           
           setIsPunching(true);
           try {
