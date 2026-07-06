@@ -212,8 +212,9 @@ describe('PunchPage', () => {
       user_name: '山田 太郎',
       action: 'check_in',
       occurred_at: '2026-05-15T09:00:00Z',
-      method: 'nfc',
+      method: 'card_idm',
       message: '出勤を記録しました',
+
     });
 
     const mockReadIdm = vi.fn().mockResolvedValueOnce('0123456789ABCDEF');
