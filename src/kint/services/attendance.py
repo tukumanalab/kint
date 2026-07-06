@@ -1159,14 +1159,14 @@ class AttendanceService:
                         daily_alerts.append("要確認：9時前から働いています")
                 if calc_check_out:
                     cout_jst = calc_check_out.astimezone(JST)
-                    if cout_jst.hour >= 19:
+                    if cout_jst.hour > 19 or (cout_jst.hour == 19 and cout_jst.minute > 0):
                         daily_alerts.append("要確認：19時を過ぎています")
                 
                 # 有効な勤務である場合のみ時間でのアラート判定
                 if is_valid_work:
-                    if working_hours >= 6.0:
+                    if working_hours > 6.0:
                         daily_alerts.append("要確認：6時間を超えています、休憩が必要です")
-                    elif working_hours >= 5.0:
+                    elif working_hours > 5.0:
                         daily_alerts.append("要確認：5時間を超えています")
                         
                 alert_count += len(daily_alerts)
@@ -1188,7 +1188,7 @@ class AttendanceService:
                 if is_sunday or is_last_day:
                     if weekly_working_days >= 4:
                         weekly_alerts.append("要確認：週に4日以上働いています")
-                    if weekly_working_hours >= 18.0:
+                    if weekly_working_hours > 18.0:
                         weekly_alerts.append("要確認：たくさん働いています")
                     alert_count += len(weekly_alerts)
                     weekly_working_days = 0
