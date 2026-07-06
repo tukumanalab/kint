@@ -974,6 +974,9 @@ class AttendanceService:
             early_leave_count = 0
             absence_days = 0
             incomplete_days = 0
+            alert_count = 0
+            weekly_working_days = 0
+            weekly_working_hours = 0.0
 
             # from_date から to_date まで走査
             curr_date = from_date
@@ -1148,6 +1151,48 @@ class AttendanceService:
                 source = ", ".join(sources) if sources else None
 
                 is_valid_work = len(day_atts) > 0 and not has_incomplete_punch
+                
+                daily_alerts = []
+                if calc_check_in:
+                    cin_jst = calc_check_in.astimezone(JST)
+                    if cin_jst.hour < 9:
+                        daily_alerts.append("要確認：9時前から働いています")
+                if calc_check_out:
+                    cout_jst = calc_check_out.astimezone(JST)
+                    if cout_jst.hour >= 19:
+                        daily_alerts.append("要確認：19時を過ぎています")
+                
+                # 有効な勤務である場合のみ時間でのアラート判定
+                if is_valid_work:
+                    if working_hours >= 6.0:
+                        daily_alerts.append("要確認：6時間を超えています、休憩が必要です")
+                    elif working_hours >= 5.0:
+                        daily_alerts.append("要確認：5時間を超えています")
+                        
+                alert_count += len(daily_alerts)
+                
+                if is_valid_work or (has_shift and len(day_atts) > 0 and not is_deleted_work):
+                     # is_deleted_work は line 1125 付近で計算されている。
+                     # ここでは is_valid_work であれば確実に勤務日
+                     pass
+                
+                # 週間集計
+                if len(day_atts) > 0 and not is_deleted_work:
+                    weekly_working_days += 1
+                weekly_working_hours += working_hours
+                
+                weekly_alerts = []
+                is_sunday = curr_date.weekday() == 6
+                is_last_day = curr_date == to_date
+                
+                if is_sunday or is_last_day:
+                    if weekly_working_days >= 4:
+                        weekly_alerts.append("要確認：週に4日以上働いています")
+                    if weekly_working_hours >= 18.0:
+                        weekly_alerts.append("要確認：たくさん働いています")
+                    alert_count += len(weekly_alerts)
+                    weekly_working_days = 0
+                    weekly_working_hours = 0.0
 
                 # 1日の中のすべての打刻ペアを時系列順（check_in昇順）に整理して格納
                 sorted_atts = sorted(
@@ -1214,6 +1259,8 @@ class AttendanceService:
                         )
                         for s in day_shifts
                     ],
+                    daily_alerts=daily_alerts,
+                    weekly_alerts=weekly_alerts,
                 )
                 daily_details.append(detail)
                 curr_date += timedelta(days=1)
@@ -1232,6 +1279,7 @@ class AttendanceService:
                 early_leave_count=early_leave_count,
                 absence_days=absence_days,
                 incomplete_days=incomplete_days,
+                alert_count=alert_count,
                 yearly_working_hours=0.0,
             )
 

@@ -111,6 +111,7 @@ class AttendanceMonthlySummary(BaseModel):
     early_leave_count: int
     absence_days: int
     incomplete_days: int
+    alert_count: int = 0
     yearly_working_hours: float = 0.0
 
 
@@ -167,6 +168,8 @@ class DailyAttendanceDetail(BaseModel):
     is_manual_work_time: bool = False
     punches: list[PunchPeriod] = []
     shifts: list[ShiftPeriod] = []
+    daily_alerts: list[str] = Field(default_factory=list)
+    weekly_alerts: list[str] = Field(default_factory=list)
 
 
 class AttendanceMonthlyDetailResponse(BaseModel):

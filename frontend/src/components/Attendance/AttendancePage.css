@@ -282,6 +282,19 @@
   border: 1px solid #cbd5e0;
 }
 
+.att-badge--warning {
+  background-color: #fff8c5;
+  color: #9a6700;
+  border: 1px solid #e1b439;
+}
+
+.att-daily-alert {
+  color: #cf222e;
+  font-size: 0.85em;
+  font-weight: 500;
+  margin-top: 4px;
+  line-height: 1.2;
+}
 
 /* ユーティリティ */
 .att-loading {

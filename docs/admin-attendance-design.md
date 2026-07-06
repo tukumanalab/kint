@@ -86,6 +86,7 @@ flowchart TD
 | **総勤務時間** (`total_working_hours`) | 各日における実仕事時間の合計。<br>算定式: $\sum (\text{check\_out} - \text{check\_in})$ (時間換算、画面表示やCSV出力では `[h]:mm` 形式で表示/出力)。※`check_out` が未打刻の日（打刻漏れ）は計算から除外。 |
 | **欠勤日数** (`absence_days`) | シフト (`shifts`) が存在する日のうち、勤怠レコード (`attendances`) が全く存在しない、または `check_in` が `NULL` のままである日数。 |
 | **打刻不整合・エラー日数** (`incomplete_days`) | `check_in` のみで `check_out` が未打刻といった、打刻エラーが発生している日数（管理者による修正が必要なデータ）。 |
+| **要確認・アラート件数** (`alert_count`) | 長時間勤務や遅い時間の退勤など、注意が必要な勤怠状況（アラート）が発生した合計件数。※詳細は `attendance_rules.md` の「勤務時間のアラート判定」を参照。 |
 
 ### 4-3. データのマージ方法
 データベースから一括で `users`, `attendances`, `shifts` を取得し、Python メモリ上でマージを行うことで N+1 問題を排除する。

@@ -920,7 +920,16 @@ export function AttendancePage({ auth }: Props) {
             )}
           </td>
           <td>{formatHours(day.working_hours)}</td>
-          <td>{getStatusBadge(day.status)}</td>
+          <td>
+            {getStatusBadge(day.status)}
+            {day.daily_alerts && day.daily_alerts.length > 0 && (
+              <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {day.daily_alerts.map((alert, idx) => (
+                  <span key={idx} className="att-daily-alert">{alert}</span>
+                ))}
+              </div>
+            )}
+          </td>
           <td>
             {day.punches && day.punches.length > 0 ? (
               <div className="att-multiple-punches">
@@ -1090,7 +1099,15 @@ export function AttendancePage({ auth }: Props) {
                 勤務: {weeklyWorkingDays}日
               </span>
             </td>
-            <td colSpan={2}>-</td>
+            <td colSpan={2}>
+              {day.weekly_alerts && day.weekly_alerts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {day.weekly_alerts.map((alert, idx) => (
+                    <span key={idx} className="att-daily-alert">{alert}</span>
+                  ))}
+                </div>
+              )}
+            </td>
           </tr>
         );
         weeklyWorkingDays = 0;
@@ -1127,7 +1144,16 @@ export function AttendancePage({ auth }: Props) {
             <span className="att-mobile-card__date">
               {day.work_date} {getDayOfWeek(day.work_date)}
             </span>
-            {getStatusBadge(day.status)}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+              {getStatusBadge(day.status)}
+              {day.daily_alerts && day.daily_alerts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                  {day.daily_alerts.map((alert, idx) => (
+                    <span key={idx} className="att-daily-alert" style={{ textAlign: 'right' }}>{alert}</span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="att-mobile-card__body">
             <div className="att-mobile-card__row">
@@ -1424,6 +1450,13 @@ export function AttendancePage({ auth }: Props) {
               <span>勤務: {weeklyWorkingDays}日</span>
               <span>{weeklyWorkingHours > 0 ? formatHours(weeklyWorkingHours) : '-'}</span>
             </div>
+            {day.weekly_alerts && day.weekly_alerts.length > 0 && (
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                {day.weekly_alerts.map((alert, idx) => (
+                  <span key={idx} className="att-daily-alert">{alert}</span>
+                ))}
+              </div>
+            )}
           </div>
         );
         weeklyWorkingDays = 0;
@@ -1693,6 +1726,7 @@ export function AttendancePage({ auth }: Props) {
                       <th>出勤</th>
                       <th>欠勤</th>
                       <th>不整合</th>
+                      <th>要確認</th>
                       <th>総勤務時間</th>
                       <th>4月からの総勤務</th>
                       <th>操作</th>
@@ -1720,6 +1754,11 @@ export function AttendancePage({ auth }: Props) {
                         <td>
                           <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
                             {summary.incomplete_days}件
+                          </span>
+                        </td>
+                        <td>
+                          <span className={summary.alert_count > 0 ? 'att-text--danger' : ''}>
+                            {summary.alert_count}件
                           </span>
                         </td>
                         <td>{formatHours(summary.total_working_hours)}</td>
@@ -1765,13 +1804,16 @@ export function AttendancePage({ auth }: Props) {
                       <span className="att-summary-card__stat-label">勤務時間</span>
                     </div>
                   </div>
-                  {(summary.absence_days > 0 || summary.incomplete_days > 0) && (
+                  {(summary.absence_days > 0 || summary.incomplete_days > 0 || summary.alert_count > 0) && (
                     <div className="att-summary-card__alerts">
                       {summary.absence_days > 0 && (
                         <span className="att-badge att-badge--absence">欠勤 {summary.absence_days}</span>
                       )}
                       {summary.incomplete_days > 0 && (
                         <span className="att-badge att-badge--incomplete">不整合 {summary.incomplete_days}</span>
+                      )}
+                      {summary.alert_count > 0 && (
+                        <span className="att-badge att-badge--warning">要確認 {summary.alert_count}</span>
                       )}
                     </div>
                   )}

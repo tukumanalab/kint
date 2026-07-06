@@ -11,6 +11,7 @@ export interface AttendanceMonthlySummary {
   early_leave_count: number;
   absence_days: number;
   incomplete_days: number;
+  alert_count: number;
   yearly_working_hours: number;
 }
 
@@ -57,6 +58,8 @@ export interface DailyAttendanceDetail {
   is_manual_work_time?: boolean;
   punches?: PunchPeriod[];
   shifts?: { start_time: string; end_time: string }[];
+  daily_alerts?: string[];
+  weekly_alerts?: string[];
 }
 
 export interface AttendanceMonthlyDetailResponse {
