@@ -22,6 +22,7 @@ export type DailyAttendanceStatus =
   | 'absence'
   | 'incomplete'
   | 'scheduled'
+  | 'working'
   | 'off_duty';
 
 export interface PunchPeriod {

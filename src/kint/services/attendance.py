@@ -1100,7 +1100,10 @@ class AttendanceService:
                         )
 
                 if len(day_atts) > 0 and has_incomplete_punch:
-                    status = "incomplete"
+                    if curr_date == today:
+                        status = "working"
+                    else:
+                        status = "incomplete"
                 elif has_shift and len(day_atts) == 0:
                     status = "absence" if curr_date <= today else "scheduled"
                 elif has_shift and is_late and is_early:
@@ -1476,6 +1479,7 @@ class AttendanceService:
                         "incomplete": "打刻漏れ",
                         "off_duty": "休日",
                         "scheduled": "出勤予定",
+                        "working": "勤務中",
                     }
                     status_label = status_labels.get(day.status, day.status)
 

@@ -365,7 +365,7 @@ components:
           description: 1日の勤務時間(h)
         status:
           type: string
-          enum: [normal, incomplete, off_duty]
+          enum: [normal, late, early_leave, late_and_early, absence, incomplete, off_duty, scheduled, working]
           description: 日次の勤怠状態
           example: "normal"
         source:

@@ -647,6 +647,8 @@ export function AttendancePage({ auth }: Props) {
         return <span className="att-badge att-badge--scheduled">出勤予定</span>;
       case 'incomplete':
         return <span className="att-badge att-badge--incomplete">打刻不整合</span>;
+      case 'working':
+        return <span className="att-badge att-badge--working">勤務中</span>;
       case 'off_duty':
         return <span className="att-badge att-badge--off-duty">休日等</span>;
       default:

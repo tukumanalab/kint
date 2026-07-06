@@ -266,6 +266,11 @@
   border: 1px dashed #ffa3d4;
 }
 
+.att-badge--working {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
 .att-badge--off-duty {
   background-color: #f6f8fa;
   color: #586069;

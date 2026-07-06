@@ -159,6 +159,7 @@ class DailyAttendanceDetail(BaseModel):
         "incomplete",
         "off_duty",
         "scheduled",
+        "working",
     ]
     source: str | None = None
     device_name: str | None = None

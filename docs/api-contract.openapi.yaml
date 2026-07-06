@@ -1903,8 +1903,8 @@ components:
           description: 1日の時間外労働時間(h)
         status:
           type: string
-          enum: [normal, late, early_leave, late_and_early, absence, incomplete, off_duty]
-          description: 日次の勤怠状態
+          enum: [normal, late, early_leave, late_and_early, absence, incomplete, off_duty, scheduled, working]
+          description: 日次の勤怠ステータス
           example: "normal"
         source:
           type: string
