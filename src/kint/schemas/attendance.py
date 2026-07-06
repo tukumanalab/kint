@@ -25,6 +25,7 @@ class AttendanceRecord(BaseModel):
     last_updated_at: datetime | None = None
     last_updated_by_user_id: str | None = None
     overtime_reason: str | None = None
+    device_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -123,6 +124,7 @@ class PunchPeriod(BaseModel):
     calculated_check_out: datetime | None = None
     source: str | None = None
     overtime_reason: str | None = None
+    device_name: str | None = None
     is_manual_work_time: bool = False
 
 
@@ -159,6 +161,7 @@ class DailyAttendanceDetail(BaseModel):
         "scheduled",
     ]
     source: str | None = None
+    device_name: str | None = None
     is_auto_completed: bool = False
     is_manual_work_time: bool = False
     punches: list[PunchPeriod] = []

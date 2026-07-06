@@ -670,6 +670,11 @@ export function AttendancePage({ auth }: Props) {
     }
   };
 
+  const renderSource = (source: string | null, deviceName?: string | null) => {
+    if (deviceName) return deviceName;
+    return getSourceLabel(source);
+  };
+
   const formatTime = (timeStr: string | null) => {
     if (!timeStr) return '-';
     try {
@@ -919,13 +924,13 @@ export function AttendancePage({ auth }: Props) {
               <div className="att-multiple-punches">
                 {day.punches.map((p, idx) => (
                   <div key={idx} className="att-punch-item">
-                    {getSourceLabel(p.source ?? null)}
+                    {renderSource(p.source ?? null, p.device_name)}
                   </div>
                 ))}
               </div>
             ) : (
               <>
-                {getSourceLabel(day.source)}
+                {renderSource(day.source, day.device_name)}
                 {day.is_auto_completed && (
                   <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
                     自動補完
@@ -1145,7 +1150,7 @@ export function AttendancePage({ auth }: Props) {
                   <div key={idx} className="att-mobile-punch-sub">
                     <div className="att-mobile-punch-sub__header">
                       <span className="att-mobile-punch-sub__index">#{idx + 1}</span>
-                      <span className="att-mobile-punch-sub__source">{getSourceLabel(p.source ?? null)}</span>
+                      <span className="att-mobile-punch-sub__source">{renderSource(p.source ?? null, p.device_name)}</span>
                     </div>
                     <div className="att-mobile-card__times">
                       <div className="att-mobile-card__time-block">
@@ -1248,10 +1253,10 @@ export function AttendancePage({ auth }: Props) {
                   <span className="att-mobile-card__label">打刻元</span>
                   <span className="att-mobile-card__value">
                     {day.punches && day.punches.length > 0 ? (
-                      getSourceLabel(day.punches[0].source ?? null)
+                      renderSource(day.punches[0].source ?? null, day.punches[0].device_name)
                     ) : (
                       <>
-                        {getSourceLabel(day.source)}
+                        {renderSource(day.source, day.device_name)}
                         {day.is_auto_completed && (
                           <span className="att-badge att-badge--auto-completed" style={{ marginLeft: '6px' }}>
                             自動補完

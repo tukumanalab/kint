@@ -8,10 +8,14 @@ import type { ErrorResponse } from '../types/error';
 
 const BASE = '/api/v1';
 
-async function request<T>(path: string, init: RequestInit): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(init.headers as Record<string, string> || {}),
+  };
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers,
   });
   if (!res.ok) {
     const body: ErrorResponse = await res.json().catch(() => ({
@@ -23,9 +27,14 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function postPunch(payload: PunchRequest): Promise<PunchResponse> {
+export async function postPunch(payload: PunchRequest, deviceToken?: string | null): Promise<PunchResponse> {
+  const headers: Record<string, string> = {};
+  if (deviceToken) {
+    headers['X-Punch-Device-Token'] = deviceToken;
+  }
   return request<PunchResponse>('/punches', {
     method: 'POST',
+    headers,
     body: JSON.stringify(payload),
   });
 }

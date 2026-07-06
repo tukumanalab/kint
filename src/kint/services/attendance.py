@@ -288,7 +288,7 @@ class PunchService:
     # BE-01 / BE-02 / BE-03 / BE-04: 打刻コア処理
     # ------------------------------------------------------------------
 
-    async def punch(self, request: PunchRequest) -> PunchResponse:
+    async def punch(self, request: PunchRequest, device_name: str | None = None) -> PunchResponse:
         """打刻を処理する。check_in / check_out を自動判定する。"""
         # BE-02: 利用者解決
         if request.card_idm is not None:
@@ -477,6 +477,7 @@ class PunchService:
                 source=source,
                 method=method,
                 reason=request.reason,
+                device_name=device_name,
             )
             action = "check_in"
 
@@ -563,6 +564,7 @@ class PunchService:
         source: str,
         method: str,
         reason: str | None,
+        device_name: str | None = None,
     ) -> Attendance:
         """チェックイン処理。新規 Attendance レコードを作成する。"""
         now = datetime.now(tz=UTC)
@@ -578,6 +580,7 @@ class PunchService:
             updated_reason=reason if method == "user_id" else None,
             last_updated_by_user_id=user.id if method == "user_id" else None,
             last_updated_at=now if method == "user_id" else None,
+            device_name=device_name,
         )
         self.session.add(attendance)
         await self.session.flush()
@@ -1172,6 +1175,7 @@ class AttendanceService:
                             calculated_check_out=p_calc_out,
                             source=a.source,
                             overtime_reason=a.overtime_reason,
+                            device_name=a.device_name,
                             is_manual_work_time=a.is_manual_work_time,
                         )
                     )
@@ -1196,6 +1200,7 @@ class AttendanceService:
                     overtime_hours=round(overtime_hours, 2) if overtime_hours > 0 else 0.0,
                     status=status,
                     source=source,
+                    device_name=sorted_atts[0].device_name if sorted_atts else None,
                     is_auto_completed=is_auto_completed,
                     is_manual_work_time=is_manual_day,
                     punches=punches,

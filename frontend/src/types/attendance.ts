@@ -32,6 +32,7 @@ export interface PunchPeriod {
   calculated_check_out?: string | null;
   source?: string | null;
   overtime_reason?: string | null;
+  device_name?: string | null;
   is_manual_work_time?: boolean;
 }
 
@@ -50,6 +51,7 @@ export interface DailyAttendanceDetail {
   overtime_hours: number | null;
   status: DailyAttendanceStatus;
   source: string | null;
+  device_name?: string | null;
   is_auto_completed?: boolean;
   is_manual_work_time?: boolean;
   punches?: PunchPeriod[];
@@ -135,6 +137,7 @@ export interface AttendanceRecord {
   last_updated_at: string | null;
   last_updated_by_user_id: string | null;
   overtime_reason?: string | null;
+  device_name?: string | null;
 }
 
 export interface AttendanceImportRowError {

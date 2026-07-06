@@ -84,6 +84,7 @@
 | `is_manual_work_time`      | INTEGER  | NOT NULL, DEFAULT 0                                    | 手動勤務時間修正フラグ（1=手動）     |
 | `overtime_reason`          | TEXT     | NULL                                                   | 残業理由                             |
 | `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service')) | 打刻元 |
+| `device_name`              | TEXT     | NULL                                                   | 打刻端末の登録名 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
 | `last_updated_at`          | DATETIME | NULL                                                   | 最終修正日時                         |

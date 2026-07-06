@@ -152,7 +152,8 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   async function submitPunchWithConfirmation(
     payload: PunchRequest
   ): Promise<PunchResponse | 'requires_overtime_reason' | null> {
-    const response = await postPunch(payload);
+    const deviceToken = localStorage.getItem('kint_punch_device_token');
+    const response = await postPunch(payload, deviceToken);
     if (response.status === 'requires_overtime_reason') {
       setOvertimeRequest({ payload, message: response.message });
       setShowOvertimeField(false);
@@ -169,7 +170,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
       return null;
     }
 
-    const secondResponse = await postPunch({ ...payload, confirm: true });
+    const secondResponse = await postPunch({ ...payload, confirm: true }, deviceToken);
     if (secondResponse.status === 'requires_overtime_reason') {
       setOvertimeRequest({ payload: { ...payload, confirm: true }, message: secondResponse.message });
       setShowOvertimeField(false);

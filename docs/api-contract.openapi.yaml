@@ -428,6 +428,11 @@ paths:
           required: false
           schema:
             type: string
+        - in: header
+          name: X-Punch-Device-Token
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -1427,6 +1432,9 @@ components:
         last_updated_by_user_id:
           type: string
           nullable: true
+        device_name:
+          type: string
+          nullable: true
         is_auto_completed:
           type: boolean
           description: システム自動補完フラグ
@@ -1958,6 +1966,9 @@ components:
           type: string
           nullable: true
         overtime_reason:
+          type: string
+          nullable: true
+        device_name:
           type: string
           nullable: true
         is_manual_work_time:

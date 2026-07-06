@@ -8,6 +8,8 @@ from kint.schemas.punch import PunchRequest, PunchResponse, PunchUserCandidateLi
 from kint.services.attendance import PunchService
 from kint.services.user import UserService
 
+from kint.services.punch_device import PunchDeviceService
+
 router = APIRouter(prefix="/punches", tags=["Punch"])
 
 
@@ -25,8 +27,15 @@ async def search_punch_users(
 async def punch(
     body: PunchRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_punch_device_token: str | None = Header(default=None, alias="X-Punch-Device-Token"),
     session: AsyncSession = Depends(get_db),
 ) -> PunchResponse:
     """Desktop アプリから打刻を登録する。NFC（card_idm）または user_id+reason に対応。"""
+    device_name = None
+    if x_punch_device_token:
+        verify_result = PunchDeviceService.verify_device_token(x_punch_device_token)
+        if verify_result.valid:
+            device_name = verify_result.name
+
     service = PunchService(session)
-    return await service.punch(body)
+    return await service.punch(body, device_name=device_name)
