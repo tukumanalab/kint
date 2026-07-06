@@ -105,37 +105,33 @@ async function recv380(ctx: DeviceContext, length: number): Promise<Uint8Array> 
 /**
  * デバイスを開き、適切なインターフェースをクレームして DeviceContext を返す。
  *
- * RC-S300: CCID（class 0x0B）ではなく Vendor-Specific（class 0xFF）インターフェースを使う。
- * RC-S380: configurations[0].interfaces[0] を使う。
+ * RC-S300/RC-S380 共通: class 0xFF (Vendor-Specific) インターフェースを優先して探す
  */
 async function setupDevice(device: USBDevice): Promise<DeviceContext> {
   await device.open();
-  const confValue = device.configurations[0].configurationValue ?? 1;
-  await device.selectConfiguration(confValue);
+  
+  if (device.configuration === null) {
+    const confValue = device.configurations[0].configurationValue ?? 1;
+    await device.selectConfiguration(confValue);
+  }
 
-  let interfaceNumber: number;
-  let endpointIn: number;
-  let endpointOut: number;
+  // class 0xFF (Vendor-Specific) のインターフェースを探す（見つからなければ最初のもの）
+  const iface = device.configuration?.interfaces.find(
+    (i) => i.alternate.interfaceClass === 0xff,
+  ) || device.configurations[0].interfaces[0];
 
-  if (RC_S300_IDS.has(device.productId)) {
-    // RC-S300: class 0xFF (Vendor-Specific) のインターフェースを選ぶ
-    const iface = device.configuration?.interfaces.find(
-      (i) => i.alternate.interfaceClass === 0xff,
-    );
-    if (!iface) throw new Error('RC-S300 の Vendor-Specific インターフェースが見つかりません');
-    interfaceNumber = iface.interfaceNumber;
-    endpointIn = iface.alternate.endpoints.find((e) => e.direction === 'in')!.endpointNumber;
-    endpointOut = iface.alternate.endpoints.find((e) => e.direction === 'out')!.endpointNumber;
-  } else {
-    // RC-S380 / 旧モデル: 最初のインターフェースの bulk エンドポイントを使う
-    const iface = device.configurations[0].interfaces[0];
-    interfaceNumber = iface.interfaceNumber;
-    endpointIn = iface.alternate.endpoints.find(
-      (e) => e.direction === 'in' && e.type === 'bulk',
-    )!.endpointNumber;
-    endpointOut = iface.alternate.endpoints.find(
-      (e) => e.direction === 'out' && e.type === 'bulk',
-    )!.endpointNumber;
+  if (!iface) throw new Error('利用可能なインターフェースが見つかりません');
+
+  const interfaceNumber = iface.interfaceNumber;
+  const endpointIn = iface.alternate.endpoints.find(
+    (e) => e.direction === 'in' && (e.type === 'bulk' || e.type === 'interrupt'),
+  )?.endpointNumber;
+  const endpointOut = iface.alternate.endpoints.find(
+    (e) => e.direction === 'out' && (e.type === 'bulk' || e.type === 'interrupt'),
+  )?.endpointNumber;
+
+  if (endpointIn === undefined || endpointOut === undefined) {
+    throw new Error('必要なエンドポイントが見つかりません');
   }
 
   await device.claimInterface(interfaceNumber);
