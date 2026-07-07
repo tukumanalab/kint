@@ -38,6 +38,9 @@
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
 | `monthly_report_time` | string \| null | `"20:00"` | — | — | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記）。月末日のこの時刻に通知。null / 空文字で自動通知 OFF |
 | `login_token_expire_hours` | integer | 168 | 1 | 8760 | ログイン継続時間（時間）。JWTアクセストークンの有効期限。 |
+| `enable_google_signup` | boolean | false | — | — | Googleログインでの新規ユーザー登録を許可するかどうか |
+| `overtime_allowance_minutes` | integer | 30 | 0 | 120 | シフト終了後の退勤打刻を通常丸め（切り下げ）対象とする許容時間（分） |
+| `attendance_alert_rules` | json | `[...初期値...]` | — | — | 勤怠の「要確認」アラートを判定するルールの配列 (JSON形式) |
 
 ---
 
@@ -146,7 +149,18 @@ erDiagram
   "site_subtitle": "NFC 勤怠管理システム",
   "punch_result_display_seconds": 30,
   "monthly_report_time": "20:00",
-  "login_token_expire_hours": 168
+  "login_token_expire_hours": 168,
+  "enable_google_signup": false,
+  "overtime_allowance_minutes": 30,
+  "attendance_alert_rules": [
+    {
+      "id": "e98e29ba-6415-4674-884d-2e11e0e8e60d",
+      "target": "daily_working_hours",
+      "operator": ">",
+      "threshold_value": 5.0,
+      "message": "要確認：5時間を超えています"
+    }
+  ]
 }
 ```
 
@@ -197,6 +211,9 @@ erDiagram
 | `punch_result_display_seconds` | integer, 1 ≤ value ≤ 300 |
 | `monthly_report_time` | string `HH:MM`（24時間表記、正規表現 `^([01]\d\|2[0-3]):[0-5]\d$`）または null / 空文字列（自動通知 OFF）。フロント UI はON/OFFスイッチおよび時・分セレクトボックス（トグルONのとき入力必須） |
 | `login_token_expire_hours` | integer, 1 ≤ value ≤ 8760 |
+| `enable_google_signup` | boolean |
+| `overtime_allowance_minutes` | integer, 0 ≤ value ≤ 120 |
+| `attendance_alert_rules` | list of AlertRule objects |
 
 **レスポンス (200)**: 更新後の全設定値（`GET` と同形式）
 
@@ -505,6 +522,9 @@ export interface SystemSettings {
   punch_result_display_seconds: number;
   monthly_report_time: string | null;
   login_token_expire_hours: number;
+  enable_google_signup: boolean;
+  overtime_allowance_minutes: number;
+  attendance_alert_rules: AlertRule[];
 }
 
 export interface SettingsPatchRequest {
@@ -516,6 +536,9 @@ export interface SettingsPatchRequest {
   site_subtitle?: string;
   punch_result_display_seconds?: number;
   login_token_expire_hours?: number;
+  enable_google_signup?: boolean;
+  overtime_allowance_minutes?: number;
+  attendance_alert_rules?: AlertRule[];
 }
 
 export interface SettingsExportFile {

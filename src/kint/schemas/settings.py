@@ -1,11 +1,35 @@
 """システム設定スキーマ。"""
 
 import re
-from typing import Any
+from enum import Enum
+from typing import Any, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class AlertTarget(str, Enum):
+    check_in_time = "check_in_time"
+    check_out_time = "check_out_time"
+    daily_working_hours = "daily_working_hours"
+    weekly_working_days = "weekly_working_days"
+    weekly_working_hours = "weekly_working_hours"
+
+
+class AlertOperator(str, Enum):
+    LT = "<"
+    LTE = "<="
+    GT = ">"
+    GTE = ">="
+
+
+class AlertRule(BaseModel):
+    id: str
+    target: AlertTarget
+    operator: AlertOperator
+    threshold_value: Union[str, float]
+    message: str
 
 
 class SettingsResponse(BaseModel):
@@ -22,6 +46,7 @@ class SettingsResponse(BaseModel):
     login_token_expire_hours: int
     enable_google_signup: bool
     overtime_allowance_minutes: int
+    attendance_alert_rules: list[AlertRule]
 
 
 class SettingsPatchRequest(BaseModel):
@@ -38,6 +63,7 @@ class SettingsPatchRequest(BaseModel):
     login_token_expire_hours: int | None = Field(default=None, ge=1, le=8760)
     enable_google_signup: bool | None = None
     overtime_allowance_minutes: int | None = Field(default=None, ge=0, le=120)
+    attendance_alert_rules: list[AlertRule] | None = None
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -74,6 +100,7 @@ class SettingsPatchRequest(BaseModel):
             and self.login_token_expire_hours is None
             and self.enable_google_signup is None
             and self.overtime_allowance_minutes is None
+            and self.attendance_alert_rules is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):

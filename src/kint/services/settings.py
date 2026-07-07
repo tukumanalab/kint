@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kint.config import settings as env_settings
 from kint.models.system_setting import SystemSetting
 from kint.schemas.settings import (
+    AlertRule,
     SettingsExportFile,
     SettingsImportChange,
     SettingsImportRequest,
@@ -28,6 +29,7 @@ ALLOWED_SETTING_KEYS = {
     "login_token_expire_hours",
     "enable_google_signup",
     "overtime_allowance_minutes",
+    "attendance_alert_rules",
 }
 
 _KNOWN_VERSION = "1"
@@ -58,6 +60,7 @@ class SettingsService:
         login_token_expire_hours_raw = db_map.get("login_token_expire_hours")
         enable_google_signup_raw = db_map.get("enable_google_signup")
         overtime_allowance_minutes_raw = db_map.get("overtime_allowance_minutes")
+        attendance_alert_rules_raw = db_map.get("attendance_alert_rules")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -105,6 +108,18 @@ class SettingsService:
             else env_settings.overtime_allowance_minutes
         )
 
+        import json
+        attendance_alert_rules_str = (
+            attendance_alert_rules_raw
+            if attendance_alert_rules_raw is not None
+            else env_settings.attendance_alert_rules
+        )
+        try:
+            parsed_rules = json.loads(attendance_alert_rules_str)
+            attendance_alert_rules = [AlertRule(**rule) for rule in parsed_rules]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            attendance_alert_rules = []
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -117,6 +132,7 @@ class SettingsService:
             login_token_expire_hours=login_token_expire_hours,
             enable_google_signup=enable_google_signup,
             overtime_allowance_minutes=overtime_allowance_minutes,
+            attendance_alert_rules=attendance_alert_rules,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -176,6 +192,10 @@ class SettingsService:
             fields["enable_google_signup"] = "1" if updates.enable_google_signup else "0"
         if updates.overtime_allowance_minutes is not None:
             fields["overtime_allowance_minutes"] = str(updates.overtime_allowance_minutes)
+        if updates.attendance_alert_rules is not None:
+            import json
+            rules_dicts = [rule.model_dump() for rule in updates.attendance_alert_rules]
+            fields["attendance_alert_rules"] = json.dumps(rules_dicts)
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -253,6 +273,7 @@ class SettingsService:
             "login_token_expire_hours": current.login_token_expire_hours,
             "enable_google_signup": current.enable_google_signup,
             "overtime_allowance_minutes": current.overtime_allowance_minutes,
+            "attendance_alert_rules": current.attendance_alert_rules,
         }
 
         changes: list[SettingsImportChange] = []
@@ -278,16 +299,49 @@ class SettingsService:
                     new_value = raw_value
                 else:
                     new_value = str(raw_value) == "1" or str(raw_value).lower() == "true"
+            elif key == "attendance_alert_rules":
+                if isinstance(raw_value, list):
+                    new_value = [AlertRule(**rule) for rule in raw_value]
+                elif isinstance(raw_value, str):
+                    import json
+                    try:
+                        new_value = [AlertRule(**rule) for rule in json.loads(raw_value)]
+                    except Exception:
+                        new_value = []
+                else:
+                    new_value = []
             else:
                 new_value = int(raw_value)
 
             before = current_map.get(key)
-            if before == new_value:
-                ignored_keys.append(key)
-                continue
+            if key == "attendance_alert_rules":
+                # Compare lists of models
+                before_dicts = [r.model_dump() for r in before] if before else []
+                new_dicts = [r.model_dump() for r in new_value] if isinstance(new_value, list) else []
+                if before_dicts == new_dicts:
+                    ignored_keys.append(key)
+                    continue
+            else:
+                if before == new_value:
+                    ignored_keys.append(key)
+                    continue
 
-            changes.append(SettingsImportChange(key=key, before=before, after=new_value))
-            valid_updates[key] = str(raw_value) if raw_value is not None else ""
+            # SettingsImportChange expects simple types for before/after, so serialize rules to dict if it's rules
+            change_before = [r.model_dump() for r in before] if key == "attendance_alert_rules" and before else before
+            change_after = [r.model_dump() for r in new_value] if key == "attendance_alert_rules" and isinstance(new_value, list) else new_value
+            # We can serialize complex objects as string for the API response, or the API might handle dicts. SettingsImportChange has `before: int | str | None`, so let's convert to str.
+            if key == "attendance_alert_rules":
+                import json
+                change_before = json.dumps(change_before, ensure_ascii=False) if change_before else "[]"
+                change_after = json.dumps(change_after, ensure_ascii=False) if change_after else "[]"
+            
+            changes.append(SettingsImportChange(key=key, before=change_before, after=change_after))
+
+            if key == "attendance_alert_rules":
+                import json
+                valid_updates[key] = json.dumps([r.model_dump() for r in new_value] if isinstance(new_value, list) else [])
+            else:
+                valid_updates[key] = str(raw_value) if raw_value is not None else ""
 
         applied: SettingsResponse | None = None
         if apply and valid_updates:

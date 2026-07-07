@@ -921,6 +921,17 @@ class AttendanceService:
         JST = timezone(timedelta(hours=9))
         today = datetime.now(JST).date()
 
+        # アラート設定の取得
+        settings = await SettingsService(self.session).get_all()
+        alert_rules = settings.attendance_alert_rules
+
+        def _evaluate_rule(val, op: str, threshold) -> bool:
+            if op == "<": return val < threshold
+            elif op == "<=": return val <= threshold
+            elif op == ">": return val > threshold
+            elif op == ">=": return val >= threshold
+            return False
+
         # 1. ユーザーの取得 (アクティブなユーザーのみ)
         user_query = select(User).where(User.is_active == 1)
         if user_id is not None:
@@ -1153,21 +1164,18 @@ class AttendanceService:
                 is_valid_work = len(day_atts) > 0 and not has_incomplete_punch
                 
                 daily_alerts = []
-                if calc_check_in:
-                    cin_jst = calc_check_in.astimezone(JST)
-                    if cin_jst.hour < 9:
-                        daily_alerts.append("要確認：9時前から働いています")
-                if calc_check_out:
-                    cout_jst = calc_check_out.astimezone(JST)
-                    if cout_jst.hour > 19 or (cout_jst.hour == 19 and cout_jst.minute > 0):
-                        daily_alerts.append("要確認：19時を過ぎています")
-                
-                # 有効な勤務である場合のみ時間でのアラート判定
-                if is_valid_work:
-                    if working_hours > 6.0:
-                        daily_alerts.append("要確認：6時間を超えています、休憩が必要です")
-                    elif working_hours > 5.0:
-                        daily_alerts.append("要確認：5時間を超えています")
+                for rule in alert_rules:
+                    if rule.target == "check_in_time" and calc_check_in:
+                        cin_jst = calc_check_in.astimezone(JST).strftime("%H:%M")
+                        if _evaluate_rule(cin_jst, rule.operator, str(rule.threshold_value)):
+                            daily_alerts.append(rule.message)
+                    elif rule.target == "check_out_time" and calc_check_out:
+                        cout_jst = calc_check_out.astimezone(JST).strftime("%H:%M")
+                        if _evaluate_rule(cout_jst, rule.operator, str(rule.threshold_value)):
+                            daily_alerts.append(rule.message)
+                    elif rule.target == "daily_working_hours" and is_valid_work:
+                        if _evaluate_rule(working_hours, rule.operator, float(rule.threshold_value)):
+                            daily_alerts.append(rule.message)
                         
                 alert_count += len(daily_alerts)
                 
@@ -1186,10 +1194,14 @@ class AttendanceService:
                 is_last_day = curr_date == to_date
                 
                 if is_sunday or is_last_day:
-                    if weekly_working_days >= 4:
-                        weekly_alerts.append("要確認：週に4日以上働いています")
-                    if weekly_working_hours > 18.0:
-                        weekly_alerts.append("要確認：たくさん働いています")
+                    for rule in alert_rules:
+                        if rule.target == "weekly_working_days":
+                            if _evaluate_rule(weekly_working_days, rule.operator, float(rule.threshold_value)):
+                                weekly_alerts.append(rule.message)
+                        elif rule.target == "weekly_working_hours":
+                            if _evaluate_rule(weekly_working_hours, rule.operator, float(rule.threshold_value)):
+                                weekly_alerts.append(rule.message)
+                    
                     alert_count += len(weekly_alerts)
                     weekly_working_days = 0
                     weekly_working_hours = 0.0

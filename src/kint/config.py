@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     login_token_expire_hours: int = 168
     enable_google_signup: bool = True
     overtime_allowance_minutes: int = 30
+    attendance_alert_rules: str = (
+        '[{"id": "default-1", "target": "check_in_time", "operator": "<", "threshold_value": "09:00", "message": "要確認：9時前から働いています"}, '
+        '{"id": "default-2", "target": "check_out_time", "operator": ">", "threshold_value": "19:00", "message": "要確認：19時を過ぎています"}, '
+        '{"id": "default-3", "target": "daily_working_hours", "operator": ">", "threshold_value": 6.0, "message": "要確認：6時間を超えています、休憩が必要です"}, '
+        '{"id": "default-4", "target": "daily_working_hours", "operator": ">", "threshold_value": 5.0, "message": "要確認：5時間を超えています"}, '
+        '{"id": "default-5", "target": "weekly_working_days", "operator": ">=", "threshold_value": 4, "message": "要確認：週に4日以上働いています"}, '
+        '{"id": "default-6", "target": "weekly_working_hours", "operator": ">", "threshold_value": 18.0, "message": "要確認：たくさん働いています"}]'
+    )
 
 
 settings = Settings()

@@ -1,3 +1,20 @@
+export type AlertTarget =
+  | 'check_in_time'
+  | 'check_out_time'
+  | 'daily_working_hours'
+  | 'weekly_working_days'
+  | 'weekly_working_hours';
+
+export type AlertOperator = '<' | '<=' | '>' | '>=';
+
+export interface AlertRule {
+  id: string;
+  target: AlertTarget;
+  operator: AlertOperator;
+  threshold_value: string | number;
+  message: string;
+}
+
 export interface SystemSettings {
   punch_cooldown_seconds: number;
   shift_checkin_early_minutes: number;
@@ -10,6 +27,7 @@ export interface SystemSettings {
   login_token_expire_hours: number;
   enable_google_signup: boolean;
   overtime_allowance_minutes: number;
+  attendance_alert_rules: AlertRule[];
 }
 
 export interface SettingsPatchRequest {
@@ -24,6 +42,7 @@ export interface SettingsPatchRequest {
   login_token_expire_hours?: number;
   enable_google_signup?: boolean;
   overtime_allowance_minutes?: number;
+  attendance_alert_rules?: AlertRule[];
 }
 
 export interface SettingsExportFile {

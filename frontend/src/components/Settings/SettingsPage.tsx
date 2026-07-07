@@ -11,10 +11,11 @@ import {
 } from '../../api/settings';
 import { syncShiftsNow } from '../../api/shifts';
 import { ApiError } from '../../types/error';
-import type { SettingsExportFile, SettingsImportResult, SystemSettings } from '../../types/settings';
+import type { SettingsExportFile, SettingsImportResult, SystemSettings, AlertRule } from '../../types/settings';
 import type { UseAuth } from '../../hooks/useAuth';
 import { PunchDeviceManager } from './PunchDeviceManager';
 import { SettingsGuideModal } from './SettingsGuideModal';
+import { AttendanceAlertRulesManager } from './AttendanceAlertRulesManager';
 import './SettingsPage.css';
 
 interface Props {
@@ -137,6 +138,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [loginTokenExpireHours, setLoginTokenExpireHours] = useState('');
   const [enableGoogleSignup, setEnableGoogleSignup] = useState(false);
   const [overtimeAllowanceMinutes, setOvertimeAllowanceMinutes] = useState('');
+  const [attendanceAlertRules, setAttendanceAlertRules] = useState<AlertRule[]>([]);
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -247,6 +249,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setLoginTokenExpireHours(String(s.login_token_expire_hours));
       setEnableGoogleSignup(s.enable_google_signup);
       setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
+      setAttendanceAlertRules(s.attendance_alert_rules || []);
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -272,6 +275,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setLoginTokenExpireHours(String(s.login_token_expire_hours));
         setEnableGoogleSignup(s.enable_google_signup);
         setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
+        setAttendanceAlertRules(s.attendance_alert_rules || []);
       })
       .catch((err: unknown) => {
         const msg =
@@ -350,6 +354,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         login_token_expire_hours: Number(loginTokenExpireHours),
         enable_google_signup: enableGoogleSignup,
         overtime_allowance_minutes: Number(overtimeAllowanceMinutes),
+        attendance_alert_rules: attendanceAlertRules,
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -429,6 +434,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setLoginTokenExpireHours(String(result.applied.login_token_expire_hours));
         setEnableGoogleSignup(result.applied.enable_google_signup);
         setOvertimeAllowanceMinutes(String(result.applied.overtime_allowance_minutes ?? 30));
+        setAttendanceAlertRules(result.applied.attendance_alert_rules || []);
       }
       setImportFile(null);
       setImportPreview(null);
@@ -796,6 +802,11 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
             <p className="settings-field__hint">毎月末日のこの時刻に、当月の勤務実績レポートを従業員（管理者を除く）にメール通知します</p>
           </div>
         </section>
+
+        <AttendanceAlertRulesManager
+          rules={attendanceAlertRules}
+          onChange={setAttendanceAlertRules}
+        />
 
         {saveError && <p className="settings-error">{saveError}</p>}
         {saveSuccess && <p className="settings-success">設定を保存しました</p>}
