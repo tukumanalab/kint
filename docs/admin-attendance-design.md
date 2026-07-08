@@ -87,6 +87,7 @@ flowchart TD
 | **欠勤日数** (`absence_days`) | シフト (`shifts`) が存在する日のうち、勤怠レコード (`attendances`) が全く存在しない、または `check_in` が `NULL` のままである日数。 |
 | **打刻不整合・エラー日数** (`incomplete_days`) | `check_in` のみで `check_out` が未打刻といった、打刻エラーが発生している日数（管理者による修正が必要なデータ）。 |
 | **要確認・アラート件数** (`alert_count`) | 長時間勤務や遅い時間の退勤など、注意が必要な勤怠状況（アラート）が発生した合計件数。※詳細は `attendance_rules.md` の「勤務時間のアラート判定」を参照。 |
+| **未確認アラート数** (`unacknowledged_alert_count`) | 発生したアラート（`alert_count`）のうち、管理者が「確認済」としてマークしていない未確認のアラート件数。 |
 
 ### 4-3. データのマージ方法
 データベースから一括で `users`, `attendances`, `shifts` を取得し、Python メモリ上でマージを行うことで N+1 問題を排除する。
@@ -160,6 +161,61 @@ flowchart TD
           application/json:
             schema:
               $ref: '#/components/schemas/ErrorResponse'
+
+/attendance/{user_id}/alerts/acknowledge:
+  post:
+    tags: [Attendance]
+    summary: アラートを確認済にする
+    description: 管理者が特定の従業員の指定日の特定アラートを確認済としてマークします。
+    parameters:
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: string
+        description: 対象従業員ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AlertAcknowledgmentRequest'
+    responses:
+      '204':
+        description: 確認成功
+      '403':
+        description: 権限不足（管理者以外）
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+  delete:
+    tags: [Attendance]
+    summary: アラートの確認済を解除する
+    description: 管理者が特定の従業員の指定日の特定アラートの確認済マークを解除します。
+    parameters:
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: string
+        description: 対象従業員ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AlertAcknowledgmentRequest'
+    responses:
+      '204':
+        description: 解除成功
+      '403':
+        description: 権限不足
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+
 ```
 
 ### 5-2. `GET /api/v1/attendance/monthly` (日別一括詳細)
@@ -310,6 +366,14 @@ components:
           type: integer
           description: 打刻不整合（打刻漏れ等エラー）の日数
           example: 0
+        alert_count:
+          type: integer
+          description: アラート（要確認事項）の総件数
+          example: 3
+        unacknowledged_alert_count:
+          type: integer
+          description: 未確認のアラート件数
+          example: 1
 ```
 
 ### 6-2. `AttendanceMonthlyDetailResponse`
@@ -387,6 +451,43 @@ components:
           items:
             $ref: '#/components/schemas/PunchPeriod'
           description: その日の全打刻ペアリスト
+        daily_alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertResult'
+          description: 日次の要確認事項リスト
+        weekly_alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertResult'
+          description: 週次の要確認事項リスト
+
+    AlertResult:
+      type: object
+      required: [rule_id, message, is_acknowledged]
+      properties:
+        rule_id:
+          type: string
+          description: アラートを生成したルールのID
+        message:
+          type: string
+          description: アラートメッセージ
+        is_acknowledged:
+          type: boolean
+          description: 管理者が確認済みにしたかどうかのフラグ
+          default: false
+
+    AlertAcknowledgmentRequest:
+      type: object
+      required: [date, rule_id]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 対象日 (YYYY-MM-DD)
+        rule_id:
+          type: string
+          description: 対象ルールID
 
     ShiftPeriod:
       type: object

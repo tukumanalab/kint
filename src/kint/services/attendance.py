@@ -25,6 +25,7 @@ from kint.models.attendance import (
     AttendanceChangeLog,
     AttendanceCorrectionRequest,
     AttendanceLock,
+    AttendanceAlertAcknowledgment,
 )
 from kint.models.card import Card
 from kint.models.shift import Shift
@@ -46,6 +47,7 @@ from kint.schemas.attendance import (
     DailyAttendanceDetail,
     PunchPeriod,
     ShiftPeriod,
+    AlertResult,
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
 from kint.services.settings import SettingsService
@@ -959,6 +961,16 @@ class AttendanceService:
         shift_result = await self.session.execute(shift_query)
         shifts = shift_result.scalars().all()
 
+        # 3.5. アラート確認済履歴の一括取得
+        ack_query = select(AttendanceAlertAcknowledgment).where(
+            AttendanceAlertAcknowledgment.date >= from_date,
+            AttendanceAlertAcknowledgment.date <= to_date,
+        )
+        if user_id is not None:
+            ack_query = ack_query.where(AttendanceAlertAcknowledgment.user_id == user_id)
+        ack_result = await self.session.execute(ack_query)
+        acknowledgments = ack_result.scalars().all()
+
         # 4. ユーザーごとにマージ（1日に複数回打刻をサポートするためにリストで保持）
         att_map: dict[tuple[str, date], list[Attendance]] = {}
         for att in attendances:
@@ -974,6 +986,10 @@ class AttendanceService:
                 shift_map[key] = []
             shift_map[key].append(shift)
 
+        ack_map: set[tuple[str, date, str]] = set()
+        for ack in acknowledgments:
+            ack_map.add((ack.user_id, ack.date, ack.rule_id))
+
         results = []
         for user in users:
             daily_details = []
@@ -986,6 +1002,7 @@ class AttendanceService:
             absence_days = 0
             incomplete_days = 0
             alert_count = 0
+            unacknowledged_alert_count = 0
             weekly_working_days = 0
             weekly_working_hours = 0.0
 
@@ -1168,16 +1185,26 @@ class AttendanceService:
                     if rule.target == "check_in_time" and calc_check_in:
                         cin_jst = calc_check_in.astimezone(JST).strftime("%H:%M")
                         if _evaluate_rule(cin_jst, rule.operator, str(rule.threshold_value)):
-                            daily_alerts.append(rule.message)
+                            is_ack = (user.id, curr_date, rule.id) in ack_map
+                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            alert_count += 1
+                            if not is_ack:
+                                unacknowledged_alert_count += 1
                     elif rule.target == "check_out_time" and calc_check_out:
                         cout_jst = calc_check_out.astimezone(JST).strftime("%H:%M")
                         if _evaluate_rule(cout_jst, rule.operator, str(rule.threshold_value)):
-                            daily_alerts.append(rule.message)
+                            is_ack = (user.id, curr_date, rule.id) in ack_map
+                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            alert_count += 1
+                            if not is_ack:
+                                unacknowledged_alert_count += 1
                     elif rule.target == "daily_working_hours" and is_valid_work:
                         if _evaluate_rule(working_hours, rule.operator, float(rule.threshold_value)):
-                            daily_alerts.append(rule.message)
-                        
-                alert_count += len(daily_alerts)
+                            is_ack = (user.id, curr_date, rule.id) in ack_map
+                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            alert_count += 1
+                            if not is_ack:
+                                unacknowledged_alert_count += 1
                 
                 if is_valid_work or (has_shift and len(day_atts) > 0 and not is_deleted_work):
                      # is_deleted_work は line 1125 付近で計算されている。
@@ -1197,12 +1224,18 @@ class AttendanceService:
                     for rule in alert_rules:
                         if rule.target == "weekly_working_days":
                             if _evaluate_rule(weekly_working_days, rule.operator, float(rule.threshold_value)):
-                                weekly_alerts.append(rule.message)
+                                is_ack = (user.id, curr_date, rule.id) in ack_map
+                                weekly_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                                alert_count += 1
+                                if not is_ack:
+                                    unacknowledged_alert_count += 1
                         elif rule.target == "weekly_working_hours":
                             if _evaluate_rule(weekly_working_hours, rule.operator, float(rule.threshold_value)):
-                                weekly_alerts.append(rule.message)
-                    
-                    alert_count += len(weekly_alerts)
+                                is_ack = (user.id, curr_date, rule.id) in ack_map
+                                weekly_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                                alert_count += 1
+                                if not is_ack:
+                                    unacknowledged_alert_count += 1
                     weekly_working_days = 0
                     weekly_working_hours = 0.0
 
@@ -1292,6 +1325,7 @@ class AttendanceService:
                 absence_days=absence_days,
                 incomplete_days=incomplete_days,
                 alert_count=alert_count,
+                unacknowledged_alert_count=unacknowledged_alert_count,
                 yearly_working_hours=0.0,
             )
 
@@ -2481,3 +2515,36 @@ class AttendanceService:
             unmatched_rows=unmatched_rows,
             errors=errors,
         )
+
+    async def acknowledge_alert(self, user_id: str, alert_date: date, rule_id: str, admin_user_id: str) -> None:
+        """指定したアラートを確認済としてマークする。"""
+        # 既に存在するかチェック
+        query = select(AttendanceAlertAcknowledgment).where(
+            AttendanceAlertAcknowledgment.user_id == user_id,
+            AttendanceAlertAcknowledgment.date == alert_date,
+            AttendanceAlertAcknowledgment.rule_id == rule_id,
+        )
+        result = await self.session.execute(query)
+        existing = result.scalar_one_or_none()
+
+        if not existing:
+            ack_id = str(uuid.uuid4())
+            new_ack = AttendanceAlertAcknowledgment(
+                id=ack_id,
+                user_id=user_id,
+                date=alert_date,
+                rule_id=rule_id,
+                acknowledged_by_user_id=admin_user_id,
+            )
+            self.session.add(new_ack)
+            await self.session.commit()
+
+    async def unacknowledge_alert(self, user_id: str, alert_date: date, rule_id: str) -> None:
+        """指定したアラートの確認済マークを解除する。"""
+        stmt = delete(AttendanceAlertAcknowledgment).where(
+            AttendanceAlertAcknowledgment.user_id == user_id,
+            AttendanceAlertAcknowledgment.date == alert_date,
+            AttendanceAlertAcknowledgment.rule_id == rule_id,
+        )
+        await self.session.execute(stmt)
+        await self.session.commit()

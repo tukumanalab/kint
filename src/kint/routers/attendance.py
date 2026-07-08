@@ -27,6 +27,7 @@ from kint.schemas.attendance import (
     AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
+    AlertAcknowledgmentRequest,
 )
 from kint.services.attendance import AttendanceService
 
@@ -407,3 +408,39 @@ async def import_attendance_csv(
     file_bytes = await file.read()
     service = AttendanceService(session)
     return await service.import_csv_report(file_bytes, current_user)
+
+
+@router.post("/{user_id}/alerts/acknowledge", status_code=204)
+async def acknowledge_alert(
+    user_id: str,
+    body: AlertAcknowledgmentRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """指定したアラートを確認済としてマークする。管理者のみ実行可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    service = AttendanceService(session)
+    await service.acknowledge_alert(user_id, body.date, body.rule_id, current_user.id)
+
+
+@router.delete("/{user_id}/alerts/acknowledge", status_code=204)
+async def unacknowledge_alert(
+    user_id: str,
+    body: AlertAcknowledgmentRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """指定したアラートの確認済マークを解除する。管理者のみ実行可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    service = AttendanceService(session)
+    await service.unacknowledge_alert(user_id, body.date, body.rule_id)

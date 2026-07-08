@@ -60,6 +60,7 @@ const mockSummaries = [
     absence_days: 2,
     incomplete_days: 0,
     alert_count: 0,
+    unacknowledged_alert_count: 0,
     yearly_working_hours: 144,
   },
 ];
@@ -225,8 +226,9 @@ describe('AttendancePage - Search', () => {
       early_leave_count: 0,
       absence_days: 2,
       incomplete_days: 0,
-      alert_count: 0,
-      yearly_working_hours: 144,
+      alert_count: 1,
+      unacknowledged_alert_count: 1,
+      yearly_working_hours: 0,
     },
     {
       user_id: 'user-2',
@@ -242,7 +244,8 @@ describe('AttendancePage - Search', () => {
       absence_days: 5,
       incomplete_days: 0,
       alert_count: 0,
-      yearly_working_hours: 120,
+      unacknowledged_alert_count: 0,
+      yearly_working_hours: 0,
     },
   ];
 

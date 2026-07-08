@@ -59,6 +59,7 @@ describe('PunchPage', () => {
           user_id: 'user-001',
           reason: 'カード忘れのため',
         }),
+        null
       );
     });
   });

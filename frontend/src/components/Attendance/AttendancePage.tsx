@@ -15,6 +15,8 @@ import {
   updateAttendance,
   deleteAttendance,
   importAttendanceCsv,
+  acknowledgeAlert,
+  unacknowledgeAlert,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
@@ -287,8 +289,44 @@ export function AttendancePage({ auth }: Props) {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.token, yearMonth, isAdmin]);
+  }, [auth.token, yearMonth]);
+
+  const loadDetail = useCallback(
+    async (targetUserId: string, targetMonth: string) => {
+      setDetailLoading(true);
+      setDetailError(null);
+      try {
+        const data = await getMonthlyAttendanceDetail(
+          auth.token!,
+          targetMonth,
+          targetUserId
+        );
+        setDetailData(data);
+      } catch (err) {
+        console.error(err);
+        setDetailError('詳細データの取得に失敗しました。');
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [auth.token]
+  );
+
+  const handleToggleAlertAcknowledgment = async (date: string, ruleId: string, currentStatus: boolean) => {
+    if (!isAdmin || !selectedUser || !auth.token) return;
+    try {
+      if (currentStatus) {
+        await unacknowledgeAlert(auth.token, selectedUser.user_id, date, ruleId);
+      } else {
+        await acknowledgeAlert(auth.token, selectedUser.user_id, date, ruleId);
+      }
+      await loadDetail(selectedUser.user_id, yearMonth);
+      await fetchSummary();
+    } catch (err) {
+      console.error('Failed to toggle alert acknowledgment', err);
+      alert('アラートの確認状態の更新に失敗しました。');
+    }
+  };
 
   useEffect(() => {
     fetchSummary();
@@ -313,17 +351,7 @@ export function AttendancePage({ auth }: Props) {
   const handleViewDetail = async (summary: AttendanceMonthlySummary) => {
     if (!auth.token) return;
     setSelectedUser(summary);
-    setDetailLoading(true);
-    setDetailError(null);
-    setDetailData(null);
-    try {
-      const data = await getMonthlyAttendanceDetail(auth.token, yearMonth, summary.user_id);
-      setDetailData(data);
-    } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '詳細データの取得に失敗しました');
-    } finally {
-      setDetailLoading(false);
-    }
+    loadDetail(summary.user_id, yearMonth);
   };
 
   // CSVダウンロード
@@ -386,9 +414,9 @@ export function AttendancePage({ auth }: Props) {
       }
       // 詳細データを再取得して最新のロック状態を反映
       if (selectedUser) {
-        await handleViewDetail(selectedUser);
+        await loadDetail(selectedUser.user_id, yearMonth);
       } else if (!isAdmin && summaries.length > 0) {
-        await handleViewDetail(summaries[0]);
+        await loadDetail(summaries[0].user_id, yearMonth);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'ロック操作に失敗しました');
@@ -569,7 +597,7 @@ export function AttendancePage({ auth }: Props) {
       setShowRequestModal(false);
       await fetchCorrectionRequests();
       if (selectedUser) {
-        await handleViewDetail(selectedUser);
+        await loadDetail(selectedUser.user_id, yearMonth);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : '処理に失敗しました');
@@ -608,9 +636,9 @@ export function AttendancePage({ auth }: Props) {
       await fetchCorrectionRequests();
       // 詳細データも再取得（勤怠レコードが更新されている可能性があるため）
       if (selectedUser) {
-        await handleViewDetail(selectedUser);
+        await loadDetail(selectedUser.user_id, yearMonth);
       } else if (!isAdmin && summaries.length > 0) {
-        await handleViewDetail(summaries[0]);
+        await loadDetail(summaries[0].user_id, yearMonth);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : '処理に失敗しました');
@@ -925,7 +953,18 @@ export function AttendancePage({ auth }: Props) {
             {day.daily_alerts && day.daily_alerts.length > 0 && (
               <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {day.daily_alerts.map((alert, idx) => (
-                  <span key={idx} className="att-daily-alert">{alert}</span>
+                  <div key={idx} className="att-daily-alert" style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', opacity: alert.is_acknowledged ? 0.6 : 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={alert.is_acknowledged}
+                      disabled={!isAdmin || (detailData && detailData.is_locked) || lockLoading}
+                      onChange={() => handleToggleAlertAcknowledgment(day.work_date, alert.rule_id, alert.is_acknowledged)}
+                      style={{ marginTop: '2px' }}
+                    />
+                    <span style={{ textDecoration: alert.is_acknowledged ? 'line-through' : 'none' }}>
+                      {alert.message}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -1103,7 +1142,18 @@ export function AttendancePage({ auth }: Props) {
               {day.weekly_alerts && day.weekly_alerts.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {day.weekly_alerts.map((alert, idx) => (
-                    <span key={idx} className="att-daily-alert">{alert}</span>
+                    <div key={idx} className="att-daily-alert" style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', opacity: alert.is_acknowledged ? 0.6 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={alert.is_acknowledged}
+                        disabled={!isAdmin || (detailData && detailData.is_locked) || lockLoading}
+                        onChange={() => handleToggleAlertAcknowledgment(day.work_date, alert.rule_id, alert.is_acknowledged)}
+                        style={{ marginTop: '2px' }}
+                      />
+                      <span style={{ textDecoration: alert.is_acknowledged ? 'line-through' : 'none' }}>
+                        {alert.message}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1149,7 +1199,17 @@ export function AttendancePage({ auth }: Props) {
               {day.daily_alerts && day.daily_alerts.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                   {day.daily_alerts.map((alert, idx) => (
-                    <span key={idx} className="att-daily-alert" style={{ textAlign: 'right' }}>{alert}</span>
+                    <div key={idx} className="att-daily-alert" style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '4px', opacity: alert.is_acknowledged ? 0.6 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={alert.is_acknowledged}
+                        disabled={!isAdmin || (detailData && detailData.is_locked) || lockLoading}
+                        onChange={() => handleToggleAlertAcknowledgment(day.work_date, alert.rule_id, alert.is_acknowledged)}
+                      />
+                      <span style={{ textDecoration: alert.is_acknowledged ? 'line-through' : 'none' }}>
+                        {alert.message}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1453,7 +1513,17 @@ export function AttendancePage({ auth }: Props) {
             {day.weekly_alerts && day.weekly_alerts.length > 0 && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                 {day.weekly_alerts.map((alert, idx) => (
-                  <span key={idx} className="att-daily-alert">{alert}</span>
+                  <div key={idx} className="att-daily-alert" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: alert.is_acknowledged ? 0.6 : 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={alert.is_acknowledged}
+                      disabled={!isAdmin || (detailData && detailData.is_locked) || lockLoading}
+                      onChange={() => handleToggleAlertAcknowledgment(day.work_date, alert.rule_id, alert.is_acknowledged)}
+                    />
+                    <span style={{ textDecoration: alert.is_acknowledged ? 'line-through' : 'none' }}>
+                      {alert.message}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -1726,7 +1796,7 @@ export function AttendancePage({ auth }: Props) {
                       <th>出勤</th>
                       <th>欠勤</th>
                       <th>不整合</th>
-                      <th>要確認</th>
+                      <th>未 / 要確認数</th>
                       <th>総勤務時間</th>
                       <th>4月からの総勤務</th>
                       <th>操作</th>
@@ -1757,8 +1827,8 @@ export function AttendancePage({ auth }: Props) {
                           </span>
                         </td>
                         <td>
-                          <span className={summary.alert_count > 0 ? 'att-text--danger' : ''}>
-                            {summary.alert_count}件
+                          <span className={summary.unacknowledged_alert_count > 0 ? 'att-text--danger' : ''}>
+                            {summary.unacknowledged_alert_count} / {summary.alert_count}件
                           </span>
                         </td>
                         <td>{formatHours(summary.total_working_hours)}</td>
@@ -1812,9 +1882,11 @@ export function AttendancePage({ auth }: Props) {
                       {summary.incomplete_days > 0 && (
                         <span className="att-badge att-badge--incomplete">不整合 {summary.incomplete_days}</span>
                       )}
-                      {summary.alert_count > 0 && (
-                        <span className="att-badge att-badge--warning">要確認 {summary.alert_count}</span>
-                      )}
+                      {summary.unacknowledged_alert_count > 0 ? (
+                        <span className="att-badge att-badge--warning">要確認 {summary.unacknowledged_alert_count} / {summary.alert_count}</span>
+                      ) : summary.alert_count > 0 ? (
+                        <span className="att-badge att-badge--success">要確認 {summary.unacknowledged_alert_count} / {summary.alert_count}</span>
+                      ) : null}
                     </div>
                   )}
                 </div>

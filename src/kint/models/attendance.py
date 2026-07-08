@@ -174,3 +174,29 @@ class AttendanceLock(Base):
     locked_by: Mapped["User"] = relationship(  # noqa: F821
         foreign_keys=[locked_by_user_id]
     )
+
+
+class AttendanceAlertAcknowledgment(Base):
+    """アラート確認済レコードモデル。"""
+
+    __tablename__ = "attendance_alert_acknowledgments"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    acknowledged_by_user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    user: Mapped["User"] = relationship(  # noqa: F821
+        foreign_keys=[user_id]
+    )
+    acknowledged_by: Mapped["User"] = relationship(  # noqa: F821
+        foreign_keys=[acknowledged_by_user_id]
+    )

@@ -12,7 +12,14 @@ export interface AttendanceMonthlySummary {
   absence_days: number;
   incomplete_days: number;
   alert_count: number;
+  unacknowledged_alert_count: number;
   yearly_working_hours: number;
+}
+
+export interface AlertResult {
+  rule_id: string;
+  message: string;
+  is_acknowledged: boolean;
 }
 
 export type DailyAttendanceStatus =
@@ -58,8 +65,8 @@ export interface DailyAttendanceDetail {
   is_manual_work_time?: boolean;
   punches?: PunchPeriod[];
   shifts?: { start_time: string; end_time: string }[];
-  daily_alerts?: string[];
-  weekly_alerts?: string[];
+  daily_alerts?: AlertResult[];
+  weekly_alerts?: AlertResult[];
 }
 
 export interface AttendanceMonthlyDetailResponse {

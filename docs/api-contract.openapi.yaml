@@ -807,6 +807,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /attendance/{user_id}/alerts/acknowledge:
+    post:
+      tags: [Attendance]
+      summary: アラートを確認済にする（管理者のみ）
+      description: 管理者が特定の従業員の指定日の特定アラートを確認済としてマークします。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+          description: 対象従業員ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertAcknowledgmentRequest'
+      responses:
+        '204':
+          description: 確認成功
+        '403':
+          description: 権限不足（管理者以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Attendance]
+      summary: アラートの確認済を解除する（管理者のみ）
+      description: 管理者が特定の従業員の指定日の特定アラートの確認済マークを解除します。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+          description: 対象従業員ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertAcknowledgmentRequest'
+      responses:
+        '204':
+          description: 解除成功
+        '403':
+          description: 権限不足（管理者以外）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /shifts/sync:
     post:
       tags: [Shift]
@@ -1845,6 +1899,14 @@ components:
           type: integer
           description: 打刻不整合（打刻漏れ等エラー）の日数
           example: 0
+        alert_count:
+          type: integer
+          description: アラート（要確認事項）の総件数
+          example: 3
+        unacknowledged_alert_count:
+          type: integer
+          description: 未確認のアラート件数
+          example: 1
 
     AttendanceMonthlyDetailResponse:
       type: object
@@ -1928,6 +1990,16 @@ components:
           items:
             $ref: '#/components/schemas/PunchPeriod'
           description: その日の全打刻ペアリスト
+        daily_alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertResult'
+          description: 日次の要確認事項リスト
+        weekly_alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertResult'
+          description: 週次の要確認事項リスト
 
     ShiftPeriod:
       type: object
@@ -2007,3 +2079,30 @@ components:
         reason:
           type: string
           minLength: 1
+
+    AlertResult:
+      type: object
+      required: [rule_id, message, is_acknowledged]
+      properties:
+        rule_id:
+          type: string
+          description: アラートを生成したルールのID
+        message:
+          type: string
+          description: アラートメッセージ
+        is_acknowledged:
+          type: boolean
+          description: 管理者が確認済みにしたかどうかのフラグ
+          default: false
+
+    AlertAcknowledgmentRequest:
+      type: object
+      required: [date, rule_id]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 対象日 (YYYY-MM-DD)
+        rule_id:
+          type: string
+          description: 対象ルールID

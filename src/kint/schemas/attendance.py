@@ -111,8 +111,9 @@ class AttendanceMonthlySummary(BaseModel):
     early_leave_count: int
     absence_days: int
     incomplete_days: int
-    alert_count: int = 0
-    yearly_working_hours: float = 0.0
+    alert_count: int
+    unacknowledged_alert_count: int = 0
+    yearly_working_hours: float | None = 0.0
 
 
 class PunchPeriod(BaseModel):
@@ -136,13 +137,28 @@ class ShiftPeriod(BaseModel):
     end_time: datetime
 
 
+class AlertResult(BaseModel):
+    """アラート判定結果。"""
+
+    rule_id: str
+    message: str
+    is_acknowledged: bool = False
+
+
+class AlertAcknowledgmentRequest(BaseModel):
+    """アラート確認・解除リクエスト。"""
+
+    date: date
+    rule_id: str
+
+
 class DailyAttendanceDetail(BaseModel):
-    """日次勤怠詳細。"""
+    """日別の勤怠詳細。"""
 
     work_date: date
     attendance_id: str | None = None
-    has_shift: bool
-    is_holiday: bool
+    has_shift: bool = False
+    is_holiday: bool = False
     shift_start: datetime | None = None
     shift_end: datetime | None = None
     check_in: datetime | None = None
@@ -168,8 +184,8 @@ class DailyAttendanceDetail(BaseModel):
     is_manual_work_time: bool = False
     punches: list[PunchPeriod] = []
     shifts: list[ShiftPeriod] = []
-    daily_alerts: list[str] = Field(default_factory=list)
-    weekly_alerts: list[str] = Field(default_factory=list)
+    daily_alerts: list[AlertResult] = Field(default_factory=list)
+    weekly_alerts: list[AlertResult] = Field(default_factory=list)
 
 
 class AttendanceMonthlyDetailResponse(BaseModel):

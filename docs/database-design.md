@@ -16,6 +16,7 @@
 | `email_verification_requests` | メール確認リクエスト（signup / email_change） |
 | `shifts`                    | iCal から取得したシフト情報              |
 | `system_settings`           | 管理画面から変更可能なシステム設定値     |
+| `attendance_alert_acknowledgments` | アラートの確認（承認）済みの記録       |
 
 ---
 
@@ -263,6 +264,23 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 
 ---
 
+### 2-9. `attendance_alert_acknowledgments`
+
+| カラム名 | 型 | 制約 | 説明 |
+|---|---|---|---|
+| `id` | TEXT | PK | UUID v4 |
+| `user_id` | TEXT | NOT NULL, FK → users.id ON DELETE CASCADE | アラート対象ユーザー |
+| `date` | DATE | NOT NULL | 対象の日付（YYYY-MM-DD） |
+| `rule_id` | TEXT | NOT NULL | 対象のアラート判定ルールID |
+| `acknowledged_by_user_id` | TEXT | NOT NULL, FK → users.id ON DELETE RESTRICT | 確認した管理者ユーザーID |
+| `created_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 作成（確認）日時 |
+
+インデックス:
+- `ix_attendance_alert_acks_user_date` — (user_id, date, rule_id) UNIQUE 相当のプライマリデータ管理
+- `ix_attendance_alert_acks_user_id` — 通常インデックス（ユーザー別確認履歴）
+
+---
+
 ## 3. ERD（物理モデル）
 
 ```mermaid
@@ -346,6 +364,24 @@ erDiagram
     DATETIME updated_at
   }
 
+  system_settings {
+    INTEGER id PK
+    TEXT key
+    TEXT value
+    TEXT description
+    DATETIME updated_at
+    TEXT updated_by_user_id FK
+  }
+
+  attendance_alert_acknowledgments {
+    TEXT id PK
+    TEXT user_id FK
+    DATE date
+    TEXT rule_id
+    TEXT acknowledged_by_user_id FK
+    DATETIME created_at
+  }
+
   users ||--o{ cards : 所有
   users ||--o{ attendances : 記録
   users ||--o{ attendance_change_logs : 実行
@@ -358,6 +394,8 @@ erDiagram
   users ||--o{ user_profile_change_logs : 実行者
   users ||--o{ system_settings : 最終更新者
   shifts ||--o{ attendances : 照合
+  users ||--o{ attendance_alert_acknowledgments : 対象
+  users ||--o{ attendance_alert_acknowledgments : 確認者
 ```
 
 ---

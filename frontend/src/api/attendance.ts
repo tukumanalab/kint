@@ -289,4 +289,35 @@ export async function importAttendanceCsv(
   return res.json() as Promise<AttendanceImportResponse>;
 }
 
+export async function acknowledgeAlert(
+  token: string,
+  user_id: string,
+  date: string,
+  rule_id: string,
+): Promise<void> {
+  await request<void>(
+    `/attendance/${user_id}/alerts/acknowledge`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ date, rule_id }),
+    },
+    token,
+  );
+}
+
+export async function unacknowledgeAlert(
+  token: string,
+  user_id: string,
+  date: string,
+  rule_id: string,
+): Promise<void> {
+  await request<void>(
+    `/attendance/${user_id}/alerts/acknowledge`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ date, rule_id }),
+    },
+    token,
+  );
+}
 
