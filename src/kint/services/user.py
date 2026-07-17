@@ -73,6 +73,7 @@ class UserService:
             select(User)
             .where(
                 User.is_active == 1,
+                User.role == "employee",
                 or_(
                     User.id.ilike(pattern),
                     User.name.ilike(pattern),

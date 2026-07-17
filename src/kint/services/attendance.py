@@ -303,6 +303,12 @@ class PunchService:
             source = "web_user_id"
             method = "user_id"
 
+        if user.role == "admin":
+            raise KintForbiddenError(
+                code="ADMIN_ATTENDANCE_NOT_ALLOWED",
+                message="管理者は打刻できません",
+            )
+
         diff_seconds = await self._get_cooldown_diff(user.id, request.occurred_at)
         if diff_seconds is not None:
             if diff_seconds < 10.0:
@@ -935,7 +941,7 @@ class AttendanceService:
             return False
 
         # 1. ユーザーの取得 (アクティブなユーザーのみ)
-        user_query = select(User).where(User.is_active == 1)
+        user_query = select(User).where(User.is_active == 1, User.role == "employee")
         if user_id is not None:
             user_query = user_query.where(User.id == user_id)
         user_result = await self.session.execute(user_query)
