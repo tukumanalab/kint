@@ -934,10 +934,14 @@ class AttendanceService:
         alert_rules = settings.attendance_alert_rules
 
         def _evaluate_rule(val, op: str, threshold) -> bool:
-            if op == "<": return val < threshold
-            elif op == "<=": return val <= threshold
-            elif op == ">": return val > threshold
-            elif op == ">=": return val >= threshold
+            if op == "<":
+                return val < threshold
+            elif op == "<=":
+                return val <= threshold
+            elif op == ">":
+                return val > threshold
+            elif op == ">=":
+                return val >= threshold
             return False
 
         # 1. ユーザーの取得 (アクティブなユーザーのみ)
@@ -1185,14 +1189,18 @@ class AttendanceService:
                 source = ", ".join(sources) if sources else None
 
                 is_valid_work = len(day_atts) > 0 and not has_incomplete_punch
-                
+
                 daily_alerts = []
                 for rule in alert_rules:
                     if rule.target == "check_in_time" and calc_check_in:
                         cin_jst = calc_check_in.astimezone(JST).strftime("%H:%M")
                         if _evaluate_rule(cin_jst, rule.operator, str(rule.threshold_value)):
                             is_ack = (user.id, curr_date, rule.id) in ack_map
-                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            daily_alerts.append(
+                                AlertResult(
+                                    rule_id=rule.id, message=rule.message, is_acknowledged=is_ack
+                                )
+                            )
                             alert_count += 1
                             if not is_ack:
                                 unacknowledged_alert_count += 1
@@ -1200,45 +1208,71 @@ class AttendanceService:
                         cout_jst = calc_check_out.astimezone(JST).strftime("%H:%M")
                         if _evaluate_rule(cout_jst, rule.operator, str(rule.threshold_value)):
                             is_ack = (user.id, curr_date, rule.id) in ack_map
-                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            daily_alerts.append(
+                                AlertResult(
+                                    rule_id=rule.id, message=rule.message, is_acknowledged=is_ack
+                                )
+                            )
                             alert_count += 1
                             if not is_ack:
                                 unacknowledged_alert_count += 1
                     elif rule.target == "daily_working_hours" and is_valid_work:
-                        if _evaluate_rule(working_hours, rule.operator, float(rule.threshold_value)):
+                        if _evaluate_rule(
+                            working_hours, rule.operator, float(rule.threshold_value)
+                        ):
                             is_ack = (user.id, curr_date, rule.id) in ack_map
-                            daily_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                            daily_alerts.append(
+                                AlertResult(
+                                    rule_id=rule.id, message=rule.message, is_acknowledged=is_ack
+                                )
+                            )
                             alert_count += 1
                             if not is_ack:
                                 unacknowledged_alert_count += 1
-                
+
                 if is_valid_work or (has_shift and len(day_atts) > 0 and not is_deleted_work):
-                     # is_deleted_work は line 1125 付近で計算されている。
-                     # ここでは is_valid_work であれば確実に勤務日
-                     pass
-                
+                    # is_deleted_work は line 1125 付近で計算されている。
+                    # ここでは is_valid_work であれば確実に勤務日
+                    pass
+
                 # 週間集計
                 if len(day_atts) > 0 and not is_deleted_work:
                     weekly_working_days += 1
                 weekly_working_hours += working_hours
-                
+
                 weekly_alerts = []
                 is_sunday = curr_date.weekday() == 6
                 is_last_day = curr_date == to_date
-                
+
                 if is_sunday or is_last_day:
                     for rule in alert_rules:
                         if rule.target == "weekly_working_days":
-                            if _evaluate_rule(weekly_working_days, rule.operator, float(rule.threshold_value)):
+                            if _evaluate_rule(
+                                weekly_working_days, rule.operator, float(rule.threshold_value)
+                            ):
                                 is_ack = (user.id, curr_date, rule.id) in ack_map
-                                weekly_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                                weekly_alerts.append(
+                                    AlertResult(
+                                        rule_id=rule.id,
+                                        message=rule.message,
+                                        is_acknowledged=is_ack,
+                                    )
+                                )
                                 alert_count += 1
                                 if not is_ack:
                                     unacknowledged_alert_count += 1
                         elif rule.target == "weekly_working_hours":
-                            if _evaluate_rule(weekly_working_hours, rule.operator, float(rule.threshold_value)):
+                            if _evaluate_rule(
+                                weekly_working_hours, rule.operator, float(rule.threshold_value)
+                            ):
                                 is_ack = (user.id, curr_date, rule.id) in ack_map
-                                weekly_alerts.append(AlertResult(rule_id=rule.id, message=rule.message, is_acknowledged=is_ack))
+                                weekly_alerts.append(
+                                    AlertResult(
+                                        rule_id=rule.id,
+                                        message=rule.message,
+                                        is_acknowledged=is_ack,
+                                    )
+                                )
                                 alert_count += 1
                                 if not is_ack:
                                     unacknowledged_alert_count += 1
@@ -2337,8 +2371,14 @@ class AttendanceService:
                 if norm_fn:
                     user_map[norm_fn] = u
 
-        reader = csv.reader(io.StringIO(content_str))
-        rows = list(reader)
+        try:
+            reader = csv.reader(io.StringIO(content_str))
+            rows = list(reader)
+        except csv.Error as e:
+            raise KintBadRequestError(
+                code="INVALID_CSV_FORMAT",
+                message=f"CSVファイルの形式が不正です: {e}",
+            )
 
         if not rows:
             return AttendanceImportResponse(
@@ -2479,7 +2519,7 @@ class AttendanceService:
             )
             existing_att = att_res.scalar_one_or_none()
 
-            now_dt = datetime.now()
+            now_dt = datetime.now(tz=UTC)
 
             if existing_att:
                 existing_att.check_in = check_in_dt
@@ -2522,7 +2562,9 @@ class AttendanceService:
             errors=errors,
         )
 
-    async def acknowledge_alert(self, user_id: str, alert_date: date, rule_id: str, admin_user_id: str) -> None:
+    async def acknowledge_alert(
+        self, user_id: str, alert_date: date, rule_id: str, admin_user_id: str
+    ) -> None:
         """指定したアラートを確認済としてマークする。"""
         # 既に存在するかチェック
         query = select(AttendanceAlertAcknowledgment).where(
