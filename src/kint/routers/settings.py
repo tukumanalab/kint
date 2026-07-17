@@ -202,7 +202,6 @@ async def restore_database_api(
             conn = await session.connection()
             raw_conn = await conn.get_raw_connection()
 
-            dest_conn = None
             candidates = [raw_conn]
             for attr in ["dbapi_connection", "_connection"]:
                 val = getattr(raw_conn, attr, None)

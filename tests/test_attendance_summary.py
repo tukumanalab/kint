@@ -459,7 +459,7 @@ class TestMultiplePunchesInSameDay:
         future_date = today + timedelta(days=5)  # 5日後の未来
 
         # ユーザーを作成
-        emp = await _create_user(
+        await _create_user(
             session,
             id="future_user",
             name="未来ユーザー",

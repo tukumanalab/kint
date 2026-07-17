@@ -106,7 +106,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
         role="employee",
     )
     # 従業員3 (メールアドレス空文字列)
-    emp3 = await _create_user(
+    await _create_user(
         session,
         id="employee3",
         name="従業員3",

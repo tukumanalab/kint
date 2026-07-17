@@ -35,7 +35,7 @@ async def _login(account_id: str) -> str:
 
 async def test_database_backup_restore_permissions(client: AsyncClient, session) -> None:
     # 1. 一般ユーザー（employee）でアクセスして 403 Forbidden になることを確認
-    normal = await _create_user(session, id="normal", email="normal@example.com", role="employee")
+    await _create_user(session, id="normal", email="normal@example.com", role="employee")
     token = await _login("normal")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -50,7 +50,7 @@ async def test_database_backup_restore_permissions(client: AsyncClient, session)
 
 async def test_database_backup_and_restore_flow(client: AsyncClient, session) -> None:
     # 1. 管理者（admin）でログイン
-    admin = await _create_user(session, id="admin", email="admin@example.com", role="admin")
+    await _create_user(session, id="admin", email="admin@example.com", role="admin")
     token = await _login("admin")
     headers = {"Authorization": f"Bearer {token}"}
 

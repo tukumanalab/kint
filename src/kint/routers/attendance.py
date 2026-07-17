@@ -12,6 +12,7 @@ from kint.exceptions import KintForbiddenError
 from kint.models.attendance import Attendance
 from kint.models.user import User
 from kint.schemas.attendance import (
+    AlertAcknowledgmentRequest,
     AttendanceCorrectionRequestApprove,
     AttendanceCorrectionRequestCreate,
     AttendanceCorrectionRequestListResponse,
@@ -27,7 +28,6 @@ from kint.schemas.attendance import (
     AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
-    AlertAcknowledgmentRequest,
 )
 from kint.services.attendance import AttendanceService
 

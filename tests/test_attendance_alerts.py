@@ -1,12 +1,12 @@
 """アラート確認・解除 API のテスト。"""
 
-from datetime import date, datetime
+from datetime import date
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from kint.models.attendance import AttendanceAlertAcknowledgment
-from kint.models.user import User
 from tests.test_attendance_summary import _create_user, _login
 
 
@@ -34,16 +34,13 @@ async def test_alert_acknowledgment(client: AsyncClient, session) -> None:
     emp_token = await _login(client, "emp_user")
 
     # 1. アラートを確認済みにするテスト
-    payload = {
-        "date": "2026-05-15",
-        "rule_id": "test_rule"
-    }
+    payload = {"date": "2026-05-15", "rule_id": "test_rule"}
 
     # 一般従業員がやろうとすると403になる
     response = await client.post(
         f"/api/v1/attendance/{emp.id}/alerts/acknowledge",
         json=payload,
-        headers={"Authorization": f"Bearer {emp_token}"}
+        headers={"Authorization": f"Bearer {emp_token}"},
     )
     assert response.status_code == 403
 
@@ -51,7 +48,7 @@ async def test_alert_acknowledgment(client: AsyncClient, session) -> None:
     response = await client.post(
         f"/api/v1/attendance/{emp.id}/alerts/acknowledge",
         json=payload,
-        headers={"Authorization": f"Bearer {admin_token}"}
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 204
 
@@ -59,7 +56,7 @@ async def test_alert_acknowledgment(client: AsyncClient, session) -> None:
     stmt = select(AttendanceAlertAcknowledgment).where(
         AttendanceAlertAcknowledgment.user_id == emp.id,
         AttendanceAlertAcknowledgment.date == date(2026, 5, 15),
-        AttendanceAlertAcknowledgment.rule_id == "test_rule"
+        AttendanceAlertAcknowledgment.rule_id == "test_rule",
     )
     result = await session.execute(stmt)
     ack = result.scalar_one_or_none()
@@ -71,7 +68,7 @@ async def test_alert_acknowledgment(client: AsyncClient, session) -> None:
         "DELETE",
         f"/api/v1/attendance/{emp.id}/alerts/acknowledge",
         json=payload,
-        headers={"Authorization": f"Bearer {admin_token}"}
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 204
 

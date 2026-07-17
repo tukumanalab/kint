@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kint.db import get_db
 from kint.schemas.punch import PunchRequest, PunchResponse, PunchUserCandidateListResponse
 from kint.services.attendance import PunchService
-from kint.services.user import UserService
-
 from kint.services.punch_device import PunchDeviceService
+from kint.services.user import UserService
 
 router = APIRouter(prefix="/punches", tags=["Punch"])
 

@@ -109,6 +109,7 @@ class SettingsService:
         )
 
         import json
+
         attendance_alert_rules_str = (
             attendance_alert_rules_raw
             if attendance_alert_rules_raw is not None
@@ -194,6 +195,7 @@ class SettingsService:
             fields["overtime_allowance_minutes"] = str(updates.overtime_allowance_minutes)
         if updates.attendance_alert_rules is not None:
             import json
+
             rules_dicts = [rule.model_dump() for rule in updates.attendance_alert_rules]
             fields["attendance_alert_rules"] = json.dumps(rules_dicts)
 
@@ -304,6 +306,7 @@ class SettingsService:
                     new_value = [AlertRule(**rule) for rule in raw_value]
                 elif isinstance(raw_value, str):
                     import json
+
                     try:
                         new_value = [AlertRule(**rule) for rule in json.loads(raw_value)]
                     except Exception:
@@ -317,7 +320,9 @@ class SettingsService:
             if key == "attendance_alert_rules":
                 # Compare lists of models
                 before_dicts = [r.model_dump() for r in before] if before else []
-                new_dicts = [r.model_dump() for r in new_value] if isinstance(new_value, list) else []
+                new_dicts = (
+                    [r.model_dump() for r in new_value] if isinstance(new_value, list) else []
+                )
                 if before_dicts == new_dicts:
                     ignored_keys.append(key)
                     continue
@@ -327,19 +332,35 @@ class SettingsService:
                     continue
 
             # SettingsImportChange expects simple types for before/after, so serialize rules to dict if it's rules
-            change_before = [r.model_dump() for r in before] if key == "attendance_alert_rules" and before else before
-            change_after = [r.model_dump() for r in new_value] if key == "attendance_alert_rules" and isinstance(new_value, list) else new_value
+            change_before = (
+                [r.model_dump() for r in before]
+                if key == "attendance_alert_rules" and before
+                else before
+            )
+            change_after = (
+                [r.model_dump() for r in new_value]
+                if key == "attendance_alert_rules" and isinstance(new_value, list)
+                else new_value
+            )
             # We can serialize complex objects as string for the API response, or the API might handle dicts. SettingsImportChange has `before: int | str | None`, so let's convert to str.
             if key == "attendance_alert_rules":
                 import json
-                change_before = json.dumps(change_before, ensure_ascii=False) if change_before else "[]"
-                change_after = json.dumps(change_after, ensure_ascii=False) if change_after else "[]"
-            
+
+                change_before = (
+                    json.dumps(change_before, ensure_ascii=False) if change_before else "[]"
+                )
+                change_after = (
+                    json.dumps(change_after, ensure_ascii=False) if change_after else "[]"
+                )
+
             changes.append(SettingsImportChange(key=key, before=change_before, after=change_after))
 
             if key == "attendance_alert_rules":
                 import json
-                valid_updates[key] = json.dumps([r.model_dump() for r in new_value] if isinstance(new_value, list) else [])
+
+                valid_updates[key] = json.dumps(
+                    [r.model_dump() for r in new_value] if isinstance(new_value, list) else []
+                )
             else:
                 valid_updates[key] = str(raw_value) if raw_value is not None else ""
 

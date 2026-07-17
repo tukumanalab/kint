@@ -1,15 +1,15 @@
 """システム設定スキーマ。"""
 
 import re
-from enum import Enum
-from typing import Any, Union
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
-class AlertTarget(str, Enum):
+class AlertTarget(StrEnum):
     check_in_time = "check_in_time"
     check_out_time = "check_out_time"
     daily_working_hours = "daily_working_hours"
@@ -17,7 +17,7 @@ class AlertTarget(str, Enum):
     weekly_working_hours = "weekly_working_hours"
 
 
-class AlertOperator(str, Enum):
+class AlertOperator(StrEnum):
     LT = "<"
     LTE = "<="
     GT = ">"
@@ -28,7 +28,7 @@ class AlertRule(BaseModel):
     id: str
     target: AlertTarget
     operator: AlertOperator
-    threshold_value: Union[str, float]
+    threshold_value: str | float
     message: str
 
 

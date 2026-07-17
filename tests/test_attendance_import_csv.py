@@ -1,12 +1,11 @@
 """勤務時間報告書 CSV インポート機能のテスト。"""
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kint.exceptions import KintForbiddenError
 from kint.models.attendance import Attendance
 from kint.models.user import User
 from kint.services.attendance import AttendanceService

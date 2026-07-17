@@ -22,23 +22,24 @@ from kint.exceptions import (
 )
 from kint.models.attendance import (
     Attendance,
+    AttendanceAlertAcknowledgment,
     AttendanceChangeLog,
     AttendanceCorrectionRequest,
     AttendanceLock,
-    AttendanceAlertAcknowledgment,
 )
 from kint.models.card import Card
 from kint.models.shift import Shift
 from kint.models.user import User
 from kint.schemas.attendance import (
+    AlertResult,
     AttendanceCorrectionRequestCreate,
     AttendanceCreateRequest,
     AttendanceHistoryEntry,
     AttendanceHistoryResponse,
+    AttendanceHistorySnapshot,
     AttendanceImportResponse,
     AttendanceImportRowError,
     AttendanceImportUnmatchedRow,
-    AttendanceHistorySnapshot,
     AttendanceListResponse,
     AttendanceMonthlyDetailResponse,
     AttendanceMonthlySummary,
@@ -47,7 +48,6 @@ from kint.schemas.attendance import (
     DailyAttendanceDetail,
     PunchPeriod,
     ShiftPeriod,
-    AlertResult,
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
 from kint.services.settings import SettingsService

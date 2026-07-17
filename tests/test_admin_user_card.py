@@ -33,7 +33,7 @@ class TestAdminUserCard:
     async def test_admin_manage_user_cards(self, client: AsyncClient, session: object) -> None:
         """管理者が他のユーザーのカードを取得、登録、名前変更、削除できること。"""
         # 管理者と一般従業員を作成
-        admin = await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
+        await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
         employee = await _create_user(
             session, id="empuser", role="employee", email="emp@example.com"
         )
@@ -99,7 +99,7 @@ class TestAdminUserCard:
         self, client: AsyncClient, session: object
     ) -> None:
         """一般従業員は他人のカードを管理できないこと（403 Forbidden）。"""
-        emp1 = await _create_user(session, id="emp1", role="employee", email="emp1@example.com")
+        await _create_user(session, id="emp1", role="employee", email="emp1@example.com")
         emp2 = await _create_user(session, id="emp2", role="employee", email="emp2@example.com")
 
         emp1_token = await _login(client, "emp1")

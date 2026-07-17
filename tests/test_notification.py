@@ -62,7 +62,7 @@ class TestNotificationAPI:
             message="通知テスト1",
             category="general",
         )
-        notif2 = await notif_svc.create_notification(
+        await notif_svc.create_notification(
             user_id=user.id,
             message="通知テスト2",
             category="general",
@@ -113,7 +113,7 @@ class TestAttendanceCorrectionNotification:
         """申請が却下された際、自動でお知らせが作成されること。"""
         # 一般ユーザーと管理者を作成
         user = await _create_user(session)
-        admin = await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
+        await _create_user(session, id="adminuser", role="admin", email="admin@example.com")
         admin_token = await _login("adminuser")
 
         # 勤怠レコードと申請を作成
