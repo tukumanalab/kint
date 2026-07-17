@@ -2419,6 +2419,9 @@ class AttendanceService:
         unmatched_names_set: set[str] = set()
         errors: list[AttendanceImportRowError] = []
 
+        existing_atts_cache: dict[tuple[str, date], list[Attendance]] = {}
+        processed_counts: dict[tuple[str, date], int] = {}
+
         jst = timezone(timedelta(hours=9))
 
         date_formats = [
@@ -2505,23 +2508,35 @@ class AttendanceService:
                 continue
 
             w_date = w_date_in
+            key = (target_user.id, w_date)
+
+            # キャッシュになければ DB からその日の全レコードを取得
+            if key not in existing_atts_cache:
+                att_res = await self.session.execute(
+                    select(Attendance)
+                    .where(
+                        Attendance.user_id == target_user.id,
+                        Attendance.work_date == w_date,
+                    )
+                    .order_by(Attendance.created_at.asc())
+                )
+                existing_atts_cache[key] = list(att_res.scalars().all())
+                processed_counts[key] = 0
+
+            # 既存レコードから今回の更新対象を特定
+            existing_list = existing_atts_cache[key]
+            idx = processed_counts[key]
+            processed_counts[key] += 1
 
             # CSVで報告された勤務開始・終了日時をそのまま出退勤および勤務時間として設定する
             work_start_dt = check_in_dt
             work_end_dt = check_out_dt
 
-            # 既存の Attendance レコードを検索 (Upsert)
-            att_res = await self.session.execute(
-                select(Attendance).where(
-                    Attendance.user_id == target_user.id,
-                    Attendance.work_date == w_date,
-                )
-            )
-            existing_att = att_res.scalar_one_or_none()
-
             now_dt = datetime.now(tz=UTC)
 
-            if existing_att:
+            if idx < len(existing_list):
+                # 既存レコードの上書き
+                existing_att = existing_list[idx]
                 existing_att.check_in = check_in_dt
                 existing_att.check_out = check_out_dt
                 existing_att.work_start = work_start_dt
@@ -2532,6 +2547,7 @@ class AttendanceService:
                 existing_att.updated_at = now_dt
                 updated_count += 1
             else:
+                # 新規作成
                 new_att = Attendance(
                     id=str(uuid.uuid4()),
                     user_id=target_user.id,
@@ -2548,6 +2564,49 @@ class AttendanceService:
                 )
                 self.session.add(new_att)
                 created_count += 1
+
+        # 余剰となった既存レコードのクリーンアップ
+        for key, existing_list in existing_atts_cache.items():
+            processed_num = processed_counts.get(key, 0)
+            if processed_num < len(existing_list):
+                excess_atts = existing_list[processed_num:]
+                for att in excess_atts:
+                    if att.source == "admin_manual":
+                        # 管理者手動追加レコードは物理削除
+                        await self.session.execute(
+                            delete(AttendanceChangeLog).where(
+                                AttendanceChangeLog.attendance_id == att.id
+                            )
+                        )
+                        await self.session.delete(att)
+                    else:
+                        # 実打刻レコードは勤務時間のみクリアして残す
+                        before_work_start = att.work_start
+                        before_work_end = att.work_end
+                        att.is_manual_work_time = True
+                        att.work_start = None
+                        att.work_end = None
+                        att.updated_reason = "CSVインポート時の余剰データクリア"
+                        att.last_updated_by_user_id = actor.id
+                        att.last_updated_at = datetime.now(tz=UTC)
+
+                        log = AttendanceChangeLog(
+                            id=str(uuid.uuid4()),
+                            attendance_id=att.id,
+                            actor_user_id=actor.id,
+                            actor_role=actor.role,
+                            before_check_in=att.check_in,
+                            before_check_out=att.check_out,
+                            after_check_in=att.check_in,
+                            after_check_out=att.check_out,
+                            before_work_start=before_work_start,
+                            before_work_end=before_work_end,
+                            after_work_start=None,
+                            after_work_end=None,
+                            reason="CSVインポート時の余剰データクリア",
+                            changed_at=datetime.now(tz=UTC),
+                        )
+                        self.session.add(log)
 
         await self.session.commit()
 

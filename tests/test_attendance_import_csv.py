@@ -235,3 +235,89 @@ async def test_import_csv_with_existing_shift_keeps_actual_times(session: AsyncS
     assert att.work_start == datetime(2026, 4, 1, 4, 0, 0)
     assert att.work_end == datetime(2026, 4, 1, 9, 0, 0)
     assert att.is_manual_work_time is True
+
+
+@pytest.mark.asyncio
+async def test_import_csv_with_multiple_existing_records(session: AsyncSession) -> None:
+    """同日にすでに複数の勤怠レコードが存在する場合でも、CSVインポートがクラッシュせずに処理されることをテスト。"""
+    # 管理者と従業員作成
+    admin = User(
+        id="user-admin",
+        name="管理者",
+        full_name="管理者 太郎",
+        email="admin@example.com",
+        role="admin",
+        is_active=1,
+    )
+    user = User(
+        id="user-1",
+        name="sato_ren",
+        full_name="佐藤 蓮",
+        email="sato@example.com",
+        role="employee",
+        is_active=1,
+    )
+    # 同日に2件の勤怠データをあらかじめ作成
+    att1 = Attendance(
+        id="att-1",
+        user_id="user-1",
+        work_date=date(2026, 4, 1),
+        check_in=datetime(2026, 4, 1, 4, 0, 0),  # 13:00 JST
+        check_out=datetime(2026, 4, 1, 6, 0, 0), # 15:00 JST
+        work_start=datetime(2026, 4, 1, 4, 0, 0),
+        work_end=datetime(2026, 4, 1, 6, 0, 0),
+        source="webusb_nfc",
+        created_at=datetime(2026, 4, 1, 4, 0, 0),
+        updated_at=datetime(2026, 4, 1, 4, 0, 0),
+    )
+    att2 = Attendance(
+        id="att-2",
+        user_id="user-1",
+        work_date=date(2026, 4, 1),
+        check_in=datetime(2026, 4, 1, 7, 0, 0),  # 16:00 JST
+        check_out=datetime(2026, 4, 1, 9, 0, 0), # 18:00 JST
+        work_start=datetime(2026, 4, 1, 7, 0, 0),
+        work_end=datetime(2026, 4, 1, 9, 0, 0),
+        source="webusb_nfc",
+        created_at=datetime(2026, 4, 1, 7, 0, 0),
+        updated_at=datetime(2026, 4, 1, 7, 0, 0),
+    )
+    session.add_all([admin, user, att1, att2])
+    await session.commit()
+
+    # CSV: 1行（同日に1回の勤務）
+    csv_text = (
+        "氏名,勤務開始日時,勤務終了日時\n"
+        "佐藤 蓮,2026/04/01 13:30,2026/04/01 17:30\n"
+    )
+
+    service = AttendanceService(session)
+    res = await service.import_csv_report(csv_text.encode("utf-8"), admin)
+
+    assert res.imported_count == 1
+    assert res.errors == []
+
+    # DBレコードの検証
+    # 元々あった2件のうち、1つ目が更新され、
+    # 2件目は source != "admin_manual" のため勤務時間がクリアされるはず
+    atts = (
+        await session.execute(
+            select(Attendance)
+            .where(Attendance.user_id == "user-1", Attendance.work_date == date(2026, 4, 1))
+            .order_by(Attendance.created_at.asc())
+        )
+    ).scalars().all()
+
+    assert len(atts) == 2
+    # 1件目は更新されたデータ (13:30 -> UTC 04:30, 17:30 -> UTC 08:30)
+    assert atts[0].id == "att-1"
+    assert atts[0].check_in.replace(tzinfo=None) == datetime(2026, 4, 1, 4, 30, 0)
+    assert atts[0].check_out.replace(tzinfo=None) == datetime(2026, 4, 1, 8, 30, 0)
+    assert atts[0].work_start.replace(tzinfo=None) == datetime(2026, 4, 1, 4, 30, 0)
+    assert atts[0].work_end.replace(tzinfo=None) == datetime(2026, 4, 1, 8, 30, 0)
+
+    # 2件目は勤務時間がクリアされる
+    assert atts[1].id == "att-2"
+    assert atts[1].work_start is None
+    assert atts[1].work_end is None
+
