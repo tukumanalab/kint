@@ -1709,13 +1709,17 @@ class AttendanceService:
                             day_shift_start_utc = ensure_utc(day.shift_start)
                             day_shift_end_utc = ensure_utc(day.shift_end)
 
-                            calc_cin, calc_cout = calculate_working_time(
-                                att_cin_utc,
-                                att_cout_utc,
-                                day_shift_start_utc,
-                                day_shift_end_utc,
-                                att.overtime_reason,
-                            )
+                            if att.is_manual_work_time:
+                                calc_cin = ensure_utc(att.work_start)
+                                calc_cout = ensure_utc(att.work_end)
+                            else:
+                                calc_cin, calc_cout = calculate_working_time(
+                                    att_cin_utc,
+                                    att_cout_utc,
+                                    day_shift_start_utc,
+                                    day_shift_end_utc,
+                                    att.overtime_reason,
+                                )
 
                             # 実労働時間（このエントリー単体、丸め後ベース）
                             working_hours = 0.0
