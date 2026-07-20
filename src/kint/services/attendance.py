@@ -1408,6 +1408,7 @@ class AttendanceService:
                     status=status,
                     source=source,
                     device_name=sorted_atts[0].device_name if sorted_atts else None,
+                    break_minutes=sum(a.break_minutes for a in day_atts) if day_atts else 0,
                     is_auto_completed=is_auto_completed,
                     is_manual_work_time=is_manual_day,
                     punches=punches,
@@ -1650,6 +1651,7 @@ class AttendanceService:
                     "出勤",
                     "退勤",
                     "勤務時間",
+                    "休憩時間(分)",
                     "勤怠ステータス",
                     "打刻ソース",
                     "修正理由",
@@ -1720,6 +1722,12 @@ class AttendanceService:
                             if calc_cin and calc_cout:
                                 duration = (calc_cout - calc_cin).total_seconds()
                                 working_hours = duration / 3600.0
+                            
+                            if att.break_minutes > 0:
+                                working_hours -= att.break_minutes / 60.0
+                            
+                            if working_hours < 0:
+                                working_hours = 0.0
 
                             # エントリーに特化したステータス
                             # もし att 自体が unfinished (check_out が NULL) なら "打刻漏れ"
@@ -1739,6 +1747,7 @@ class AttendanceService:
                                     fmt_dt(calc_cin),
                                     fmt_dt(calc_cout),
                                     format_to_h_mm(working_hours),
+                                    att.break_minutes if att.break_minutes > 0 else "",
                                     entry_status_label,
                                     att.source if att.source else "",
                                     att.updated_reason if att.updated_reason else "",

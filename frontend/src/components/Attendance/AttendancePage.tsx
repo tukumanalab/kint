@@ -963,7 +963,14 @@ export function AttendancePage({ auth }: Props) {
               formatPunchTime(day.calculated_check_out, day.check_out)
             )}
           </td>
-          <td>{formatHours(day.working_hours)}</td>
+          <td>
+            {formatHours(day.working_hours)}
+            {day.break_minutes && day.break_minutes > 0 ? (
+              <span className="att-text--muted" style={{ marginLeft: '4px', fontSize: '0.9em' }}>
+                ({day.break_minutes}分)
+              </span>
+            ) : null}
+          </td>
           <td>
             {getStatusBadge(day.status)}
             {day.daily_alerts && day.daily_alerts.length > 0 && (
