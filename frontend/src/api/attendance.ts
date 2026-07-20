@@ -321,3 +321,18 @@ export async function unacknowledgeAlert(
   );
 }
 
+export async function updateAttendanceBreak(
+  token: string,
+  attendanceId: string,
+  breakMinutes: number,
+  reason: string,
+): Promise<AttendanceRecord> {
+  return request<AttendanceRecord>(
+    `/attendance/${attendanceId}/break`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ break_minutes: breakMinutes, reason }),
+    },
+    token,
+  );
+}

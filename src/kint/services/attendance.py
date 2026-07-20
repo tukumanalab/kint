@@ -32,6 +32,7 @@ from kint.models.shift import Shift
 from kint.models.user import User
 from kint.schemas.attendance import (
     AlertResult,
+    AttendanceBreakUpdateRequest,
     AttendanceCorrectionRequestCreate,
     AttendanceCreateRequest,
     AttendanceHistoryEntry,
@@ -536,7 +537,13 @@ class PunchService:
                 )
                 if c_in and c_out:
                     daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
-            daily_working_hours_total = round(daily_working_hours_total, 2)
+            
+            if getattr(a, "break_minutes", 0) > 0:
+                daily_working_hours_total -= a.break_minutes / 60.0
+            
+        if daily_working_hours_total < 0:
+            daily_working_hours_total = 0.0
+        daily_working_hours_total = round(daily_working_hours_total, 2)
 
         _LAST_PUNCH_TIME[user.id] = request.occurred_at
         await self.session.commit()
@@ -872,6 +879,66 @@ class AttendanceService:
 
         return AttendanceRecord.model_validate(attendance)
 
+    async def update_break_minutes(
+        self,
+        attendance_id: str,
+        patch: AttendanceBreakUpdateRequest,
+        actor: User,
+    ) -> AttendanceRecord:
+        """休憩時間を追加・更新し、変更履歴を保存する。"""
+        result = await self.session.execute(
+            select(Attendance).where(Attendance.id == attendance_id)
+        )
+        attendance = result.scalar_one_or_none()
+        if attendance is None:
+            raise KintNotFoundError(
+                code="ATTENDANCE_NOT_FOUND",
+                message=f"勤怠記録 '{attendance_id}' が見つかりません",
+            )
+
+        # 締め（ロック）チェック
+        if await self.is_date_locked(attendance.work_date):
+            raise KintBadRequestError(
+                code="ATTENDANCE_LOCKED",
+                message="対象年月の勤怠は締め処理が完了しているため、変更できません。",
+            )
+
+        if actor.role != "admin" and attendance.user_id != actor.id:
+            raise KintForbiddenError(
+                code="FORBIDDEN",
+                message="他人の勤怠の休憩時間は変更できません。",
+            )
+
+        now = datetime.now(tz=UTC)
+        attendance.break_minutes = patch.break_minutes
+        attendance.updated_reason = patch.reason
+        attendance.last_updated_by_user_id = actor.id
+        attendance.last_updated_at = now
+
+        await self.session.flush()
+
+        # 監査ログを記録
+        log = AttendanceChangeLog(
+            id=str(uuid.uuid4()),
+            attendance_id=attendance.id,
+            actor_user_id=actor.id,
+            actor_role=actor.role,
+            before_check_in=attendance.check_in,
+            before_check_out=attendance.check_out,
+            after_check_in=attendance.check_in,
+            after_check_out=attendance.check_out,
+            before_work_start=attendance.work_start,
+            before_work_end=attendance.work_end,
+            after_work_start=attendance.work_start,
+            after_work_end=attendance.work_end,
+            reason=patch.reason,
+            changed_at=now,
+        )
+        self.session.add(log)
+        await self.session.commit()
+
+        return AttendanceRecord.model_validate(attendance)
+
     async def get_history(self, attendance_id: str) -> AttendanceHistoryResponse:
         """指定勤怠の変更履歴一覧を返す。"""
         # 勤怠レコードの存在確認
@@ -1098,6 +1165,12 @@ class AttendanceService:
                             if c_in and c_out:
                                 working_hours += (c_out - c_in).total_seconds() / 3600.0
 
+                    if a.break_minutes > 0:
+                        working_hours -= a.break_minutes / 60.0
+                
+                if working_hours < 0:
+                    working_hours = 0.0
+
                 # 時間外労働時間の算出
                 if has_shift and shift_end_utc and calc_check_out:
                     if calc_check_out > shift_end_utc:
@@ -1310,6 +1383,7 @@ class AttendanceService:
                             overtime_reason=a.overtime_reason,
                             device_name=a.device_name,
                             is_manual_work_time=a.is_manual_work_time,
+                            break_minutes=a.break_minutes,
                         )
                     )
 

@@ -43,6 +43,7 @@ export interface PunchPeriod {
   overtime_reason?: string | null;
   device_name?: string | null;
   is_manual_work_time?: boolean;
+  break_minutes?: number;
 }
 
 export interface DailyAttendanceDetail {
@@ -63,6 +64,7 @@ export interface DailyAttendanceDetail {
   device_name?: string | null;
   is_auto_completed?: boolean;
   is_manual_work_time?: boolean;
+  break_minutes?: number;
   punches?: PunchPeriod[];
   shifts?: { start_time: string; end_time: string }[];
   daily_alerts?: AlertResult[];
@@ -141,6 +143,7 @@ export interface AttendanceRecord {
   work_start: string | null;
   work_end: string | null;
   is_manual_work_time: boolean;
+  break_minutes?: number;
   source: 'webusb_nfc' | 'web_user_id' | 'admin_manual' | 'self_service';
   updated_reason: string | null;
   is_auto_completed: boolean;

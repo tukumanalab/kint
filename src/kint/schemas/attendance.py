@@ -18,6 +18,7 @@ class AttendanceRecord(BaseModel):
     work_start: datetime | None = None
     work_end: datetime | None = None
     is_manual_work_time: bool = False
+    break_minutes: int = 0
     source: Literal["webusb_nfc", "web_user_id", "admin_manual", "self_service"]
     updated_reason: str | None = None
     is_auto_completed: bool = False
@@ -53,6 +54,13 @@ class AttendancePatchRequest(BaseModel):
     check_out: datetime | None = None
     edit_mode: Literal["punch", "work", "auto"] = "work"
     reset_to_auto: bool = False
+    reason: str
+
+
+class AttendanceBreakUpdateRequest(BaseModel):
+    """休憩時間更新リクエスト。"""
+
+    break_minutes: int
     reason: str
 
 
@@ -128,6 +136,7 @@ class PunchPeriod(BaseModel):
     overtime_reason: str | None = None
     device_name: str | None = None
     is_manual_work_time: bool = False
+    break_minutes: int = 0
 
 
 class ShiftPeriod(BaseModel):
@@ -182,6 +191,7 @@ class DailyAttendanceDetail(BaseModel):
     device_name: str | None = None
     is_auto_completed: bool = False
     is_manual_work_time: bool = False
+    break_minutes: int = 0
     punches: list[PunchPeriod] = []
     shifts: list[ShiftPeriod] = []
     daily_alerts: list[AlertResult] = Field(default_factory=list)

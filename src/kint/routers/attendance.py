@@ -13,6 +13,7 @@ from kint.models.attendance import Attendance
 from kint.models.user import User
 from kint.schemas.attendance import (
     AlertAcknowledgmentRequest,
+    AttendanceBreakUpdateRequest,
     AttendanceCorrectionRequestApprove,
     AttendanceCorrectionRequestCreate,
     AttendanceCorrectionRequestListResponse,
@@ -74,6 +75,18 @@ async def patch_attendance(
 
     service = AttendanceService(session)
     return await service.patch_attendance(attendance_id, body, current_user)
+
+
+@router.patch("/{attendance_id}/break", response_model=AttendanceRecord)
+async def patch_attendance_break(
+    attendance_id: str,
+    body: AttendanceBreakUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> AttendanceRecord:
+    """休憩時間を追加・更新する。管理者または当事者のみ実行可能。"""
+    service = AttendanceService(session)
+    return await service.update_break_minutes(attendance_id, body, current_user)
 
 
 @router.get("/{attendance_id}/history", response_model=AttendanceHistoryResponse)

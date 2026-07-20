@@ -17,6 +17,7 @@ import {
   importAttendanceCsv,
   acknowledgeAlert,
   unacknowledgeAlert,
+  updateAttendanceBreak,
 } from '../../api/attendance';
 import type { UseAuth } from '../../hooks/useAuth';
 import type {
@@ -163,6 +164,21 @@ export function AttendancePage({ auth }: Props) {
       setHistoryError(err instanceof Error ? err.message : '変更履歴の取得に失敗しました');
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleToggleBreak = async (attendanceId: string, currentBreakMinutes: number | undefined) => {
+    if (!auth.token || !detailData) return;
+    const newBreak = currentBreakMinutes && currentBreakMinutes > 0 ? 0 : 60;
+    const actionName = newBreak > 0 ? '休憩(60分)を追加' : '休憩を取消';
+    if (!window.confirm(`${actionName}しますか？`)) return;
+
+    try {
+      await updateAttendanceBreak(auth.token, attendanceId, newBreak, `ユーザー操作による${actionName}`);
+      // Refresh detail data
+      handleViewDetail(detailData.summary);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '休憩時間の更新に失敗しました');
     }
   };
 
@@ -1050,6 +1066,15 @@ export function AttendancePage({ auth }: Props) {
                           履歴
                         </button>
                       )}
+                      {p.attendance_id && detailData && !detailData.is_locked && (isAdmin || auth.user?.id === detailData.summary.user_id) && (
+                        <button
+                          type="button"
+                          className={`att-btn att-btn--small ${p.break_minutes && p.break_minutes > 0 ? 'att-btn--secondary' : ''}`}
+                          onClick={() => handleToggleBreak(p.attendance_id!, p.break_minutes)}
+                        >
+                          {p.break_minutes && p.break_minutes > 0 ? '休憩取消' : '休憩(60分)'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1096,6 +1121,15 @@ export function AttendancePage({ auth }: Props) {
                     >
                       履歴
                     </button>
+                    {detailData && !detailData.is_locked && (isAdmin || auth.user?.id === detailData.summary.user_id) && (
+                      <button
+                        type="button"
+                        className={`att-btn att-btn--small ${day.break_minutes && day.break_minutes > 0 ? 'att-btn--secondary' : ''}`}
+                        onClick={() => handleToggleBreak(day.attendance_id!, day.break_minutes)}
+                      >
+                        {day.break_minutes && day.break_minutes > 0 ? '休憩取消' : '休憩(60分)'}
+                      </button>
+                    )}
                   </div>
                 )
               )}

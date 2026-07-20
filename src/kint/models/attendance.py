@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
@@ -33,6 +33,9 @@ class Attendance(Base):
     check_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     work_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     work_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    break_minutes: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     is_manual_work_time: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="0", nullable=False
     )
