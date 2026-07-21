@@ -721,11 +721,29 @@ export function AttendancePage({ auth }: Props) {
     return getSourceLabel(source);
   };
 
+  const parseUtcDate = (timeStr: string): Date => {
+    const normalized =
+      timeStr.includes('T') && !timeStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(timeStr)
+        ? `${timeStr}Z`
+        : timeStr;
+    return new Date(normalized);
+  };
+
   const formatTime = (timeStr: string | null) => {
     if (!timeStr) return '-';
     try {
-      const d = new Date(timeStr);
+      const d = parseUtcDate(timeStr);
       return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatDateTime = (dateTimeStr: string | null) => {
+    if (!dateTimeStr) return '-';
+    try {
+      const d = parseUtcDate(dateTimeStr);
+      return d.toLocaleString('ja-JP');
     } catch {
       return '-';
     }
@@ -2498,40 +2516,47 @@ export function AttendancePage({ auth }: Props) {
             
             {!historyLoading && !historyError && historyData.length > 0 && (
               <div className="att-history-timeline">
-                {historyData.map((entry) => (
-                  <div key={entry.id} className="att-history-item" style={{ borderBottom: '1px solid #eaecef', padding: '12px 0' }}>
-                    <div className="att-history-meta" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#586069' }}>
-                      <span className="att-history-date">
-                        {new Date(entry.changed_at).toLocaleString('ja-JP')}
-                      </span>
-                      <span className={`att-history-role att-history-role--${entry.actor_role}`}>
-                        {entry.actor_role === 'admin' ? '管理者' : '従業員'} (ID: {entry.actor_user_id})
-                      </span>
-                    </div>
-                    <div className="att-history-comparison" style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f6f8fa', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
-                      <div className="att-history-state">
-                        <span className="att-meta-label" style={{ color: '#586069' }}>前：</span>
-                        <span style={{ color: '#586069' }}>
-                          {entry.before.check_in ? formatTime(entry.before.check_in) : '未打刻'} 〜{' '}
-                          {entry.before.check_out ? formatTime(entry.before.check_out) : '未打刻'}
+                {historyData.map((entry) => {
+                  const beforeStart = entry.before.check_in || entry.before.work_start;
+                  const beforeEnd = entry.before.check_out || entry.before.work_end;
+                  const afterStart = entry.after.check_in || entry.after.work_start;
+                  const afterEnd = entry.after.check_out || entry.after.work_end;
+
+                  return (
+                    <div key={entry.id} className="att-history-item" style={{ borderBottom: '1px solid #eaecef', padding: '12px 0' }}>
+                      <div className="att-history-meta" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#586069' }}>
+                        <span className="att-history-date">
+                          {formatDateTime(entry.changed_at)}
+                        </span>
+                        <span className={`att-history-role att-history-role--${entry.actor_role}`}>
+                          {entry.actor_role === 'admin' ? '管理者' : '従業員'} (ID: {entry.actor_user_id})
                         </span>
                       </div>
-                      <div className="att-history-state">
-                        <span className="att-meta-label" style={{ color: '#0366d6' }}>後：</span>
-                        <span style={{ fontWeight: 'bold' }}>
-                          {entry.after.check_in ? formatTime(entry.after.check_in) : '未打刻'} 〜{' '}
-                          {entry.after.check_out ? formatTime(entry.after.check_out) : '未打刻'}
-                        </span>
+                      <div className="att-history-comparison" style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f6f8fa', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
+                        <div className="att-history-state">
+                          <span className="att-meta-label" style={{ color: '#586069' }}>前：</span>
+                          <span style={{ color: '#586069' }}>
+                            {beforeStart ? formatTime(beforeStart) : '未打刻'} 〜{' '}
+                            {beforeEnd ? formatTime(beforeEnd) : '未打刻'}
+                          </span>
+                        </div>
+                        <div className="att-history-state">
+                          <span className="att-meta-label" style={{ color: '#0366d6' }}>後：</span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            {afterStart ? formatTime(afterStart) : '未打刻'} 〜{' '}
+                            {afterEnd ? formatTime(afterEnd) : '未打刻'}
+                          </span>
+                        </div>
                       </div>
+                      {entry.reason && (
+                        <div className="att-history-reason" style={{ fontSize: '13px', background: '#f9f9f9', padding: '8px', borderLeft: '3px solid #0366d6', borderRadius: '0 4px 4px 0' }}>
+                          <strong>理由：</strong>
+                          <span>{entry.reason}</span>
+                        </div>
+                      )}
                     </div>
-                    {entry.reason && (
-                      <div className="att-history-reason" style={{ fontSize: '13px', background: '#f9f9f9', padding: '8px', borderLeft: '3px solid #0366d6', borderRadius: '0 4px 4px 0' }}>
-                        <strong>理由：</strong>
-                        <span>{entry.reason}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

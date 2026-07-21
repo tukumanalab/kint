@@ -173,6 +173,62 @@ describe('AttendancePage - History', () => {
     });
   });
 
+  it('ZなしのISO文字列が返された場合もローカルタイムで正しく時刻が表示されること', async () => {
+    const mockNaiveHistory = {
+      items: [
+        {
+          id: 'history-2',
+          attendance_id: 'att-123',
+          actor_user_id: 'admin-user',
+          actor_role: 'admin' as const,
+          changed_at: '2026-06-09T04:37:36',
+          before: {
+            check_in: '2026-06-09T04:36:00',
+            check_out: null,
+            work_start: null,
+            work_end: null,
+          },
+          after: {
+            check_in: '2026-06-09T04:00:00',
+            check_out: null,
+            work_start: null,
+            work_end: null,
+          },
+          reason: 'ローカルタイムテスト',
+        },
+      ],
+      total: 1,
+    };
+    vi.mocked(attendanceApi.getAttendanceHistory).mockResolvedValue(mockNaiveHistory);
+
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
+    });
+
+    const viewDetailBtn = screen.getByRole('button', { name: '詳細カレンダー' });
+    fireEvent.click(viewDetailBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    });
+
+    const historyBtn = screen.getAllByRole('button', { name: '履歴' })[0];
+    fireEvent.click(historyBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('変更履歴 (2026-06-09)')).toBeInTheDocument();
+      expect(screen.getByText('ローカルタイムテスト')).toBeInTheDocument();
+
+      const parseUtcDate = (str: string) => new Date(str.endsWith('Z') ? str : `${str}Z`);
+      const expectedBeforeTime = parseUtcDate('2026-06-09T04:36:00').toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      const expectedAfterTime = parseUtcDate('2026-06-09T04:00:00').toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      expect(screen.getByText(new RegExp(expectedBeforeTime))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(expectedAfterTime))).toBeInTheDocument();
+    });
+  });
+
   it('一般従業員でログインした場合も、自身の履歴ボタンが表示され、クリックすると履歴が表示されること', async () => {
     render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
 

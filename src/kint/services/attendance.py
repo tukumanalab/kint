@@ -957,24 +957,29 @@ class AttendanceService:
         )
         logs = result.scalars().all()
 
+        def _ensure_utc(dt: datetime | None) -> datetime | None:
+            if dt is None:
+                return None
+            return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
+
         items = [
             AttendanceHistoryEntry(
                 id=log.id,
                 attendance_id=log.attendance_id,
                 actor_user_id=log.actor_user_id,
                 actor_role=log.actor_role,  # type: ignore[arg-type]
-                changed_at=log.changed_at,
+                changed_at=_ensure_utc(log.changed_at),  # type: ignore[arg-type]
                 before=AttendanceHistorySnapshot(
-                    check_in=log.before_check_in,
-                    check_out=log.before_check_out,
-                    work_start=log.before_work_start,
-                    work_end=log.before_work_end,
+                    check_in=_ensure_utc(log.before_check_in),
+                    check_out=_ensure_utc(log.before_check_out),
+                    work_start=_ensure_utc(log.before_work_start),
+                    work_end=_ensure_utc(log.before_work_end),
                 ),
                 after=AttendanceHistorySnapshot(
-                    check_in=log.after_check_in,
-                    check_out=log.after_check_out,
-                    work_start=log.after_work_start,
-                    work_end=log.after_work_end,
+                    check_in=_ensure_utc(log.after_check_in),
+                    check_out=_ensure_utc(log.after_check_out),
+                    work_start=_ensure_utc(log.after_work_start),
+                    work_end=_ensure_utc(log.after_work_end),
                 ),
                 reason=log.reason,
             )
