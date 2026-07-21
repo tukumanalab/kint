@@ -537,13 +537,12 @@ class PunchService:
                 )
                 if c_in and c_out:
                     daily_working_hours_total += (c_out - c_in).total_seconds() / 3600.0
-            
-            if getattr(a, "break_minutes", 0) > 0:
-                daily_working_hours_total -= a.break_minutes / 60.0
-            
-        if daily_working_hours_total < 0:
-            daily_working_hours_total = 0.0
-        daily_working_hours_total = round(daily_working_hours_total, 2)
+                if getattr(a, "break_minutes", 0) > 0:
+                    daily_working_hours_total -= a.break_minutes / 60.0
+
+            if daily_working_hours_total < 0:
+                daily_working_hours_total = 0.0
+            daily_working_hours_total = round(daily_working_hours_total, 2)
 
         _LAST_PUNCH_TIME[user.id] = request.occurred_at
         await self.session.commit()

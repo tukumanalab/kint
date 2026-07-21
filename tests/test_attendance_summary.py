@@ -145,8 +145,8 @@ class TestAttendanceSummaryAPI:
         assert resp.status_code == 200, resp.text
         data = resp.json()
 
-        # 管理者と従業員の2人が active なので、2件
-        assert len(data) == 2
+        # 管理者は除外され、アクティブな従業員のみ取得（1件）
+        assert len(data) == 1
 
         emp_summary = next(x for x in data if x["user_id"] == "emp_user")
         assert emp_summary["prescribed_days"] == 4
@@ -278,6 +278,7 @@ class TestAttendanceExportAPI:
             "出勤",
             "退勤",
             "勤務時間",
+            "休憩時間(分)",
             "勤怠ステータス",
             "打刻ソース",
             "修正理由",
@@ -301,8 +302,8 @@ class TestAttendanceExportAPI:
         f = io.StringIO(csv_str)
         reader = csv.reader(f)
         rows = list(reader)
-        # ヘッダー + 2人分 = 3行
-        assert len(rows) == 3
+        # ヘッダー + 従業員1人分 = 2行（管理者は除外）
+        assert len(rows) == 2
         assert rows[0][0] == "対象月"
 
     async def test_export_csv_employee_forbidden(self, client: AsyncClient, session) -> None:
