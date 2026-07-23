@@ -175,8 +175,8 @@ export function AttendancePage({ auth }: Props) {
 
     try {
       await updateAttendanceBreak(auth.token, attendanceId, newBreak, `ユーザー操作による${actionName}`);
-      // Refresh detail data
-      handleViewDetail(detailData.summary);
+      // Refresh detail data silently
+      handleViewDetail(detailData.summary, { silent: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : '休憩時間の更新に失敗しました');
     }
@@ -257,7 +257,7 @@ export function AttendancePage({ auth }: Props) {
       }
       setShowAddModal(false);
       // 再読み込み
-      await fetchSummary();
+      await fetchSummary({ silent: true });
       if (selectedUser) {
         const updatedDetail = await getMonthlyAttendanceDetail(auth.token, yearMonth, selectedUser.user_id);
         setDetailData(updatedDetail);
@@ -276,7 +276,7 @@ export function AttendancePage({ auth }: Props) {
     try {
       await deleteAttendance(auth.token, attendanceId);
       // 再読み込み
-      await fetchSummary();
+      await fetchSummary({ silent: true });
       if (selectedUser) {
         const updatedDetail = await getMonthlyAttendanceDetail(auth.token, yearMonth, selectedUser.user_id);
         setDetailData(updatedDetail);
@@ -286,30 +286,12 @@ export function AttendancePage({ auth }: Props) {
     }
   };
 
-  // サマリー (管理者：全員、一般：自分のみ) の取得
-  const fetchSummary = useCallback(async () => {
-    if (!auth.token) return;
-    setLoading(true);
-    setError(null);
-    try {
-      // getAttendanceSummary は、バックエンド側で一般従業員の場合 user_id を自動で自分自身に制限
-      const data = await getAttendanceSummary(auth.token, yearMonth);
-      setSummaries(data);
-
-      // 一般従業員の場合は、自動的に詳細もロードしてあげる
-      if (!isAdmin && data.length > 0) {
-        handleViewDetail(data[0]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '勤怠データの取得に失敗しました');
-    } finally {
-      setLoading(false);
-    }
-  }, [auth.token, yearMonth]);
-
   const loadDetail = useCallback(
-    async (targetUserId: string, targetMonth: string) => {
-      setDetailLoading(true);
+    async (targetUserId: string, targetMonth: string, options?: { silent?: boolean }) => {
+      const isSilent = options?.silent ?? false;
+      if (!isSilent) {
+        setDetailLoading(true);
+      }
       setDetailError(null);
       try {
         const data = await getMonthlyAttendanceDetail(
@@ -322,10 +304,50 @@ export function AttendancePage({ auth }: Props) {
         console.error(err);
         setDetailError('詳細データの取得に失敗しました。');
       } finally {
-        setDetailLoading(false);
+        if (!isSilent) {
+          setDetailLoading(false);
+        }
       }
     },
     [auth.token]
+  );
+
+  const handleViewDetail = useCallback(
+    async (summary: AttendanceMonthlySummary, options?: { silent?: boolean }) => {
+      if (!auth.token) return;
+      setSelectedUser(summary);
+      loadDetail(summary.user_id, yearMonth, options);
+    },
+    [auth.token, loadDetail, yearMonth]
+  );
+
+  // サマリー (管理者：全員、一般：自分のみ) の取得
+  const fetchSummary = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!auth.token) return;
+      const isSilent = options?.silent ?? false;
+      if (!isSilent) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        // getAttendanceSummary は、バックエンド側で一般従業員の場合 user_id を自動で自分自身に制限
+        const data = await getAttendanceSummary(auth.token, yearMonth);
+        setSummaries(data);
+
+        // 一般従業員の場合は、自動的に詳細もロードしてあげる
+        if (!isAdmin && data.length > 0) {
+          handleViewDetail(data[0], { silent: isSilent });
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '勤怠データの取得に失敗しました');
+      } finally {
+        if (!isSilent) {
+          setLoading(false);
+        }
+      }
+    },
+    [auth.token, yearMonth, isAdmin, handleViewDetail]
   );
 
   const handleToggleAlertAcknowledgment = async (date: string, ruleId: string, currentStatus: boolean) => {
@@ -336,8 +358,8 @@ export function AttendancePage({ auth }: Props) {
       } else {
         await acknowledgeAlert(auth.token, selectedUser.user_id, date, ruleId);
       }
-      await loadDetail(selectedUser.user_id, yearMonth);
-      await fetchSummary();
+      await loadDetail(selectedUser.user_id, yearMonth, { silent: true });
+      await fetchSummary({ silent: true });
     } catch (err) {
       console.error('Failed to toggle alert acknowledgment', err);
       alert('アラートの確認状態の更新に失敗しました。');
@@ -362,13 +384,6 @@ export function AttendancePage({ auth }: Props) {
   useEffect(() => {
     fetchCorrectionRequests();
   }, [fetchCorrectionRequests]);
-
-  // 詳細データの取得
-  const handleViewDetail = async (summary: AttendanceMonthlySummary) => {
-    if (!auth.token) return;
-    setSelectedUser(summary);
-    loadDetail(summary.user_id, yearMonth);
-  };
 
   // CSVダウンロード
   const handleDownloadCsv = async (scope: 'summary' | 'detailed') => {
@@ -1830,7 +1845,7 @@ export function AttendancePage({ auth }: Props) {
               )}
             </div>
           </div>
-          {loading ? (
+          {loading && summaries.length === 0 ? (
             <div className="att-loading">読み込み中...</div>
           ) : summaries.length === 0 ? (
             <div className="att-empty">データが登録されていません。</div>
@@ -1980,10 +1995,10 @@ export function AttendancePage({ auth }: Props) {
             </div>
           )}
 
-          {detailLoading && <div className="att-loading">詳細の読み込み中...</div>}
+          {detailLoading && !detailData && <div className="att-loading">詳細の読み込み中...</div>}
           {detailError && <div className="att-alert att-alert--danger">{detailError}</div>}
 
-          {!detailLoading && detailData && (
+          {detailData && (
             <div>
               {/* 一般ユーザー用のインジケーター（簡易サマリー表示） */}
               {!isAdmin && detailData.summary && (
