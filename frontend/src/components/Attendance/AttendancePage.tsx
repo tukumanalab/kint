@@ -177,6 +177,7 @@ export function AttendancePage({ auth }: Props) {
       await updateAttendanceBreak(auth.token, attendanceId, newBreak, `ユーザー操作による${actionName}`);
       // Refresh detail data silently
       handleViewDetail(detailData.summary, { silent: true });
+      await fetchSummary({ silent: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : '休憩時間の更新に失敗しました');
     }
@@ -334,6 +335,17 @@ export function AttendancePage({ auth }: Props) {
         // getAttendanceSummary は、バックエンド側で一般従業員の場合 user_id を自動で自分自身に制限
         const data = await getAttendanceSummary(auth.token, yearMonth);
         setSummaries(data);
+
+        // 選択中のユーザーのサマリー情報も最新データで更新（選択状態・フィルターを崩さず維持）
+        setSelectedUser((prevSelected) => {
+          if (!prevSelected) return null;
+          const updated = data.find((u) => u.user_id === prevSelected.user_id);
+          if (!updated) return prevSelected;
+          if (JSON.stringify(prevSelected) === JSON.stringify(updated)) {
+            return prevSelected;
+          }
+          return updated;
+        });
 
         // 一般従業員の場合は、自動的に詳細もロードしてあげる
         if (!isAdmin && data.length > 0) {
@@ -630,6 +642,9 @@ export function AttendancePage({ auth }: Props) {
       if (selectedUser) {
         await loadDetail(selectedUser.user_id, yearMonth);
       }
+      if (isAdmin) {
+        await fetchSummary({ silent: true });
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : '処理に失敗しました');
     }
@@ -670,6 +685,9 @@ export function AttendancePage({ auth }: Props) {
         await loadDetail(selectedUser.user_id, yearMonth);
       } else if (!isAdmin && summaries.length > 0) {
         await loadDetail(summaries[0].user_id, yearMonth);
+      }
+      if (approvalFormData.action === 'approve') {
+        await fetchSummary({ silent: true });
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : '処理に失敗しました');
