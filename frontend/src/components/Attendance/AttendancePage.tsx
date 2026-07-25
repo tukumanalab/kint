@@ -2929,6 +2929,7 @@ export function AttendancePage({ auth }: Props) {
       {showGuide && (
         <AttendanceGuideModal
           isAdmin={isAdmin}
+          token={auth.token || ''}
           onClose={() => setShowGuide(false)}
         />
       )}

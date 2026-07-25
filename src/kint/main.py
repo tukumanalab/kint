@@ -25,6 +25,7 @@ from kint.models.user import User
 from kint.routers import (
     attendance,
     auth,
+    docs,
     email_verification,
     logs,
     me,
@@ -182,6 +183,7 @@ app.include_router(email_verification.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
 app.include_router(shifts.router, prefix="/api/v1")
 app.include_router(logs.router, prefix="/api/v1")
+app.include_router(docs.router, prefix="/api/v1")
 
 
 # ------------------------------------------------------------------

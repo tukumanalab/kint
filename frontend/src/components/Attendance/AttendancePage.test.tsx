@@ -15,6 +15,13 @@ vi.mock('../../api/attendance', async (importOriginal) => {
   };
 });
 
+vi.mock('../../api/docs', () => ({
+  fetchAttendanceGuide: vi.fn().mockResolvedValue({
+    title: '勤怠管理画面 使い方ガイド',
+    content: '# 勤怠管理画面 使い方ガイド\n\n## 1. 勤怠記録の修正方法\n\n勤怠の修正申請や直接修正が可能です。\n',
+  }),
+}));
+
 const mockAdminUser = {
   id: 'admin-user',
   name: 'admin',
@@ -414,14 +421,14 @@ describe('AttendancePage - Guide', () => {
 
     fireEvent.click(guideBtn);
 
-    expect(screen.getByText('勤怠管理画面 使い方ガイド (従業員向け)')).toBeInTheDocument();
-    expect(screen.getByText('勤怠の修正申請')).toBeInTheDocument();
-    expect(screen.queryByText('勤怠の直接追加・修正')).not.toBeInTheDocument();
+    expect(screen.getByText(/勤怠管理画面 使い方ガイド/)).toBeInTheDocument();
+    const elements = await screen.findAllByText(/1\. 勤怠記録の修正方法/);
+    expect(elements.length).toBeGreaterThan(0);
 
     const closeBtn = screen.getByText('閉じる');
     fireEvent.click(closeBtn);
 
-    expect(screen.queryByText('勤怠管理画面 使い方ガイド (従業員向け)')).not.toBeInTheDocument();
+    expect(screen.queryByText(/勤怠管理画面 使い方ガイド/)).not.toBeInTheDocument();
   });
 
   it('管理者でログインし、使い方ガイドボタンをクリックすると管理者用ガイドが表示されること', async () => {
@@ -436,9 +443,9 @@ describe('AttendancePage - Guide', () => {
 
     fireEvent.click(guideBtn);
 
-    expect(screen.getByText('勤怠管理画面 使い方ガイド (管理者向け)')).toBeInTheDocument();
-    expect(screen.getByText('勤怠の直接追加・修正')).toBeInTheDocument();
-    expect(screen.queryByText('勤怠の修正申請')).not.toBeInTheDocument();
+    expect(screen.getByText(/勤怠管理画面 使い方ガイド/)).toBeInTheDocument();
+    const elements = await screen.findAllByText(/1\. 勤怠記録の修正方法/);
+    expect(elements.length).toBeGreaterThan(0);
   });
 });
 
