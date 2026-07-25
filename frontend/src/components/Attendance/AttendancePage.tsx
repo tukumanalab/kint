@@ -1882,8 +1882,8 @@ export function AttendancePage({ auth }: Props) {
                       <th>欠勤</th>
                       <th>不整合</th>
                       <th>未 / 要確認数</th>
-                      <th>総勤務時間</th>
-                      <th>4月からの総勤務</th>
+                      <th>申請勤務時間(実時間)</th>
+                      <th>総勤務時間(4月〜)</th>
                       <th>操作</th>
                     </tr>
                   </thead>
@@ -1916,7 +1916,7 @@ export function AttendancePage({ auth }: Props) {
                             {summary.unacknowledged_alert_count} / {summary.alert_count}件
                           </span>
                         </td>
-                        <td>{formatHours(summary.total_working_hours)}</td>
+                        <td>{formatHours(summary.total_requested_hours)} ({formatHours(summary.total_working_hours)})</td>
                         <td>{formatHours(summary.yearly_working_hours)}</td>
                         <td>
                           <button
@@ -1955,8 +1955,12 @@ export function AttendancePage({ auth }: Props) {
                       <span className="att-summary-card__stat-label">出勤日</span>
                     </div>
                     <div className="att-summary-card__stat">
-                      <span className="att-summary-card__stat-value">{formatHours(summary.total_working_hours)}</span>
-                      <span className="att-summary-card__stat-label">勤務時間</span>
+                      <span className="att-summary-card__stat-value">{formatHours(summary.total_requested_hours)} ({formatHours(summary.total_working_hours)})</span>
+                      <span className="att-summary-card__stat-label">申請勤務時間(実時間)</span>
+                    </div>
+                    <div className="att-summary-card__stat">
+                      <span className="att-summary-card__stat-value">{formatHours(summary.yearly_working_hours)}</span>
+                      <span className="att-summary-card__stat-label">総勤務時間(4月〜)</span>
                     </div>
                   </div>
                   {(summary.absence_days > 0 || summary.incomplete_days > 0 || summary.alert_count > 0) && (
@@ -2030,11 +2034,11 @@ export function AttendancePage({ auth }: Props) {
                     <span className="value">{detailData.summary.working_days}日</span>
                   </div>
                   <div className="att-user-summary-card__item">
-                    <span className="label">総勤務時間</span>
-                    <span className="value">{formatHours(detailData.summary.total_working_hours)}</span>
+                    <span className="label">申請勤務時間(実時間)</span>
+                    <span className="value">{formatHours(detailData.summary.total_requested_hours)} ({formatHours(detailData.summary.total_working_hours)})</span>
                   </div>
                   <div className="att-user-summary-card__item">
-                    <span className="label">4月からの総勤務時間</span>
+                    <span className="label">総勤務時間(4月〜)</span>
                     <span className="value">{formatHours(detailData.summary.yearly_working_hours)}</span>
                   </div>
                   <div className="att-user-summary-card__item">

@@ -6,6 +6,7 @@ export interface AttendanceMonthlySummary {
   prescribed_days: number;
   working_days: number;
   total_working_hours: number;
+  total_requested_hours: number;
   total_overtime_hours: number;
   late_count: number;
   early_leave_count: number;

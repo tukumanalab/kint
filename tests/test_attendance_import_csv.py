@@ -263,7 +263,7 @@ async def test_import_csv_with_multiple_existing_records(session: AsyncSession) 
         user_id="user-1",
         work_date=date(2026, 4, 1),
         check_in=datetime(2026, 4, 1, 4, 0, 0),  # 13:00 JST
-        check_out=datetime(2026, 4, 1, 6, 0, 0), # 15:00 JST
+        check_out=datetime(2026, 4, 1, 6, 0, 0),  # 15:00 JST
         work_start=datetime(2026, 4, 1, 4, 0, 0),
         work_end=datetime(2026, 4, 1, 6, 0, 0),
         source="webusb_nfc",
@@ -275,7 +275,7 @@ async def test_import_csv_with_multiple_existing_records(session: AsyncSession) 
         user_id="user-1",
         work_date=date(2026, 4, 1),
         check_in=datetime(2026, 4, 1, 7, 0, 0),  # 16:00 JST
-        check_out=datetime(2026, 4, 1, 9, 0, 0), # 18:00 JST
+        check_out=datetime(2026, 4, 1, 9, 0, 0),  # 18:00 JST
         work_start=datetime(2026, 4, 1, 7, 0, 0),
         work_end=datetime(2026, 4, 1, 9, 0, 0),
         source="webusb_nfc",
@@ -286,10 +286,7 @@ async def test_import_csv_with_multiple_existing_records(session: AsyncSession) 
     await session.commit()
 
     # CSV: 1行（同日に1回の勤務）
-    csv_text = (
-        "氏名,勤務開始日時,勤務終了日時\n"
-        "佐藤 蓮,2026/04/01 13:30,2026/04/01 17:30\n"
-    )
+    csv_text = "氏名,勤務開始日時,勤務終了日時\n佐藤 蓮,2026/04/01 13:30,2026/04/01 17:30\n"
 
     service = AttendanceService(session)
     res = await service.import_csv_report(csv_text.encode("utf-8"), admin)
@@ -301,12 +298,16 @@ async def test_import_csv_with_multiple_existing_records(session: AsyncSession) 
     # 元々あった2件のうち、1つ目が更新され、
     # 2件目は source != "admin_manual" のため勤務時間がクリアされるはず
     atts = (
-        await session.execute(
-            select(Attendance)
-            .where(Attendance.user_id == "user-1", Attendance.work_date == date(2026, 4, 1))
-            .order_by(Attendance.created_at.asc())
+        (
+            await session.execute(
+                select(Attendance)
+                .where(Attendance.user_id == "user-1", Attendance.work_date == date(2026, 4, 1))
+                .order_by(Attendance.created_at.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(atts) == 2
     # 1件目は更新されたデータ (13:30 -> UTC 04:30, 17:30 -> UTC 08:30)
@@ -320,4 +321,3 @@ async def test_import_csv_with_multiple_existing_records(session: AsyncSession) 
     assert atts[1].id == "att-2"
     assert atts[1].work_start is None
     assert atts[1].work_end is None
-

@@ -155,7 +155,10 @@ class TestAttendanceSummaryAPI:
         assert emp_summary["early_leave_count"] == 0
         assert emp_summary["absence_days"] == 1
         assert emp_summary["incomplete_days"] == 1
-        assert emp_summary["yearly_working_hours"] == emp_summary["total_working_hours"]
+        # 158: yearly_working_hours = total_requested_hours (切り上げ後)
+        assert emp_summary["yearly_working_hours"] == emp_summary["total_requested_hours"]
+        assert emp_summary["total_working_hours"] == 17.92
+        assert emp_summary["total_requested_hours"] == 18.0
 
     async def test_get_monthly_summary_employee_self(self, client: AsyncClient, session) -> None:
         """一般従業員は自分のサマリーのみ取得できる。"""
@@ -305,6 +308,12 @@ class TestAttendanceExportAPI:
         # ヘッダー + 従業員1人分 = 2行（管理者は除外）
         assert len(rows) == 2
         assert rows[0][0] == "対象月"
+        assert rows[0][6] == "申請勤務時間"
+        assert rows[0][7] == "実勤務時間"
+        assert rows[0][8] == "総勤務時間(4月〜)"
+        assert rows[1][6] == "18:00"
+        assert rows[1][7] == "17:55"
+        assert rows[1][8] == "18:00"
 
     async def test_export_csv_employee_forbidden(self, client: AsyncClient, session) -> None:
         """一般従業員はCSVエクスポートを呼び出せない(403)。"""
@@ -386,8 +395,10 @@ class TestMultiplePunchesInSameDay:
         assert "18:00:00" in day_data["calculated_check_out"]
 
         # 2. サマリーの合計時間が合算されているか検証
+        # （申請勤務時間は30分切り上げで8.5h、総勤務時間は8.25h）
         summary = data["summary"]
         assert summary["total_working_hours"] == 8.25
+        assert summary["total_requested_hours"] == 8.5
         assert summary["working_days"] == 1
         assert summary["late_count"] == 0
         assert summary["early_leave_count"] == 0

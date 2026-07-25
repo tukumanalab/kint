@@ -1876,8 +1876,18 @@ components:
         total_working_hours:
           type: number
           format: float
-          description: 当月の総労働時間 (h)
+          description: 当月の総勤務時間（各日勤務時間の月間単純合計実時間） (h)
+          example: 162.25
+        total_requested_hours:
+          type: number
+          format: float
+          description: 当月の申請勤務時間（総勤務時間を30分単位で切り上げた時間） (h)
           example: 162.50
+        yearly_working_hours:
+          type: number
+          format: float
+          description: 4月からの申請勤務時間累計 (h)
+          example: 320.00
         total_overtime_hours:
           type: number
           format: float

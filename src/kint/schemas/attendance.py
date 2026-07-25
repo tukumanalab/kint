@@ -114,6 +114,7 @@ class AttendanceMonthlySummary(BaseModel):
     prescribed_days: int
     working_days: int
     total_working_hours: float
+    total_requested_hours: float = 0.0
     total_overtime_hours: float
     late_count: int
     early_leave_count: int

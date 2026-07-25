@@ -4,6 +4,7 @@ import calendar
 import csv
 import io
 import logging
+import math
 import re
 import uuid
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -1076,6 +1077,7 @@ class AttendanceService:
             daily_details = []
             prescribed_days = 0
             working_days = 0
+            total_requested_hours = 0.0
             total_working_hours = 0.0
             total_overtime_hours = 0.0
             late_count = 0
@@ -1171,7 +1173,7 @@ class AttendanceService:
 
                     if a.break_minutes > 0:
                         working_hours -= a.break_minutes / 60.0
-                
+
                 if working_hours < 0:
                     working_hours = 0.0
 
@@ -1429,7 +1431,11 @@ class AttendanceService:
                 daily_details.append(detail)
                 curr_date += timedelta(days=1)
 
-            # サマリーを作成
+            # サマリーを作成（申請勤務時間は総勤務時間(単純合計)を30分切り上げ計上）
+            total_working_hours = round(total_working_hours, 2)
+            total_requested_hours = math.ceil(round(total_working_hours * 60, 4) / 30.0) * 0.5
+            total_requested_hours = round(total_requested_hours, 2)
+
             summary = AttendanceMonthlySummary(
                 user_id=user.id,
                 user_name=user.name,
@@ -1437,7 +1443,8 @@ class AttendanceService:
                 email=user.email,
                 prescribed_days=prescribed_days,
                 working_days=working_days,
-                total_working_hours=round(total_working_hours, 2),
+                total_working_hours=total_working_hours,
+                total_requested_hours=total_requested_hours,
                 total_overtime_hours=round(total_overtime_hours, 2),
                 late_count=late_count,
                 early_leave_count=early_leave_count,
@@ -1479,7 +1486,7 @@ class AttendanceService:
             start_of_fiscal_year, to_date, user_id=user_id
         )
         yearly_hours_map = {
-            summary.user_id: summary.total_working_hours for _, summary, _ in yearly_data
+            summary.user_id: summary.total_requested_hours for _, summary, _ in yearly_data
         }
 
         # 累計勤務時間を当月のサマリーにマージ
@@ -1516,9 +1523,9 @@ class AttendanceService:
         # 2. 4月からの累計サマリー計算
         yearly_data, _ = await self._calculate_period_data(start_of_fiscal_year, end_of_month)
 
-        # ユーザーIDごとの累計勤務時間をマップにする
+        # ユーザーIDごとの累計勤務時間をマップにする（申請勤務時間の合計・切り上げ後）
         yearly_hours_map = {
-            summary.user_id: summary.total_working_hours for _, summary, _ in yearly_data
+            summary.user_id: summary.total_requested_hours for _, summary, _ in yearly_data
         }
 
         gmail = GmailAdapter()
@@ -1540,7 +1547,8 @@ class AttendanceService:
 
             if not user.email:
                 logger.warning(
-                    "ユーザー %s (%s) のメールアドレスが登録されていないため、月次レポートを送信できませんでした。",
+                    "ユーザー %s (%s) のメールアドレスが未登録のため、"
+                    "月次レポートを送信できませんでした。",
                     user.name,
                     user.id,
                 )
@@ -1554,7 +1562,8 @@ class AttendanceService:
                 f"{site_name} 勤怠管理システムより、当月の勤務実績レポートをお知らせします。\n\n"
                 f"対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
                 f"* 1か月ごとの勤務日数: {summary.working_days} 日\n"
-                f"* 1か月ごとの勤務時間: {format_to_h_mm(summary.total_working_hours)}\n"
+                f"* 1か月ごとの申請勤務時間: {format_to_h_mm(summary.total_requested_hours)}\n"
+                f"* 1か月ごとの総勤務時間: {format_to_h_mm(summary.total_working_hours)}\n"
                 f"* 4月からの総勤務時間: {format_to_h_mm(yearly_hours)}\n\n"
                 f"※このメールはシステムより自動送信されています。"
             )
@@ -1617,7 +1626,9 @@ class AttendanceService:
                     "氏名",
                     "所定労働日数",
                     "実出勤日数",
-                    "総労働時間",
+                    "申請勤務時間",
+                    "実勤務時間",
+                    "総勤務時間(4月〜)",
                     "時間外労働時間",
                     "遅刻回数",
                     "早退回数",
@@ -1634,7 +1645,9 @@ class AttendanceService:
                         summary.full_name,
                         summary.prescribed_days,
                         summary.working_days,
+                        format_to_h_mm(summary.total_requested_hours),
                         format_to_h_mm(summary.total_working_hours),
+                        format_to_h_mm(summary.yearly_working_hours or 0.0),
                         format_to_h_mm(summary.total_overtime_hours),
                         summary.late_count,
                         summary.early_leave_count,
@@ -1730,10 +1743,10 @@ class AttendanceService:
                             if calc_cin and calc_cout:
                                 duration = (calc_cout - calc_cin).total_seconds()
                                 working_hours = duration / 3600.0
-                            
+
                             if att.break_minutes > 0:
                                 working_hours -= att.break_minutes / 60.0
-                            
+
                             if working_hours < 0:
                                 working_hours = 0.0
 
