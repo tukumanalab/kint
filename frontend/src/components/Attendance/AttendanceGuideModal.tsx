@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { fetchAttendanceGuide } from '../../api/docs';
 import './AttendancePage.css';
 
