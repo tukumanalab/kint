@@ -361,6 +361,14 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                   <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: スイッチがONの場合、HH:MM 形式（例: 20:00）で指定してください。</span>
                 </p>
 
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  レポートメール文面（件名・本文）のカスタマイズ
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  レポートメールの件名および本文テンプレートは自由に変更・カスタマイズできます。
+                  文面中に <code>{'{user_name}'}</code> や <code>{'{working_days}'}</code>、サイトアクセス用の <code>{'{app_base_url}'}</code> などの変数を記述すると、各従業員の実際のデータやサイトURLに自動置換されて送信されます。
+                </p>
+
                 <div style={{
                   padding: '1rem',
                   borderRadius: '8px',

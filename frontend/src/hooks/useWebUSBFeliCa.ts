@@ -244,7 +244,9 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
   });
 
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const setStatus = useCallback(
     (status: WebUSBStatus, extra?: Partial<Omit<WebUSBFeliCaState, 'status'>>) => {
@@ -390,7 +392,9 @@ export function useWebUSBFeliCa(): UseWebUSBFeliCaReturn {
             try {
               await ctx.device.releaseInterface(ctx.interfaceNumber);
               await ctx.device.close();
-            } catch {}
+            } catch {
+              // ignore error during cleanup
+            }
           }
         }
       } catch (err) {

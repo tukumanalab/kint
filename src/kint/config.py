@@ -33,6 +33,19 @@ class Settings(BaseSettings):
     site_subtitle: str = "NFC 勤怠管理システム"
     punch_result_display_seconds: int = 30
     monthly_report_time: str = "20:00"
+    monthly_report_subject: str = "【{site_name}】{year}年{month}月 勤務実績レポート"
+    monthly_report_body: str = (
+        "{user_name} さん\n\n"
+        "{site_name} 勤怠管理システムより、当月の勤務実績レポートをお知らせします。\n\n"
+        "対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
+        "* 1か月ごとの勤務日数: {working_days} 日\n"
+        "* 1か月ごとの申請勤務時間: {total_requested_hours}\n"
+        "* 1か月ごとの総勤務時間: {total_working_hours}\n"
+        "* 4月からの総勤務時間: {yearly_hours}\n\n"
+        "詳細記録の確認や修正はこちら:\n"
+        "{app_base_url}\n\n"
+        "※このメールはシステムより自動送信されています。"
+    )
     login_token_expire_hours: int = 168
     enable_google_signup: bool = True
     overtime_allowance_minutes: int = 30

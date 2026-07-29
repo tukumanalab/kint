@@ -24,6 +24,8 @@ export interface SystemSettings {
   site_subtitle: string;
   punch_result_display_seconds: number;
   monthly_report_time: string | null;
+  monthly_report_subject: string;
+  monthly_report_body: string;
   login_token_expire_hours: number;
   enable_google_signup: boolean;
   overtime_allowance_minutes: number;
@@ -39,6 +41,8 @@ export interface SettingsPatchRequest {
   site_subtitle?: string;
   punch_result_display_seconds?: number;
   monthly_report_time?: string | null;
+  monthly_report_subject?: string;
+  monthly_report_body?: string;
   login_token_expire_hours?: number;
   enable_google_signup?: boolean;
   overtime_allowance_minutes?: number;

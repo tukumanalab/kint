@@ -26,6 +26,8 @@ ALLOWED_SETTING_KEYS = {
     "site_subtitle",
     "punch_result_display_seconds",
     "monthly_report_time",
+    "monthly_report_subject",
+    "monthly_report_body",
     "login_token_expire_hours",
     "enable_google_signup",
     "overtime_allowance_minutes",
@@ -57,6 +59,8 @@ class SettingsService:
         site_subtitle_raw = db_map.get("site_subtitle")
         display_seconds_raw = db_map.get("punch_result_display_seconds")
         monthly_report_time_raw = db_map.get("monthly_report_time")
+        monthly_report_subject_raw = db_map.get("monthly_report_subject")
+        monthly_report_body_raw = db_map.get("monthly_report_body")
         login_token_expire_hours_raw = db_map.get("login_token_expire_hours")
         enable_google_signup_raw = db_map.get("enable_google_signup")
         overtime_allowance_minutes_raw = db_map.get("overtime_allowance_minutes")
@@ -89,6 +93,17 @@ class SettingsService:
         )
         if monthly_report_time == "":
             monthly_report_time = None
+
+        monthly_report_subject = (
+            monthly_report_subject_raw
+            if monthly_report_subject_raw is not None
+            else env_settings.monthly_report_subject
+        )
+        monthly_report_body = (
+            monthly_report_body_raw
+            if monthly_report_body_raw is not None
+            else env_settings.monthly_report_body
+        )
 
         login_token_expire_hours = (
             int(login_token_expire_hours_raw)
@@ -130,6 +145,8 @@ class SettingsService:
             site_subtitle=site_subtitle,
             punch_result_display_seconds=display_seconds,
             monthly_report_time=monthly_report_time,
+            monthly_report_subject=monthly_report_subject,
+            monthly_report_body=monthly_report_body,
             login_token_expire_hours=login_token_expire_hours,
             enable_google_signup=enable_google_signup,
             overtime_allowance_minutes=overtime_allowance_minutes,
@@ -187,6 +204,10 @@ class SettingsService:
             fields["monthly_report_time"] = updates.monthly_report_time
         elif "monthly_report_time" in updates.model_fields_set:
             fields["monthly_report_time"] = ""
+        if updates.monthly_report_subject is not None:
+            fields["monthly_report_subject"] = updates.monthly_report_subject
+        if updates.monthly_report_body is not None:
+            fields["monthly_report_body"] = updates.monthly_report_body
         if updates.login_token_expire_hours is not None:
             fields["login_token_expire_hours"] = str(updates.login_token_expire_hours)
         if updates.enable_google_signup is not None:
@@ -272,6 +293,8 @@ class SettingsService:
             "site_subtitle": current.site_subtitle,
             "punch_result_display_seconds": current.punch_result_display_seconds,
             "monthly_report_time": current.monthly_report_time,
+            "monthly_report_subject": current.monthly_report_subject,
+            "monthly_report_body": current.monthly_report_body,
             "login_token_expire_hours": current.login_token_expire_hours,
             "enable_google_signup": current.enable_google_signup,
             "overtime_allowance_minutes": current.overtime_allowance_minutes,
@@ -294,6 +317,8 @@ class SettingsService:
                 "site_name",
                 "site_subtitle",
                 "monthly_report_time",
+                "monthly_report_subject",
+                "monthly_report_body",
             }:
                 new_value: int | str | bool | None = raw_value if raw_value else None
             elif key == "enable_google_signup":

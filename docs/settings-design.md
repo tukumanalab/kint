@@ -37,6 +37,8 @@
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
 | `monthly_report_time` | string \| null | `"20:00"` | — | — | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記）。月末日のこの時刻に通知。null / 空文字で自動通知 OFF |
+| `monthly_report_subject` | string | `"【{site_name}】{year}年{month}月 勤務実績レポート"` | 1 | 200 | 月次勤怠レポートのメール件名テンプレート |
+| `monthly_report_body` | string | `"{user_name} さん..."` | 1 | 4000 | 月次勤怠レポートのメール本文テンプレート |
 | `login_token_expire_hours` | integer | 168 | 1 | 8760 | ログイン継続時間（時間）。JWTアクセストークンの有効期限。 |
 | `enable_google_signup` | boolean | false | — | — | Googleログインでの新規ユーザー登録を許可するかどうか |
 | `overtime_allowance_minutes` | integer | 30 | 0 | 120 | シフト終了後の退勤打刻を通常丸め（切り下げ）対象とする許容時間（分） |
@@ -98,7 +100,7 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "login_token_expire_hours"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "monthly_report_subject", "monthly_report_body", "login_token_expire_hours", "enable_google_signup", "overtime_allowance_minutes", "attendance_alert_rules"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
 - `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。

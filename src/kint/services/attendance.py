@@ -15,6 +15,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from kint.config import settings as env_settings
 from kint.exceptions import (
     KintBadRequestError,
     KintConflictError,
@@ -1530,9 +1531,12 @@ class AttendanceService:
 
         gmail = GmailAdapter()
 
-        # システム設定からサイト名を取得
+        # システム設定からサイト名・レポートメールテンプレートを取得
         settings_service = SettingsService(self.session)
-        site_name = await settings_service.get_str("site_name") or "Kint"
+        current_settings = await settings_service.get_all()
+        site_name = current_settings.site_name
+        subject_template = current_settings.monthly_report_subject
+        body_template = current_settings.monthly_report_body
 
         # 3. 各従業員へのメール送信
         for user, summary, _ in monthly_data:
@@ -1555,18 +1559,30 @@ class AttendanceService:
                 continue
 
             yearly_hours = yearly_hours_map.get(user.id, 0.0)
+            user_display_name = user.full_name or user.name
 
-            subject = f"【{site_name}】{year}年{month}月 勤務実績レポート"
-            body = (
-                f"{user.full_name or user.name} さん\n\n"
-                f"{site_name} 勤怠管理システムより、当月の勤務実績レポートをお知らせします。\n\n"
-                f"対象期間: {year}年{month}月1日 〜 {year}年{month}月{last_day}日\n\n"
-                f"* 1か月ごとの勤務日数: {summary.working_days} 日\n"
-                f"* 1か月ごとの申請勤務時間: {format_to_h_mm(summary.total_requested_hours)}\n"
-                f"* 1か月ごとの総勤務時間: {format_to_h_mm(summary.total_working_hours)}\n"
-                f"* 4月からの総勤務時間: {format_to_h_mm(yearly_hours)}\n\n"
-                f"※このメールはシステムより自動送信されています。"
-            )
+            replacements = {
+                "{user_name}": user_display_name,
+                "{user_full_name}": user_display_name,
+                "{site_name}": site_name,
+                "{year}": str(year),
+                "{month}": str(month),
+                "{last_day}": str(last_day),
+                "{working_days}": str(summary.working_days),
+                "{total_requested_hours}": format_to_h_mm(summary.total_requested_hours),
+                "{total_working_hours}": format_to_h_mm(summary.total_working_hours),
+                "{yearly_hours}": format_to_h_mm(yearly_hours),
+                "{app_base_url}": env_settings.app_base_url,
+                "{site_url}": env_settings.app_base_url,
+            }
+
+            subject = subject_template
+            for k, v in replacements.items():
+                subject = subject.replace(k, v)
+
+            body = body_template
+            for k, v in replacements.items():
+                body = body.replace(k, v)
 
             try:
                 gmail.send_email(user.email, subject, body)

@@ -1,8 +1,10 @@
+import uuid
 from datetime import UTC, date, datetime
 from unittest.mock import patch
 
 import pytest
 
+from kint.config import settings as env_settings
 from kint.models.attendance import Attendance
 from kint.models.shift import Shift
 from kint.models.user import User
@@ -22,9 +24,6 @@ async def _create_user(session, **kwargs) -> User:
     await session.commit()
     await session.refresh(user)
     return user
-
-
-import uuid
 
 
 async def _create_shift(
@@ -166,6 +165,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
 
         assert subject == "【つくまな勤怠】2026年6月 勤務実績レポート"
         assert "つくまな勤怠 勤怠管理システムより、当月の勤務実績レポートをお知らせします。" in body
+        assert env_settings.app_base_url in body
 
         if to_email == "emp1@example.com":
             assert "Employee One さん" in body
@@ -179,3 +179,64 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
             assert "1か月ごとの申請勤務時間: 8:00" in body
             assert "1か月ごとの総勤務時間: 8:00" in body
             assert "4月からの総勤務時間: 8:00" in body
+
+
+@patch("kint.services.gmail.GmailAdapter.send_email")
+async def test_send_monthly_attendance_reports_custom_template(mock_send_email, session) -> None:
+    from kint.models.system_setting import SystemSetting
+
+    admin_user = await _create_user(
+        session,
+        id="admin_user_custom",
+        name="管理者",
+        full_name="System Admin Custom",
+        email="admin_custom@example.com",
+        role="admin",
+    )
+
+    # カスタムテンプレートの追加
+    session.add(SystemSetting(key="site_name", value="KintLab", updated_by_user_id=admin_user.id))
+    session.add(
+        SystemSetting(
+            key="monthly_report_subject",
+            value="【月次通知】{year}年{month}月の月次勤怠お知らせ（{user_name}様）",
+            updated_by_user_id=admin_user.id,
+        )
+    )
+    session.add(
+        SystemSetting(
+            key="monthly_report_body",
+            value=(
+                "こんにちは、{user_name}様。\n"
+                "{site_name}よりお知らせです。\n"
+                "勤務日数: {working_days}日 / 申請時間: {total_requested_hours}"
+            ),
+            updated_by_user_id=admin_user.id,
+        )
+    )
+    await session.commit()
+
+    emp = await _create_user(
+        session,
+        id="emp_custom",
+        name="佐藤太郎",
+        full_name="佐藤 太郎",
+        email="sato@example.com",
+        role="employee",
+    )
+
+    await _create_shift(session, emp.id, date(2026, 7, 10), 9, 17)
+    await _create_attendance(session, emp.id, date(2026, 7, 10), 9, 17)
+
+    service = AttendanceService(session)
+    await service.send_monthly_attendance_reports(date(2026, 7, 31))
+
+    assert mock_send_email.call_count == 1
+    call_args = mock_send_email.call_args[0]
+    to_email, subject, body = call_args[0], call_args[1], call_args[2]
+
+    assert to_email == "sato@example.com"
+    assert subject == "【月次通知】2026年7月の月次勤怠お知らせ（佐藤 太郎様）"
+    assert "こんにちは、佐藤 太郎様。" in body
+    assert "KintLabよりお知らせです。" in body
+    assert "勤務日数: 1日 / 申請時間: 8:00" in body

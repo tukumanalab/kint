@@ -239,6 +239,7 @@ cp .env.example .env
 - **設定と制御**:
   - 管理者は「システム設定」画面から自動通知時刻（`monthly_report_time`）を `HH:MM` 形式で編集・保存できます。
   - 通知時刻が保存されると、バックエンドは APScheduler の定期実行スケジュールを月末日の指定時刻で再スケジュールします。空設定にすると自動通知は無効となります。
+  - **件名および本文テンプレートのカスタマイズ**: 管理者は「システム設定」画面から月次レポートメールの件名（`monthly_report_subject`）および本文テンプレート（`monthly_report_body`）を自由に変更できます。文面内では `{user_name}`, `{site_name}`, `{year}`, `{month}`, `{last_day}`, `{working_days}`, `{total_requested_hours}`, `{total_working_hours}`, `{yearly_hours}`, `{app_base_url}` などの変数プレースホルダーを利用可能です。
 
 ## 打刻端末制限と登録機能
 

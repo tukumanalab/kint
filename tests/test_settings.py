@@ -67,6 +67,8 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
     assert data["site_name"] == "Kint"
     assert data["punch_result_display_seconds"] == 30
     assert data["monthly_report_time"] == "20:00"
+    assert "勤務実績レポート" in data["monthly_report_subject"]
+    assert "{user_name}" in data["monthly_report_body"]
     assert data["login_token_expire_hours"] == 168
 
     # 4. 管理者が設定を変更
@@ -77,6 +79,8 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
             "site_name": "Custom Kint",
             "punch_result_display_seconds": 45,
             "monthly_report_time": "19:30",
+            "monthly_report_subject": "カスタム件名: {year}/{month}",
+            "monthly_report_body": "カスタム本文: {user_name}",
             "login_token_expire_hours": 24,
         },
     )
@@ -85,6 +89,8 @@ async def test_settings_get_and_patch_flow(client: AsyncClient, session) -> None
     assert data["site_name"] == "Custom Kint"
     assert data["punch_result_display_seconds"] == 45
     assert data["monthly_report_time"] == "19:30"
+    assert data["monthly_report_subject"] == "カスタム件名: {year}/{month}"
+    assert data["monthly_report_body"] == "カスタム本文: {user_name}"
     assert data["login_token_expire_hours"] == 24
 
     # 5. 未認証の状態で /settings/public から変更後の値が取得できることを確認

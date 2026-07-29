@@ -43,6 +43,8 @@ class SettingsResponse(BaseModel):
     site_subtitle: str
     punch_result_display_seconds: int
     monthly_report_time: str | None
+    monthly_report_subject: str
+    monthly_report_body: str
     login_token_expire_hours: int
     enable_google_signup: bool
     overtime_allowance_minutes: int
@@ -60,6 +62,8 @@ class SettingsPatchRequest(BaseModel):
     site_subtitle: str | None = Field(default=None, min_length=1, max_length=100)
     punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
     monthly_report_time: str | None = None
+    monthly_report_subject: str | None = Field(default=None, min_length=1, max_length=200)
+    monthly_report_body: str | None = Field(default=None, min_length=1, max_length=4000)
     login_token_expire_hours: int | None = Field(default=None, ge=1, le=8760)
     enable_google_signup: bool | None = None
     overtime_allowance_minutes: int | None = Field(default=None, ge=0, le=120)
@@ -97,6 +101,8 @@ class SettingsPatchRequest(BaseModel):
             and self.site_subtitle is None
             and self.punch_result_display_seconds is None
             and self.monthly_report_time is None
+            and self.monthly_report_subject is None
+            and self.monthly_report_body is None
             and self.login_token_expire_hours is None
             and self.enable_google_signup is None
             and self.overtime_allowance_minutes is None

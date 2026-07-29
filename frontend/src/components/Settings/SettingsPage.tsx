@@ -134,6 +134,8 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [siteSubtitle, setSiteSubtitle] = useState('');
   const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
   const [monthlyReportTime, setMonthlyReportTime] = useState('');
+  const [monthlyReportSubject, setMonthlyReportSubject] = useState('');
+  const [monthlyReportBody, setMonthlyReportBody] = useState('');
   const [enabledMonthlyReport, setEnabledMonthlyReport] = useState(false);
   const [loginTokenExpireHours, setLoginTokenExpireHours] = useState('');
   const [enableGoogleSignup, setEnableGoogleSignup] = useState(false);
@@ -245,6 +247,8 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       onSiteSubtitleChange(s.site_subtitle ?? 'NFC 勤怠管理システム');
       setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
       setMonthlyReportTime(s.monthly_report_time ?? '');
+      setMonthlyReportSubject(s.monthly_report_subject ?? '');
+      setMonthlyReportBody(s.monthly_report_body ?? '');
       setEnabledMonthlyReport(!!s.monthly_report_time);
       setLoginTokenExpireHours(String(s.login_token_expire_hours));
       setEnableGoogleSignup(s.enable_google_signup);
@@ -271,6 +275,8 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
         setMonthlyReportTime(s.monthly_report_time ?? '');
+        setMonthlyReportSubject(s.monthly_report_subject ?? '');
+        setMonthlyReportBody(s.monthly_report_body ?? '');
         setEnabledMonthlyReport(!!s.monthly_report_time);
         setLoginTokenExpireHours(String(s.login_token_expire_hours));
         setEnableGoogleSignup(s.enable_google_signup);
@@ -351,6 +357,8 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         site_subtitle: siteSubtitle.trim(),
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
         monthly_report_time: enabledMonthlyReport ? (monthlyReportTime || null) : null,
+        monthly_report_subject: monthlyReportSubject.trim(),
+        monthly_report_body: monthlyReportBody,
         login_token_expire_hours: Number(loginTokenExpireHours),
         enable_google_signup: enableGoogleSignup,
         overtime_allowance_minutes: Number(overtimeAllowanceMinutes),
@@ -430,6 +438,8 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         onSiteSubtitleChange(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(result.applied.punch_result_display_seconds));
         setMonthlyReportTime(result.applied.monthly_report_time ?? '');
+        setMonthlyReportSubject(result.applied.monthly_report_subject ?? '');
+        setMonthlyReportBody(result.applied.monthly_report_body ?? '');
         setEnabledMonthlyReport(!!result.applied.monthly_report_time);
         setLoginTokenExpireHours(String(result.applied.login_token_expire_hours));
         setEnableGoogleSignup(result.applied.enable_google_signup);
@@ -800,6 +810,50 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">分</span>
             </div>
             <p className="settings-field__hint">毎月末日のこの時刻に、当月の勤務実績レポートを従業員（管理者を除く）にメール通知します</p>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="monthlyReportSubject" className="settings-field__label">
+              レポートメール件名
+            </label>
+            <input
+              id="monthlyReportSubject"
+              type="text"
+              className="settings-field__input settings-field__input--wide"
+              value={monthlyReportSubject}
+              onChange={(e) => setMonthlyReportSubject(e.target.value)}
+              placeholder="【{site_name}】{year}年{month}月 勤務実績レポート"
+            />
+            <p className="settings-field__hint">送信される月次レポートメールの件名テンプレートです。</p>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="monthlyReportBody" className="settings-field__label">
+              レポートメール本文
+            </label>
+            <textarea
+              id="monthlyReportBody"
+              rows={10}
+              className="settings-field__input settings-field__input--wide"
+              style={{ fontFamily: 'monospace', fontSize: '0.9rem', lineHeight: '1.5' }}
+              value={monthlyReportBody}
+              onChange={(e) => setMonthlyReportBody(e.target.value)}
+            />
+            <div className="settings-field__hint" style={{ marginTop: '0.5rem' }}>
+              <p style={{ margin: '0 0 0.25rem 0', fontWeight: 'bold' }}>利用可能な変数（埋め込みプレースホルダー）:</p>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.25rem' }}>
+                <li><code>{'{user_name}'}</code>: 従業員名</li>
+                <li><code>{'{site_name}'}</code>: サイト名</li>
+                <li><code>{'{year}'}</code>: 対象年</li>
+                <li><code>{'{month}'}</code>: 対象月</li>
+                <li><code>{'{last_day}'}</code>: 月末日</li>
+                <li><code>{'{working_days}'}</code>: 勤務日数</li>
+                <li><code>{'{total_requested_hours}'}</code>: 申請勤務時間</li>
+                <li><code>{'{total_working_hours}'}</code>: 総勤務時間</li>
+                <li><code>{'{yearly_hours}'}</code>: 4月からの総勤務時間</li>
+                <li><code>{'{app_base_url}'}</code>: サイトURL</li>
+              </ul>
+            </div>
           </div>
         </section>
 
