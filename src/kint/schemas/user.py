@@ -52,6 +52,9 @@ class UserCreateRequest(BaseModel):
     id: str
     name: str
     full_name: str
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
     email: EmailStr
     role: Literal["admin", "employee"]
 
@@ -84,6 +87,15 @@ class UserCreateRequest(BaseModel):
             raise ValueError("full_name は 1〜100 文字で入力してください")
         return v
 
+    @field_validator("name_kana", "department", "worker_id")
+    @classmethod
+    def sanitize_optional_str(cls, v: str | None) -> str | None:
+        """前後空白を除去し、空文字の場合は None を返す。"""
+        if v is None:
+            return None
+        v = v.strip()
+        return v if v else None
+
     @model_validator(mode="after")
     def validate_id_matches_email(self) -> "UserCreateRequest":
         """アカウントIDとメールアドレスが一致していることを検証する。"""
@@ -97,6 +109,9 @@ class UserPatchRequest(BaseModel):
 
     name: str | None = None
     full_name: str | None = None
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
     email: EmailStr | None = None
     role: Literal["admin", "employee"] | None = None
     is_active: bool | None = None
@@ -123,11 +138,30 @@ class UserPatchRequest(BaseModel):
             raise ValueError("full_name は 1〜100 文字で入力してください")
         return v
 
+    @field_validator("name_kana", "department", "worker_id")
+    @classmethod
+    def sanitize_optional_str(cls, v: str | None) -> str | None:
+        """前後空白を除去し、空文字の場合は None を返す。"""
+        if v is None:
+            return None
+        v = v.strip()
+        return v if v else None
+
     @model_validator(mode="after")
     def at_least_one_field(self) -> "UserPatchRequest":
         """更新フィールドが 1 つ以上あることを検証する。"""
         if all(
-            v is None for v in (self.name, self.full_name, self.email, self.role, self.is_active)
+            v is None
+            for v in (
+                self.name,
+                self.full_name,
+                self.name_kana,
+                self.department,
+                self.worker_id,
+                self.email,
+                self.role,
+                self.is_active,
+            )
         ):
             raise ValueError("更新するフィールドを 1 つ以上指定してください")
         return self
@@ -139,6 +173,9 @@ class UserResponse(BaseModel):
     id: str
     name: str
     full_name: str
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
     email: str
     role: Literal["admin", "employee"]
     is_active: bool
@@ -161,10 +198,13 @@ class UsersListResponse(BaseModel):
 
 
 class MeProfileUpdateRequest(BaseModel):
-    """マイページ プロフィール更新リクエスト（name / full_name のみ更新可能）。"""
+    """マイページ プロフィール更新リクエスト。"""
 
     name: str | None = None
     full_name: str | None = None
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -188,10 +228,22 @@ class MeProfileUpdateRequest(BaseModel):
             raise ValueError("full_name は 1〜100 文字で入力してください")
         return v
 
+    @field_validator("name_kana", "department", "worker_id")
+    @classmethod
+    def sanitize_optional_str(cls, v: str | None) -> str | None:
+        """前後空白を除去し、空文字の場合は None を返す。"""
+        if v is None:
+            return None
+        v = v.strip()
+        return v if v else None
+
     @model_validator(mode="after")
     def at_least_one_field(self) -> "MeProfileUpdateRequest":
         """更新フィールドが 1 つ以上あることを検証する。"""
-        if all(v is None for v in (self.name, self.full_name)):
+        if all(
+            v is None
+            for v in (self.name, self.full_name, self.name_kana, self.department, self.worker_id)
+        ):
             raise ValueError("更新するフィールドを 1 つ以上指定してください")
         return self
 

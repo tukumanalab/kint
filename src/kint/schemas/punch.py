@@ -53,6 +53,9 @@ class PunchUserCandidate(BaseModel):
     id: str
     name: str
     full_name: str
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
 
     model_config = {"from_attributes": True}
 

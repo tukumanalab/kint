@@ -221,7 +221,7 @@ describe('UserManagementPage', () => {
     render(<UserManagementPage auth={makeAuth()} />);
     await waitFor(() => screen.getByText('山田 太郎'));
 
-    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+    const searchInput = screen.getByPlaceholderText('名前、氏名、フリガナ、所属、従業員ID、メールで検索...');
 
     // "山田" で検索 (氏名一致)
     fireEvent.change(searchInput, { target: { value: '山田' } });
@@ -244,7 +244,7 @@ describe('UserManagementPage', () => {
     render(<UserManagementPage auth={makeAuth()} />);
     await waitFor(() => screen.getByText('山田 太郎'));
 
-    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+    const searchInput = screen.getByPlaceholderText('名前、氏名、フリガナ、所属、従業員ID、メールで検索...');
 
     // "山田" で検索
     fireEvent.change(searchInput, { target: { value: '山田' } });
@@ -269,7 +269,7 @@ describe('UserManagementPage', () => {
     render(<UserManagementPage auth={makeAuth()} />);
     await waitFor(() => screen.getByText('管理 太郎'));
 
-    const searchInput = screen.getByPlaceholderText('名前、氏名、またはメールアドレスで検索...');
+    const searchInput = screen.getByPlaceholderText('名前、氏名、フリガナ、所属、従業員ID、メールで検索...');
     fireEvent.change(searchInput, { target: { value: '存在しないユーザー' } });
 
     expect(screen.queryByText('管理 太郎')).toBeNull();

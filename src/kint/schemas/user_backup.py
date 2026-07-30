@@ -20,6 +20,9 @@ class UserBackupSchema(BaseModel):
     id: str
     name: str
     full_name: str
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
     email: str
     google_sub: str | None = None
     role: Literal["admin", "employee"]

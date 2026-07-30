@@ -55,6 +55,9 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
   const accountId = editing?.id ?? '';
   const [name, setName] = useState(editing?.name ?? '');
   const [fullName, setFullName] = useState(editing?.full_name ?? '');
+  const [nameKana, setNameKana] = useState(editing?.name_kana ?? '');
+  const [department, setDepartment] = useState(editing?.department ?? '');
+  const [workerId, setWorkerId] = useState(editing?.worker_id ?? '');
   const [email, setEmail] = useState(editing?.email ?? '');
   const [role, setRole] = useState<'admin' | 'employee'>(editing?.role ?? 'employee');
   const [isActive, setIsActive] = useState(editing?.is_active ?? true);
@@ -72,6 +75,9 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
           id: email.trim(),
           name: name.trim(),
           full_name: fullName.trim(),
+          name_kana: nameKana.trim() || undefined,
+          department: department.trim() || undefined,
+          worker_id: workerId.trim() || undefined,
           email: email.trim(),
           role,
         };
@@ -80,6 +86,9 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
         const payload: UserPatchRequest = {};
         if (name.trim() !== editing.name) payload.name = name.trim();
         if (fullName.trim() !== editing.full_name) payload.full_name = fullName.trim();
+        if ((nameKana.trim() || undefined) !== (editing.name_kana ?? undefined)) payload.name_kana = nameKana.trim();
+        if ((department.trim() || undefined) !== (editing.department ?? undefined)) payload.department = department.trim();
+        if ((workerId.trim() || undefined) !== (editing.worker_id ?? undefined)) payload.worker_id = workerId.trim();
         if (email.trim() !== editing.email) payload.email = email.trim();
         if (role !== editing.role) payload.role = role;
         if (isActive !== editing.is_active) payload.is_active = isActive;
@@ -144,6 +153,46 @@ function UserFormModal({ mode, onClose, onSaved, token }: FormModalProps) {
               disabled={submitting}
             />
             <p className="form-hint">給与申請に利用するので、本名を入れてください。</p>
+          </div>
+          <div className="form-field">
+            <label htmlFor="name-kana" className="form-label">フリガナ</label>
+            <input
+              id="name-kana"
+              type="text"
+              className="form-input"
+              value={nameKana}
+              onChange={(e) => setNameKana(e.target.value)}
+              maxLength={100}
+              placeholder="ヤマダ タロウ"
+              disabled={submitting}
+            />
+            <p className="form-hint">カタカナで入力してください。</p>
+          </div>
+          <div className="form-field">
+            <label htmlFor="department" className="form-label">所属</label>
+            <input
+              id="department"
+              type="text"
+              className="form-input"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              maxLength={100}
+              placeholder="〇〇研究室 / 開発部"
+              disabled={submitting}
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="worker-id" className="form-label">従業員ID</label>
+            <input
+              id="worker-id"
+              type="text"
+              className="form-input"
+              value={workerId}
+              onChange={(e) => setWorkerId(e.target.value)}
+              maxLength={50}
+              placeholder="15123001"
+              disabled={submitting}
+            />
           </div>
           <div className="form-field">
             <label htmlFor="email" className="form-label">メールアドレス <span className="required">*</span></label>
@@ -372,6 +421,9 @@ export function UserManagementPage({ auth }: Props) {
     return (
       user.name.toLowerCase().includes(term) ||
       user.full_name.toLowerCase().includes(term) ||
+      (user.name_kana && user.name_kana.toLowerCase().includes(term)) ||
+      (user.department && user.department.toLowerCase().includes(term)) ||
+      (user.worker_id && user.worker_id.toLowerCase().includes(term)) ||
       user.email.toLowerCase().includes(term)
     );
   });
@@ -542,7 +594,7 @@ export function UserManagementPage({ auth }: Props) {
       <div className="user-mgmt-search-bar">
         <input
           type="text"
-          placeholder="名前、氏名、またはメールアドレスで検索..."
+          placeholder="名前、氏名、フリガナ、所属、従業員ID、メールで検索..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
@@ -577,6 +629,9 @@ export function UserManagementPage({ auth }: Props) {
               <tr>
                 <th>アカウントID</th>
                 <th>氏名</th>
+                <th>フリガナ</th>
+                <th>所属</th>
+                <th>従業員ID</th>
                 <th>表示名</th>
                 <th>メールアドレス</th>
                 <th>ロール</th>
@@ -587,7 +642,7 @@ export function UserManagementPage({ auth }: Props) {
             <tbody>
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="user-table__empty">
+                  <td colSpan={10} className="user-table__empty">
                     {searchTerm.trim() ? '検索条件に一致するユーザーが見つかりません' : 'ユーザーが登録されていません'}
                   </td>
                 </tr>
@@ -596,6 +651,9 @@ export function UserManagementPage({ auth }: Props) {
                 <tr key={user.id} className={user.is_active ? '' : 'user-table__row--inactive'}>
                   <td>{user.id}</td>
                   <td>{user.full_name}</td>
+                  <td>{user.name_kana || '-'}</td>
+                  <td>{user.department || '-'}</td>
+                  <td>{user.worker_id || '-'}</td>
                   <td>{user.name}</td>
                   <td>{user.email}</td>
                   <td>

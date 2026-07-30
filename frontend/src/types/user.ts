@@ -2,6 +2,9 @@ export interface UserResponse {
   id: string;
   name: string;
   full_name: string;
+  name_kana?: string | null;
+  department?: string | null;
+  worker_id?: string | null;
   email: string;
   role: 'admin' | 'employee';
   is_active: boolean;
@@ -17,6 +20,9 @@ export interface UserCreateRequest {
   id: string;
   name: string;
   full_name: string;
+  name_kana?: string;
+  department?: string;
+  worker_id?: string;
   email: string;
   role: 'admin' | 'employee';
 }
@@ -24,6 +30,9 @@ export interface UserCreateRequest {
 export interface UserPatchRequest {
   name?: string;
   full_name?: string;
+  name_kana?: string;
+  department?: string;
+  worker_id?: string;
   email?: string;
   role?: 'admin' | 'employee';
   is_active?: boolean;
@@ -32,6 +41,9 @@ export interface UserPatchRequest {
 export interface MeProfileUpdateRequest {
   name?: string;
   full_name?: string;
+  name_kana?: string;
+  department?: string;
+  worker_id?: string;
 }
 
 export interface MeCardPatchRequest {

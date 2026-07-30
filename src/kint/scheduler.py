@@ -67,7 +67,7 @@ async def _run_monthly_attendance_report() -> None:
     async with AsyncSessionLocal() as session:
         service = AttendanceService(session)
         try:
-            from datetime import timedelta, timezone
+            from datetime import datetime, timedelta, timezone
 
             JST = timezone(timedelta(hours=9))
             today = datetime.now(JST).date()

@@ -78,6 +78,9 @@ class UserService:
                     User.id.ilike(pattern),
                     User.name.ilike(pattern),
                     User.full_name.ilike(pattern),
+                    User.name_kana.ilike(pattern),
+                    User.department.ilike(pattern),
+                    User.worker_id.ilike(pattern),
                 ),
             )
             .order_by(User.full_name, User.name, User.id)
@@ -110,6 +113,9 @@ class UserService:
             id=data.id,
             name=data.name,
             full_name=data.full_name,
+            name_kana=data.name_kana,
+            department=data.department,
+            worker_id=data.worker_id,
             email=data.email,
             role=data.role,
             is_active=1,
@@ -156,6 +162,12 @@ class UserService:
             user.name = data.name
         if data.full_name is not None:
             user.full_name = data.full_name
+        if data.name_kana is not None:
+            user.name_kana = data.name_kana
+        if data.department is not None:
+            user.department = data.department
+        if data.worker_id is not None:
+            user.worker_id = data.worker_id
         if data.email is not None:
             user.email = data.email
         if data.role is not None:
@@ -350,6 +362,12 @@ class UserService:
             current_user.name = data.name
         if data.full_name is not None:
             current_user.full_name = data.full_name
+        if data.name_kana is not None:
+            current_user.name_kana = data.name_kana
+        if data.department is not None:
+            current_user.department = data.department
+        if data.worker_id is not None:
+            current_user.worker_id = data.worker_id
 
         log = UserProfileChangeLog(
             id=str(uuid.uuid4()),
@@ -747,6 +765,9 @@ class UserService:
                     id=u.id,
                     name=u.name,
                     full_name=u.full_name,
+                    name_kana=u.name_kana,
+                    department=u.department,
+                    worker_id=u.worker_id,
                     email=u.email,
                     google_sub=u.google_sub,
                     role=u.role,  # type: ignore[arg-type]
@@ -823,6 +844,9 @@ class UserService:
 
                     user.name = u_data.name
                     user.full_name = u_data.full_name
+                    user.name_kana = u_data.name_kana
+                    user.department = u_data.department
+                    user.worker_id = u_data.worker_id
                     user.email = u_data.email
                     user.role = u_data.role
                     user.is_active = 1 if u_data.is_active else 0

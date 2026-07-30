@@ -48,6 +48,9 @@ function ProfileEditDialog({
 }: ProfileEditDialogProps) {
   const [name, setName] = useState(profile.name);
   const [fullName, setFullName] = useState(profile.full_name);
+  const [nameKana, setNameKana] = useState(profile.name_kana ?? '');
+  const [department, setDepartment] = useState(profile.department ?? '');
+  const [workerId, setWorkerId] = useState(profile.worker_id ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,10 @@ function ProfileEditDialog({
 
   const nameChanged = name.trim() !== profile.name;
   const fullNameChanged = fullName.trim() !== profile.full_name;
-  const hasChanges = nameChanged || fullNameChanged;
+  const nameKanaChanged = (nameKana.trim() || undefined) !== (profile.name_kana ?? undefined);
+  const departmentChanged = (department.trim() || undefined) !== (profile.department ?? undefined);
+  const workerIdChanged = (workerId.trim() || undefined) !== (profile.worker_id ?? undefined);
+  const hasChanges = nameChanged || fullNameChanged || nameKanaChanged || departmentChanged || workerIdChanged;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -81,9 +87,19 @@ function ProfileEditDialog({
 
     setSubmitting(true);
     try {
-      const payload: { name?: string; full_name?: string } = {};
+      const payload: {
+        name?: string;
+        full_name?: string;
+        name_kana?: string;
+        department?: string;
+        worker_id?: string;
+      } = {};
       if (nameChanged) payload.name = name.trim();
       if (fullNameChanged) payload.full_name = fullName.trim();
+      if (nameKanaChanged) payload.name_kana = nameKana.trim();
+      if (departmentChanged) payload.department = department.trim();
+      if (workerIdChanged) payload.worker_id = workerId.trim();
+
       const updated = await updateMyProfile(token, payload);
       onUpdated(updated);
       setSuccess('プロフィールを更新しました。');
@@ -167,6 +183,51 @@ function ProfileEditDialog({
             {fullName.length > 90 && (
               <p className="form-hint form-hint--warn">{100 - fullName.length} 文字まで入力できます</p>
             )}
+          </div>
+          <div className="form-field">
+            <label htmlFor="profile-name-kana" className="form-label">
+              フリガナ
+            </label>
+            <input
+              id="profile-name-kana"
+              type="text"
+              className="form-input"
+              value={nameKana}
+              onChange={(e) => setNameKana(e.target.value)}
+              maxLength={100}
+              placeholder="ヤマダ タロウ"
+              disabled={submitting}
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="profile-department" className="form-label">
+              所属
+            </label>
+            <input
+              id="profile-department"
+              type="text"
+              className="form-input"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              maxLength={100}
+              placeholder="〇〇研究室 / 開発部"
+              disabled={submitting}
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="profile-worker-id" className="form-label">
+              従業員ID
+            </label>
+            <input
+              id="profile-worker-id"
+              type="text"
+              className="form-input"
+              value={workerId}
+              onChange={(e) => setWorkerId(e.target.value)}
+              maxLength={50}
+              placeholder="15123001"
+              disabled={submitting}
+            />
           </div>
           {error && (
             <div className="form-alert form-alert--error" role="alert">
@@ -591,6 +652,12 @@ export function MyProfilePage({ auth }: Props) {
           <dd className="myprofile-info-desc">{profile.name}</dd>
           <dt className="myprofile-info-term">氏名</dt>
           <dd className="myprofile-info-desc">{profile.full_name}</dd>
+          <dt className="myprofile-info-term">フリガナ</dt>
+          <dd className="myprofile-info-desc">{profile.name_kana || '-'}</dd>
+          <dt className="myprofile-info-term">所属</dt>
+          <dd className="myprofile-info-desc">{profile.department || '-'}</dd>
+          <dt className="myprofile-info-term">従業員ID</dt>
+          <dd className="myprofile-info-desc">{profile.worker_id || '-'}</dd>
           <dt className="myprofile-info-term">ロール</dt>
           <dd className="myprofile-info-desc">
             <span className={`role-badge role-badge--${profile.role}`}>

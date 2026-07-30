@@ -53,6 +53,9 @@ class TestSearchPunchUsers:
             "id": "user-001",
             "name": "taro",
             "full_name": "山田 太郎",
+            "name_kana": None,
+            "department": None,
+            "worker_id": None,
         }
 
     async def test_search_by_partial_display_name_returns_candidates(

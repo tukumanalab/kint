@@ -16,6 +16,9 @@ class UserProfile(BaseModel):
     role: Literal["admin", "employee"]
     name: str
     full_name: str
+    name_kana: str | None = None
+    department: str | None = None
+    worker_id: str | None = None
     email: str
     email_verified_at: datetime | None = None
     email_verification_status: Literal["pending", "verified"] = "pending"
@@ -34,14 +37,19 @@ class UserProfile(BaseModel):
         from kint.models.user import User  # 循環インポート回避
 
         if isinstance(obj, User):
-            status = "verified" if obj.email_verified_at is not None else "pending"
+            status = (
+                "verified" if getattr(obj, "email_verified_at", None) is not None else "pending"
+            )
             return cls(
                 id=obj.id,
                 role=obj.role,
                 name=obj.name,
                 full_name=obj.full_name,
+                name_kana=getattr(obj, "name_kana", None),
+                department=getattr(obj, "department", None),
+                worker_id=getattr(obj, "worker_id", None),
                 email=obj.email,
-                email_verified_at=obj.email_verified_at,
+                email_verified_at=getattr(obj, "email_verified_at", None),
                 email_verification_status=status,
             )
         return super().model_validate(obj, **kwargs)

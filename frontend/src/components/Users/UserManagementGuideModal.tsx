@@ -207,6 +207,9 @@ export function UserManagementGuideModal({ onClose }: UserManagementGuideModalPr
                     <ul style={{ paddingLeft: '1.25rem', marginTop: '0.25rem' }}>
                       <li><strong>表示名</strong>: 画面上で確認するための名前（最大50文字）</li>
                       <li><strong>氏名</strong>: 給与申請用のフルネーム（本名、最大100文字）</li>
+                      <li><strong>フリガナ</strong>: カタカナでの読み仮名（最大100文字）</li>
+                      <li><strong>所属</strong>: 研究室や所属部署・学科（最大100文字）</li>
+                      <li><strong>従業員ID</strong>: 従業員識別ID（最大50文字）</li>
                       <li><strong>メールアドレス</strong>: シフト管理等で使用する連絡先</li>
                       <li><strong>ロール</strong>: 「従業員」または「管理者」を選択</li>
                     </ul>

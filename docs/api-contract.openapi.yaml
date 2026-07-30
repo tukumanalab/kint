@@ -1221,6 +1221,18 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        name_kana:
+          type: string
+          nullable: true
+          maxLength: 100
+        department:
+          type: string
+          nullable: true
+          maxLength: 100
+        worker_id:
+          type: string
+          nullable: true
+          maxLength: 50
         email:
           type: string
           format: email
@@ -1245,6 +1257,18 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        name_kana:
+          type: string
+          nullable: true
+          maxLength: 100
+        department:
+          type: string
+          nullable: true
+          maxLength: 100
+        worker_id:
+          type: string
+          nullable: true
+          maxLength: 50
         email:
           type: string
           format: email
@@ -1334,6 +1358,15 @@ components:
           type: string
         full_name:
           type: string
+        name_kana:
+          type: string
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        worker_id:
+          type: string
+          nullable: true
         email:
           type: string
           format: email

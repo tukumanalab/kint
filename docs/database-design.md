@@ -29,6 +29,9 @@
 | `id`                | TEXT          | PK                            | メールアドレス（または手動指定の email） |
 | `name`              | TEXT          | NOT NULL                      | 表示名                       |
 | `full_name`         | TEXT          | NOT NULL                      | 本名（氏名）                 |
+| `name_kana`         | TEXT          | NULL                          | フリガナ（カタカナ読み仮名） |
+| `department`        | TEXT          | NULL                          | 所属                         |
+| `worker_id`         | TEXT          | NULL                          | 従業員ID                     |
 | `email`             | TEXT          | NOT NULL, UNIQUE              | ログイン用メールアドレス     |
 | `password_hash`     | TEXT          | NOT NULL                      | bcrypt ハッシュ              |
 | `role`              | TEXT          | NOT NULL, CHECK(role IN ('admin','employee')) | ロール |

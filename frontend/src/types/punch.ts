@@ -40,6 +40,9 @@ export interface PunchUserCandidate {
   id: string;
   name: string;
   full_name: string;
+  name_kana?: string | null;
+  department?: string | null;
+  worker_id?: string | null;
 }
 
 export interface PunchUserCandidateListResponse {

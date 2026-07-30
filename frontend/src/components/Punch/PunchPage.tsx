@@ -590,8 +590,14 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                             className="user-candidate"
                             onClick={() => handleSelectUser(user)}
                           >
-                            <span className="user-candidate__name">{user.full_name}</span>
-                            <span className="user-candidate__meta">{user.name} / {user.id}</span>
+                            <span className="user-candidate__name">
+                              {user.full_name} {user.name_kana ? `(${user.name_kana})` : ''}
+                            </span>
+                            <span className="user-candidate__meta">
+                              {user.department ? `${user.department} | ` : ''}
+                              {user.worker_id ? `従業員ID: ${user.worker_id} | ` : ''}
+                              {user.name} ({user.id})
+                            </span>
                           </button>
                         ))
                       ) : (
@@ -682,7 +688,13 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
 }
 
 function formatUserLabel(user: PunchUserCandidate): string {
-  return `${user.full_name} (${user.name} / ${user.id})`;
+  const meta = [
+    user.name_kana ? `カナ: ${user.name_kana}` : null,
+    user.department ? `所属: ${user.department}` : null,
+    user.worker_id ? `従業員ID: ${user.worker_id}` : null,
+    `ID: ${user.id}`,
+  ].filter(Boolean).join(' / ');
+  return `${user.full_name} (${meta})`;
 }
 
 function formatDateTime(isoString: string): string {
