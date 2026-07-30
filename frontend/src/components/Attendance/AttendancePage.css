@@ -131,6 +131,11 @@
   background-color: #f8fafc;
 }
 
+.att-summary-tr {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
 .tr--selected {
   background-color: #f0f7ff !important;
 }

@@ -324,6 +324,17 @@ export function AttendancePage({ auth }: Props) {
     [auth.token, loadDetail, yearMonth]
   );
 
+  const handleOpenReportForUser = useCallback(
+    (summary: AttendanceMonthlySummary, e?: React.MouseEvent) => {
+      if (e) {
+        e.stopPropagation();
+      }
+      handleViewDetail(summary, { silent: true });
+      setShowWorkingReportModal(true);
+    },
+    [handleViewDetail]
+  );
+
   // サマリー (管理者：全員、一般：自分のみ) の取得
   const fetchSummary = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -1656,15 +1667,6 @@ export function AttendancePage({ auth }: Props) {
             <span>📖</span> 使い方ガイド
           </button>
 
-          <button
-            type="button"
-            className="att-btn att-btn--secondary"
-            onClick={() => setShowWorkingReportModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginRight: '8px' }}
-          >
-            <span>📄</span> 勤務時間報告書
-          </button>
-
           {isAdmin && (
             <div className="attendance-page__csv-buttons">
               <button
@@ -1902,7 +1904,8 @@ export function AttendancePage({ auth }: Props) {
                     {filteredSummaries.map((summary) => (
                       <tr
                         key={summary.user_id}
-                        className={selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}
+                        className={`att-summary-tr ${selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}`}
+                        onClick={() => handleViewDetail(summary)}
                       >
                         <td>
                           <strong>{summary.user_name}</strong>
@@ -1932,10 +1935,11 @@ export function AttendancePage({ auth }: Props) {
                         <td>
                           <button
                             type="button"
-                            className="att-btn att-btn--small"
-                            onClick={() => handleViewDetail(summary)}
+                            className="att-btn att-btn--small att-btn--secondary"
+                            onClick={(e) => handleOpenReportForUser(summary, e)}
+                            title="勤務時間報告書を表示・出力"
                           >
-                            詳細カレンダー
+                            📄 報告書
                           </button>
                         </td>
                       </tr>
@@ -1958,7 +1962,17 @@ export function AttendancePage({ auth }: Props) {
                         <span className="att-summary-card__fullname">{summary.full_name}</span>
                       )}
                     </div>
-                    <span className="att-summary-card__arrow">›</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="att-btn att-btn--small att-btn--secondary"
+                        onClick={(e) => handleOpenReportForUser(summary, e)}
+                        title="勤務時間報告書を表示・出力"
+                      >
+                        📄 報告書
+                      </button>
+                      <span className="att-summary-card__arrow">›</span>
+                    </div>
                   </div>
                   <div className="att-summary-card__stats">
                     <div className="att-summary-card__stat">

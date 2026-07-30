@@ -22,6 +22,25 @@ vi.mock('../../api/docs', () => ({
   }),
 }));
 
+vi.mock('../../api/working_hours_report', () => ({
+  fetchWorkingHoursReport: vi.fn().mockResolvedValue({
+    year: 2026,
+    month: 7,
+    year_month: '2026-07',
+    title: '教学系予算パートタイム職員等勤務時間報告書',
+    user: {
+      user_id: 'employee-user',
+      full_name: '従業員花子',
+      name_kana: 'ジュウギョウインハナコ',
+      department: 'テスト所属',
+      worker_id: 'W12345',
+    },
+    days: [],
+    total_actual_work_time_str: '(0:00)',
+    total_requested_work_hours: 0,
+  }),
+}));
+
 const mockAdminUser = {
   id: 'admin-user',
   name: 'admin',
@@ -149,9 +168,9 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
     });
 
-    // 「詳細カレンダー」をクリックして詳細を表示する
-    const viewDetailBtn = screen.getByRole('button', { name: '詳細カレンダー' });
-    fireEvent.click(viewDetailBtn);
+    // 従業員の行をクリックして詳細を表示する
+    const userRow = screen.getAllByText('employee')[0].closest('tr')!;
+    fireEvent.click(userRow);
 
     // 詳細カレンダーロード待ち
     await waitFor(() => {
@@ -215,8 +234,8 @@ describe('AttendancePage - History', () => {
       expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
     });
 
-    const viewDetailBtn = screen.getByRole('button', { name: '詳細カレンダー' });
-    fireEvent.click(viewDetailBtn);
+    const userRow = screen.getAllByText('employee')[0].closest('tr')!;
+    fireEvent.click(userRow);
 
     await waitFor(() => {
       expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
@@ -446,6 +465,24 @@ describe('AttendancePage - Guide', () => {
     expect(screen.getByText(/勤怠管理画面 使い方ガイド/)).toBeInTheDocument();
     const elements = await screen.findAllByText(/1\. 勤怠記録の修正方法/);
     expect(elements.length).toBeGreaterThan(0);
+  });
+
+  it('管理者でログインし、月次サマリーの操作列にある「勤務時間報告書」ボタンをクリックすると報告書モーダルが開くこと', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
+    });
+
+    const reportBtns = screen.getAllByRole('button', { name: '📄 報告書' });
+    expect(reportBtns.length).toBeGreaterThan(0);
+
+    fireEvent.click(reportBtns[0]);
+
+    // 勤務時間報告書モーダルの表示（タイトルまたはプレビューコンテンツ）を確認
+    await waitFor(() => {
+      expect(screen.getByText(/パートタイム職員等勤務時間報告書/)).toBeInTheDocument();
+    });
   });
 });
 
