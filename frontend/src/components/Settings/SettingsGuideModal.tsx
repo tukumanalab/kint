@@ -237,6 +237,13 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  報告書デフォルト勤務内容 (working_report_default_content)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  勤務時間報告書（パートタイム職員等勤務時間報告書）を出力・プレビューする際、全勤務行の「勤務内容」に自動適用されるデフォルト値（初期設定: 青学つくまなラボ 利用者対応）です。
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
                   シフト開始前打刻の許容時間 (shift_checkin_early_minutes)
                 </h4>
                 <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>

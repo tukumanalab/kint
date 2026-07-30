@@ -57,6 +57,8 @@ class Settings(BaseSettings):
         '{"id": "default-5", "target": "weekly_working_days", "operator": ">=", "threshold_value": 4, "message": "要確認：週に4日以上働いています"}, '
         '{"id": "default-6", "target": "weekly_working_hours", "operator": ">", "threshold_value": 18.0, "message": "要確認：たくさん働いています"}]'
     )
+    working_report_default_content: str = "青学つくまなラボ 利用者対応"
+
 
 
 settings = Settings()

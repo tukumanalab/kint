@@ -49,6 +49,7 @@ class SettingsResponse(BaseModel):
     enable_google_signup: bool
     overtime_allowance_minutes: int
     attendance_alert_rules: list[AlertRule]
+    working_report_default_content: str
 
 
 class SettingsPatchRequest(BaseModel):
@@ -68,6 +69,7 @@ class SettingsPatchRequest(BaseModel):
     enable_google_signup: bool | None = None
     overtime_allowance_minutes: int | None = Field(default=None, ge=0, le=120)
     attendance_alert_rules: list[AlertRule] | None = None
+    working_report_default_content: str | None = Field(default=None, min_length=1, max_length=200)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -107,6 +109,7 @@ class SettingsPatchRequest(BaseModel):
             and self.enable_google_signup is None
             and self.overtime_allowance_minutes is None
             and self.attendance_alert_rules is None
+            and self.working_report_default_content is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):

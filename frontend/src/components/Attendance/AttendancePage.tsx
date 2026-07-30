@@ -30,6 +30,7 @@ import type {
 } from '../../types/attendance';
 import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
+import { WorkingHoursReportModal } from './WorkingHoursReportModal';
 import { formatHours } from '../../utils/time';
 
 const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
@@ -123,6 +124,7 @@ export function AttendancePage({ auth }: Props) {
   const [historyWorkDate, setHistoryWorkDate] = useState('');
 
   // 手動勤怠追加関連 (管理者用)
+  const [showWorkingReportModal, setShowWorkingReportModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEditMode, setAddEditMode] = useState<'punch' | 'work'>('work');
   const [addFormData, setAddFormData] = useState({
@@ -1654,6 +1656,15 @@ export function AttendancePage({ auth }: Props) {
             <span>📖</span> 使い方ガイド
           </button>
 
+          <button
+            type="button"
+            className="att-btn att-btn--secondary"
+            onClick={() => setShowWorkingReportModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginRight: '8px' }}
+          >
+            <span>📄</span> 勤務時間報告書
+          </button>
+
           {isAdmin && (
             <div className="attendance-page__csv-buttons">
               <button
@@ -2931,6 +2942,15 @@ export function AttendancePage({ auth }: Props) {
           isAdmin={isAdmin}
           token={auth.token || ''}
           onClose={() => setShowGuide(false)}
+        />
+      )}
+
+      {showWorkingReportModal && auth.token && (
+        <WorkingHoursReportModal
+          token={auth.token}
+          yearMonth={yearMonth}
+          userId={isAdmin ? (selectedUser?.user_id || undefined) : undefined}
+          onClose={() => setShowWorkingReportModal(false)}
         />
       )}
 

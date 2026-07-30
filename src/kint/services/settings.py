@@ -32,6 +32,7 @@ ALLOWED_SETTING_KEYS = {
     "enable_google_signup",
     "overtime_allowance_minutes",
     "attendance_alert_rules",
+    "working_report_default_content",
 }
 
 _KNOWN_VERSION = "1"
@@ -65,6 +66,7 @@ class SettingsService:
         enable_google_signup_raw = db_map.get("enable_google_signup")
         overtime_allowance_minutes_raw = db_map.get("overtime_allowance_minutes")
         attendance_alert_rules_raw = db_map.get("attendance_alert_rules")
+        working_report_default_content_raw = db_map.get("working_report_default_content")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -136,6 +138,12 @@ class SettingsService:
         except (json.JSONDecodeError, TypeError, ValueError):
             attendance_alert_rules = []
 
+        working_report_default_content = (
+            working_report_default_content_raw
+            if working_report_default_content_raw is not None
+            else env_settings.working_report_default_content
+        )
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -151,6 +159,7 @@ class SettingsService:
             enable_google_signup=enable_google_signup,
             overtime_allowance_minutes=overtime_allowance_minutes,
             attendance_alert_rules=attendance_alert_rules,
+            working_report_default_content=working_report_default_content,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -219,6 +228,8 @@ class SettingsService:
 
             rules_dicts = [rule.model_dump() for rule in updates.attendance_alert_rules]
             fields["attendance_alert_rules"] = json.dumps(rules_dicts)
+        if updates.working_report_default_content is not None:
+            fields["working_report_default_content"] = updates.working_report_default_content
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -299,6 +310,7 @@ class SettingsService:
             "enable_google_signup": current.enable_google_signup,
             "overtime_allowance_minutes": current.overtime_allowance_minutes,
             "attendance_alert_rules": current.attendance_alert_rules,
+            "working_report_default_content": current.working_report_default_content,
         }
 
         changes: list[SettingsImportChange] = []
@@ -319,6 +331,7 @@ class SettingsService:
                 "monthly_report_time",
                 "monthly_report_subject",
                 "monthly_report_body",
+                "working_report_default_content",
             }:
                 new_value: int | str | bool | None = raw_value if raw_value else None
             elif key == "enable_google_signup":

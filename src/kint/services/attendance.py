@@ -53,6 +53,11 @@ from kint.schemas.attendance import (
     ShiftPeriod,
 )
 from kint.schemas.punch import PunchRequest, PunchResponse
+from kint.schemas.working_hours_report import (
+    WorkingHoursReportDayItem,
+    WorkingHoursReportResponse,
+    WorkingHoursReportUserInfo,
+)
 from kint.services.settings import SettingsService
 
 # ユーザーごとの最終打刻完了時刻（取り消しを含む）を一時キャッシュするメモリ辞書。
@@ -2775,3 +2780,164 @@ class AttendanceService:
         )
         await self.session.execute(stmt)
         await self.session.commit()
+
+    async def get_working_hours_report_data(
+        self, year_month: str, user_id: str
+    ) -> WorkingHoursReportResponse:
+        """指定年月・ユーザーの勤務時間報告書データを取得・構築する。"""
+        user = await self.session.get(User, user_id)
+        if not user:
+            raise KintNotFoundError(f"ユーザー ID '{user_id}' は存在しません")
+
+        try:
+            year, month = map(int, year_month.split("-"))
+        except ValueError:
+            raise KintBadRequestError("year_month は YYYY-MM 形式で指定してください")
+
+        _, last_day = calendar.monthrange(year, month)
+        start_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+
+        period_data, _ = await self._calculate_period_data(
+            from_date=start_date, to_date=end_date, user_id=user_id
+        )
+        if not period_data:
+            raise KintNotFoundError(
+                code="USER_NOT_FOUND",
+                message="対象のユーザーが見つかりません。",
+            )
+
+        _, summary, _ = period_data[0]
+
+        query = (
+            select(Attendance)
+            .where(
+                Attendance.user_id == user_id,
+                Attendance.work_date >= start_date,
+                Attendance.work_date <= end_date,
+            )
+            .order_by(Attendance.work_date.asc(), Attendance.check_in.asc())
+        )
+        result = await self.session.execute(query)
+        attendances = list(result.scalars().all())
+
+        attendance_map: dict[date, list[Attendance]] = {}
+        for att in attendances:
+            attendance_map.setdefault(att.work_date, []).append(att)
+
+        settings_svc = SettingsService(self.session)
+        default_content = await settings_svc.get_str("working_report_default_content")
+        if not default_content:
+            default_content = "青学つくまなラボ 利用者対応"
+
+        day_items: list[WorkingHoursReportDayItem] = []
+        weekdays_jp = ["月", "火", "水", "木", "金", "土", "日"]
+
+        JST = timezone(timedelta(hours=9))
+
+        def format_local_time(dt: datetime | None) -> str | None:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return dt.astimezone(JST).strftime("%H:%M")
+
+        for day in range(1, last_day + 1):
+            cur_date = date(year, month, day)
+            dow_str = weekdays_jp[cur_date.weekday()]
+            day_label = f"{day}({dow_str})"
+            is_weekend = cur_date.weekday() in (5, 6)
+
+            day_atts = attendance_map.get(cur_date, [])
+            # 手動削除された勤務記録 (is_manual_work_time かつ work_start/work_end が None) を除外
+            valid_atts = [
+                att for att in day_atts
+                if not (att.is_manual_work_time and att.work_start is None and att.work_end is None)
+            ]
+
+            if not valid_atts:
+                day_items.append(
+                    WorkingHoursReportDayItem(
+                        date=cur_date,
+                        day_of_week_label=day_label,
+                        is_weekend=is_weekend,
+                        start_time=None,
+                        end_time=None,
+                        break_time_str=None,
+                        actual_work_time_str=None,
+                        requested_work_hours=0.0,
+                        work_content=None,
+                        remarks=None,
+                    )
+                )
+            else:
+                for att in valid_atts:
+                    start_dt = att.work_start if att.work_start else att.check_in
+                    end_dt = att.work_end if att.work_end else att.check_out
+
+                    start_str = format_local_time(start_dt)
+                    end_str = format_local_time(end_dt)
+
+                    break_str = None
+                    if att.break_minutes > 0:
+                        b_h = att.break_minutes // 60
+                        b_m = att.break_minutes % 60
+                        break_str = f"{b_h}:{b_m:02d}"
+
+                    actual_str = None
+                    if att.check_in and att.check_out:
+                        diff_sec = (att.check_out - att.check_in).total_seconds()
+                        act_mins = max(0, int(diff_sec // 60) - att.break_minutes)
+                        act_h = act_mins // 60
+                        act_m = act_mins % 60
+                        actual_str = f"{act_h}:{act_m:02d}"
+
+                    req_hours = 0.0
+                    if att.work_start and att.work_end:
+                        diff_sec = (att.work_end - att.work_start).total_seconds()
+                        req_mins = max(0, int(diff_sec // 60) - att.break_minutes)
+                        req_hours = round(req_mins / 60.0, 2)
+
+                    day_items.append(
+                        WorkingHoursReportDayItem(
+                            date=cur_date,
+                            day_of_week_label=day_label,
+                            is_weekend=is_weekend,
+                            start_time=start_str,
+                            end_time=end_str,
+                            break_time_str=break_str,
+                            actual_work_time_str=actual_str,
+                            requested_work_hours=req_hours,
+                            work_content=default_content,
+                            remarks=None,
+                        )
+                    )
+
+        # Web画面の月次勤務サマリーと完全一致させるため、共通サマリー集計値を使用
+        tot_act_mins = int(round(summary.total_working_hours * 60.0))
+        tot_act_h = tot_act_mins // 60
+        tot_act_m = tot_act_mins % 60
+        total_actual_work_time_str = f"({tot_act_h}:{tot_act_m:02d})"
+        total_requested_work_hours = summary.total_requested_hours
+
+        user_info = WorkingHoursReportUserInfo(
+            user_id=user.id,
+            full_name=user.full_name,
+            name_kana=user.name_kana,
+            department=user.department,
+            worker_id=user.worker_id,
+        )
+
+        title = f"{year}年 {month}月分 教学系予算パートタイム職員等勤務時間報告書"
+
+        return WorkingHoursReportResponse(
+            year=year,
+            month=month,
+            year_month=year_month,
+            title=title,
+            user=user_info,
+            days=day_items,
+            total_actual_work_time_str=total_actual_work_time_str,
+            total_requested_work_hours=total_requested_work_hours,
+        )
+

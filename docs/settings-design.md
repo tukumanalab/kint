@@ -43,6 +43,7 @@
 | `enable_google_signup` | boolean | false | — | — | Googleログインでの新規ユーザー登録を許可するかどうか |
 | `overtime_allowance_minutes` | integer | 30 | 0 | 120 | シフト終了後の退勤打刻を通常丸め（切り下げ）対象とする許容時間（分） |
 | `attendance_alert_rules` | json | `[...初期値...]` | — | — | 勤怠の「要確認」アラートを判定するルールの配列 (JSON形式) |
+| `working_report_default_content` | string | `"青学つくまなラボ 利用者対応"` | 1 | 200 | 勤務時間報告書の全勤務行に適用されるデフォルト勤務内容文字列 |
 
 ---
 

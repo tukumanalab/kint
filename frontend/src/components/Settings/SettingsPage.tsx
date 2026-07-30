@@ -141,6 +141,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [enableGoogleSignup, setEnableGoogleSignup] = useState(false);
   const [overtimeAllowanceMinutes, setOvertimeAllowanceMinutes] = useState('');
   const [attendanceAlertRules, setAttendanceAlertRules] = useState<AlertRule[]>([]);
+  const [workingReportDefaultContent, setWorkingReportDefaultContent] = useState('青学つくまなラボ 利用者対応');
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -254,6 +255,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setEnableGoogleSignup(s.enable_google_signup);
       setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
       setAttendanceAlertRules(s.attendance_alert_rules || []);
+      setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -282,6 +284,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEnableGoogleSignup(s.enable_google_signup);
         setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
         setAttendanceAlertRules(s.attendance_alert_rules || []);
+        setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
       })
       .catch((err: unknown) => {
         const msg =
@@ -363,6 +366,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         enable_google_signup: enableGoogleSignup,
         overtime_allowance_minutes: Number(overtimeAllowanceMinutes),
         attendance_alert_rules: attendanceAlertRules,
+        working_report_default_content: workingReportDefaultContent.trim() || '青学つくまなラボ 利用者対応',
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -637,6 +641,24 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">秒（1〜300）</span>
             </div>
             <p className="settings-field__hint">打刻完了メッセージおよびエラーメッセージを画面に表示しておく秒数です</p>
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h2 className="settings-section__title">勤務時間報告書</h2>
+          <div className="settings-field">
+            <label htmlFor="workingReportDefaultContent" className="settings-field__label">
+              デフォルト勤務内容
+            </label>
+            <input
+              id="workingReportDefaultContent"
+              type="text"
+              className="settings-field__input settings-field__input--wide"
+              placeholder="青学つくまなラボ 利用者対応"
+              value={workingReportDefaultContent}
+              onChange={(e) => setWorkingReportDefaultContent(e.target.value)}
+            />
+            <p className="settings-field__hint">勤務時間報告書の全勤務行に適用されるデフォルトの勤務内容です</p>
           </div>
         </section>
 

@@ -30,6 +30,7 @@ from kint.schemas.attendance import (
     AttendancePatchRequest,
     AttendanceRecord,
 )
+from kint.schemas.working_hours_report import WorkingHoursReportResponse
 from kint.services.attendance import AttendanceService
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -57,6 +58,28 @@ async def list_attendances(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/working-hours-report", response_model=WorkingHoursReportResponse)
+async def get_working_hours_report(
+    year_month: str = Query(..., description="対象年月 (YYYY-MM 形式)"),
+    user_id: str | None = Query(default=None, description="対象ユーザー ID（管理者は任意指定可）"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> WorkingHoursReportResponse:
+    """勤務時間報告書データを取得する。"""
+    target_user_id = user_id or current_user.id
+    if current_user.role == "employee" and target_user_id != current_user.id:
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="他のユーザーの勤務時間報告書を閲覧する権限がありません",
+        )
+
+    service = AttendanceService(session)
+    return await service.get_working_hours_report_data(
+        year_month=year_month, user_id=target_user_id
+    )
+
 
 
 @router.patch("/{attendance_id}", response_model=AttendanceRecord)

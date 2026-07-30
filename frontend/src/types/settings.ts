@@ -30,6 +30,7 @@ export interface SystemSettings {
   enable_google_signup: boolean;
   overtime_allowance_minutes: number;
   attendance_alert_rules: AlertRule[];
+  working_report_default_content: string;
 }
 
 export interface SettingsPatchRequest {
@@ -47,6 +48,7 @@ export interface SettingsPatchRequest {
   enable_google_signup?: boolean;
   overtime_allowance_minutes?: number;
   attendance_alert_rules?: AlertRule[];
+  working_report_default_content?: string;
 }
 
 export interface SettingsExportFile {
