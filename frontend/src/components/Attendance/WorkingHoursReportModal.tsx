@@ -78,12 +78,26 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
       }
     });
 
-    // 報告書シートの HTML のみを別ウィンドウで印刷
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (!printWindow) {
-      alert('ポップアップがブロックされました。ブラウザ設定でポップアップを許可してください。');
-      return;
+    // 既存の印刷用 iframe があれば削除
+    const existingIframe = document.getElementById('working-hours-report-print-iframe');
+    if (existingIframe) {
+      existingIframe.remove();
     }
+
+    // 隠し iframe の作成
+    const iframe = document.createElement('iframe');
+    iframe.id = 'working-hours-report-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const pri = iframe.contentWindow;
+    if (!pri) return;
 
     // 現在のページのスタイルシートを収集
     const stylesheets = Array.from(document.styleSheets)
@@ -97,7 +111,8 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
       })
       .join('\n');
 
-    printWindow.document.write(`<!DOCTYPE html>
+    pri.document.open();
+    pri.document.write(`<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -134,22 +149,22 @@ html, body {
 ${sheetEl.outerHTML}
 </body>
 </html>`);
-    printWindow.document.close();
+    pri.document.close();
 
-    // スタイル適用完了を待って印刷
-    printWindow.addEventListener('load', () => {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    });
-    // load が発火しないブラウザ向けフォールバック
-    setTimeout(() => {
-      if (!printWindow.closed) {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-      }
-    }, 1000);
+    const doPrint = () => {
+      pri.focus();
+      // 印刷/保存完了またはキャンセル後に iframe を破棄
+      pri.onafterprint = () => {
+        iframe.remove();
+      };
+      pri.print();
+    };
+
+    if (pri.document.readyState === 'complete') {
+      doPrint();
+    } else {
+      pri.addEventListener('load', doPrint, { once: true });
+    }
   }
 
   if (loading) {
