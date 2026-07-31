@@ -2807,23 +2807,8 @@ class AttendanceService:
                 message="対象のユーザーが見つかりません。",
             )
 
-        _, summary, _ = period_data[0]
-
-        query = (
-            select(Attendance)
-            .where(
-                Attendance.user_id == user_id,
-                Attendance.work_date >= start_date,
-                Attendance.work_date <= end_date,
-            )
-            .order_by(Attendance.work_date.asc(), Attendance.check_in.asc())
-        )
-        result = await self.session.execute(query)
-        attendances = list(result.scalars().all())
-
-        attendance_map: dict[date, list[Attendance]] = {}
-        for att in attendances:
-            attendance_map.setdefault(att.work_date, []).append(att)
+        _, summary, daily_details = period_data[0]
+        detail_map = {d.work_date: d for d in daily_details}
 
         settings_svc = SettingsService(self.session)
         default_content = await settings_svc.get_str("working_report_default_content")
@@ -2848,14 +2833,16 @@ class AttendanceService:
             day_label = f"{day}({dow_str})"
             is_weekend = cur_date.weekday() in (5, 6)
 
-            day_atts = attendance_map.get(cur_date, [])
-            # 手動削除された勤務記録 (is_manual_work_time かつ work_start/work_end が None) を除外
-            valid_atts = [
-                att for att in day_atts
-                if not (att.is_manual_work_time and att.work_start is None and att.work_end is None)
+            detail = detail_map.get(cur_date)
+            punches = detail.punches if detail else []
+
+            # 確定された勤務時間 (calculated_check_in かつ calculated_check_out) を持つセグメントのみ抽出
+            valid_punches = [
+                p for p in punches
+                if p.calculated_check_in is not None and p.calculated_check_out is not None
             ]
 
-            if not valid_atts:
+            if not valid_punches:
                 day_items.append(
                     WorkingHoursReportDayItem(
                         date=cur_date,
@@ -2871,32 +2858,22 @@ class AttendanceService:
                     )
                 )
             else:
-                for att in valid_atts:
-                    start_dt = att.work_start if att.work_start else att.check_in
-                    end_dt = att.work_end if att.work_end else att.check_out
-
-                    start_str = format_local_time(start_dt)
-                    end_str = format_local_time(end_dt)
+                for p in valid_punches:
+                    start_str = format_local_time(p.calculated_check_in)
+                    end_str = format_local_time(p.calculated_check_out)
 
                     break_str = None
-                    if att.break_minutes > 0:
-                        b_h = att.break_minutes // 60
-                        b_m = att.break_minutes % 60
+                    if p.break_minutes > 0:
+                        b_h = p.break_minutes // 60
+                        b_m = p.break_minutes % 60
                         break_str = f"{b_h}:{b_m:02d}"
 
-                    actual_str = None
-                    if att.check_in and att.check_out:
-                        diff_sec = (att.check_out - att.check_in).total_seconds()
-                        act_mins = max(0, int(diff_sec // 60) - att.break_minutes)
-                        act_h = act_mins // 60
-                        act_m = act_mins % 60
-                        actual_str = f"{act_h}:{act_m:02d}"
-
-                    req_hours = 0.0
-                    if att.work_start and att.work_end:
-                        diff_sec = (att.work_end - att.work_start).total_seconds()
-                        req_mins = max(0, int(diff_sec // 60) - att.break_minutes)
-                        req_hours = round(req_mins / 60.0, 2)
+                    diff_sec = (p.calculated_check_out - p.calculated_check_in).total_seconds()
+                    req_mins = max(0, int(diff_sec // 60) - p.break_minutes)
+                    act_h = req_mins // 60
+                    act_m = req_mins % 60
+                    actual_str = f"{act_h}:{act_m:02d}"
+                    req_hours = round(req_mins / 60.0, 2)
 
                     day_items.append(
                         WorkingHoursReportDayItem(

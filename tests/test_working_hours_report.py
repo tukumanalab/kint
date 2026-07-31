@@ -159,6 +159,12 @@ async def test_get_working_hours_report_data(session: AsyncSession):
     assert day3.actual_work_time_str is None
     assert day3.work_content is None
 
+    # 10日目(打刻のみで DB に work_start/work_end が保存されていない記録)の確認 -> 自動計算された勤務時間・実働時間数が出力されること
+    day10 = [d for d in report.days if d.date == date(2026, 7, 10)][0]
+    assert day10.start_time == "13:00"
+    assert day10.end_time == "14:00"
+    assert day10.actual_work_time_str == "1:00"
+
 
 @pytest.mark.asyncio
 async def test_deleted_attendance_record_excluded_from_report(session: AsyncSession):
