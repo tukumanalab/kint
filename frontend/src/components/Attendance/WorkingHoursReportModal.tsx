@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchWorkingHoursReport } from '../../api/working_hours_report';
 import type {
   WorkingHoursReportResponse,
@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: Props) {
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [report, setReport] = useState<WorkingHoursReportResponse | null>(null);
   const [days, setDays] = useState<WorkingHoursReportDayItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,89 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
   }
 
   function handlePrint() {
-    window.print();
+    const sheetEl = sheetRef.current;
+    if (!sheetEl) return;
+
+    // input 要素の値を print-text span に同期してからクローン
+    sheetEl.querySelectorAll('.print-text').forEach((span) => {
+      const input = span.previousElementSibling as HTMLInputElement | null;
+      if (input && input.classList.contains('report-table-input')) {
+        span.textContent = input.value || '';
+      }
+    });
+
+    // 報告書シートの HTML のみを別ウィンドウで印刷
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+      alert('ポップアップがブロックされました。ブラウザ設定でポップアップを許可してください。');
+      return;
+    }
+
+    // 現在のページのスタイルシートを収集
+    const stylesheets = Array.from(document.styleSheets)
+      .map((ss) => {
+        try {
+          return Array.from(ss.cssRules).map((r) => r.cssText).join('\n');
+        } catch {
+          // cross-origin stylesheet — link タグとしてコピー
+          return ss.href ? `@import url("${ss.href}");` : '';
+        }
+      })
+      .join('\n');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>勤務時間報告書</title>
+<style>
+${stylesheets}
+
+/* 印刷用の input 非表示＆ print-text 表示 */
+.report-table-input { display: none !important; }
+.print-text { display: inline !important; }
+
+/* A4 1枚固定 */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 210mm;
+  background: #ffffff;
+}
+.working-report-sheet {
+  width: 210mm;
+  max-height: 297mm;
+  padding: 6mm 10mm 4mm 10mm;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #ffffff;
+}
+</style>
+</head>
+<body>
+${sheetEl.outerHTML}
+</body>
+</html>`);
+    printWindow.document.close();
+
+    // スタイル適用完了を待って印刷
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    });
+    // load が発火しないブラウザ向けフォールバック
+    setTimeout(() => {
+      if (!printWindow.closed) {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+      }
+    }, 1000);
   }
 
   if (loading) {
@@ -126,7 +209,7 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
         </div>
 
         {/* 帳票本体（印刷対象） */}
-        <div className="working-report-sheet">
+        <div className="working-report-sheet" ref={sheetRef}>
           <h1 className="working-report-title">{report.title}</h1>
 
           {/* ヘッダーブロック */}

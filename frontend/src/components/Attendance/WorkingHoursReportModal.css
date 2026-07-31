@@ -364,53 +364,22 @@
   margin-left: 40px;
 }
 
-/* ===== A4 印刷スタイリング (1枚固定) ===== */
+/* ===== A4 印刷スタイリング (新ウィンドウ印刷用) ===== */
+/* 実際の印刷は handlePrint() が報告書 HTML のみを新ウィンドウに
+   コピーして印刷するため、メインページの DOM 構造には依存しない。
+   以下は新ウィンドウおよび Ctrl+P 時の最低限の保護用スタイル。 */
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  
   .no-print {
     display: none !important;
   }
 
-  .report-modal-backdrop {
-    position: static;
-    background: transparent;
-    padding: 0;
-    overflow: visible;
-  }
-
-  .report-modal-container {
-    box-shadow: none;
-    margin: 0;
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .working-report-sheet,
-  .working-report-sheet * {
-    visibility: visible;
-  }
-
-  .working-report-sheet {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 210mm;
-    height: 297mm;
-    padding: 8mm 12mm 6mm 12mm;
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-
   .report-table-input {
-    display: none;
+    display: none !important;
   }
 
   .print-text {
-    display: inline;
+    display: inline !important;
   }
 
   .working-report-header-table,
