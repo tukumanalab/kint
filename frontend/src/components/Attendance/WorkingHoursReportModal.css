@@ -152,12 +152,14 @@
 
 .department-cell {
   font-size: 13px;
+  text-align: left;
 }
 
 .kana-worker-id-cell {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
+  gap: 16px;
   padding: 2px 12px 2px 8px !important;
 }
 
@@ -173,7 +175,7 @@
 .full-name-cell {
   font-size: 14px;
   font-weight: bold;
-  text-align: center;
+  text-align: left;
 }
 
 .seal-cell {
