@@ -384,3 +384,41 @@ async def test_working_hours_report_endpoint(client: AsyncClient, session: Async
     )
     assert res.status_code == 200
     assert res.json()["user"]["full_name"] == "従業員 一郎"
+
+
+@pytest.mark.asyncio
+async def test_working_hours_report_with_remarks(session: AsyncSession):
+    """勤怠データに入力された備考 (remarks) が報告書データに正しく反映されることを検証。"""
+    from datetime import timezone
+    UTC = timezone.utc
+    user = User(
+        id="user-rmk-1",
+        name="rmkuser",
+        full_name="備考 テスト",
+        email="rmk@example.com",
+        role="employee",
+    )
+    session.add(user)
+    await session.commit()
+
+    att = Attendance(
+        id="att-rmk-1",
+        user_id="user-rmk-1",
+        work_date=date(2026, 7, 5),
+        check_in=datetime(2026, 7, 5, 4, 0, 0, tzinfo=UTC),
+        check_out=datetime(2026, 7, 5, 9, 0, 0, tzinfo=UTC),
+        work_start=datetime(2026, 7, 5, 4, 0, 0, tzinfo=UTC),
+        work_end=datetime(2026, 7, 5, 9, 0, 0, tzinfo=UTC),
+        break_minutes=0,
+        remarks="直行直帰のため事前申請済",
+        source="webusb_nfc",
+    )
+    session.add(att)
+    await session.commit()
+
+    service = AttendanceService(session)
+    report = await service.get_working_hours_report_data(year_month="2026-07", user_id="user-rmk-1")
+
+    day5 = [d for d in report.days if d.date == date(2026, 7, 5)][0]
+    assert day5.remarks == "直行直帰のため事前申請済"
+

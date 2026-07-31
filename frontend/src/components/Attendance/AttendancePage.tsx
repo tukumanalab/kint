@@ -108,6 +108,7 @@ export function AttendancePage({ auth }: Props) {
     requestedCheckOutDate: '',
     requestedCheckOutTime: '',
     reason: '',
+    remarks: '',
   });
   const [approvalFormData, setApprovalFormData] = useState({
     requestId: '',
@@ -534,7 +535,8 @@ export function AttendancePage({ auth }: Props) {
     calcOut: string | null = null,
     shiftStart: string | null = null,
     shiftEnd: string | null = null,
-    isManual: boolean = false
+    isManual: boolean = false,
+    remarks: string | null = null
   ) => {
     const initialMode = isManual ? 'work' : 'punch';
     setEditMode(initialMode);
@@ -564,6 +566,7 @@ export function AttendancePage({ auth }: Props) {
       requestedCheckOutDate: localOut.date,
       requestedCheckOutTime: localOut.time,
       reason: '',
+      remarks: remarks || '',
     });
     setShowRequestModal(true);
   };
@@ -630,6 +633,7 @@ export function AttendancePage({ auth }: Props) {
             check_out: isoOut,
             edit_mode: 'punch',
             reason: requestFormData.reason,
+            remarks: requestFormData.remarks || null,
           });
         } else {
           await updateAttendance(auth.token, requestFormData.attendanceId, {
@@ -638,6 +642,7 @@ export function AttendancePage({ auth }: Props) {
             reset_to_auto: resetToAuto,
             edit_mode: resetToAuto ? 'auto' : 'work',
             reason: requestFormData.reason,
+            remarks: requestFormData.remarks || null,
           });
         }
         alert('勤怠を修正しました');
@@ -660,6 +665,27 @@ export function AttendancePage({ auth }: Props) {
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : '処理に失敗しました');
+    }
+  };
+
+  const handleRemarksBlur = async (attendanceId: string, newValue: string, oldValue?: string | null) => {
+    const trimmed = newValue.trim();
+    if (trimmed === (oldValue || '').trim()) return;
+    if (!auth.token) return;
+
+    try {
+      const targetPunch = detailData?.days.flatMap(d => d.punches || []).find(p => p.attendance_id === attendanceId);
+      await updateAttendance(auth.token, attendanceId, {
+        work_start: targetPunch?.calculated_check_in || targetPunch?.check_in || null,
+        work_end: targetPunch?.calculated_check_out || targetPunch?.check_out || null,
+        reason: '備考の更新',
+        remarks: trimmed || null,
+      });
+      if (selectedUser) {
+        await loadDetail(selectedUser.user_id, yearMonth);
+      }
+    } catch (err) {
+      console.error('Failed to update remarks:', err);
     }
   };
 
@@ -1083,6 +1109,36 @@ export function AttendancePage({ auth }: Props) {
             )}
           </td>
           <td>
+            {day.punches && day.punches.length > 0 ? (
+              <div className="att-multiple-punches">
+                {day.punches.map((p, idx) => (
+                  <div key={idx} className="att-punch-item">
+                    {detailData && !detailData.is_locked && p.attendance_id ? (
+                      <input
+                        type="text"
+                        style={{
+                          width: '100%',
+                          minWidth: '110px',
+                          padding: '3px 6px',
+                          fontSize: '12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px'
+                        }}
+                        defaultValue={p.remarks || ''}
+                        placeholder="備考を入力"
+                        onBlur={(e) => handleRemarksBlur(p.attendance_id!, e.target.value, p.remarks)}
+                      />
+                    ) : (
+                      <span>{p.remarks || '-'}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              '-'
+            )}
+          </td>
+          <td>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {day.punches && day.punches.length > 0 ? (
                 <div className="att-multiple-punches" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1103,7 +1159,8 @@ export function AttendancePage({ auth }: Props) {
                                 p.calculated_check_out,
                                 day.shift_start,
                                 day.shift_end,
-                                p.is_manual_work_time
+                                p.is_manual_work_time,
+                                p.remarks
                               )
                             }
                           >
@@ -2086,6 +2143,7 @@ export function AttendancePage({ auth }: Props) {
                         <th>状態</th>
                         <th>打刻元</th>
                         <th>超過理由</th>
+                        <th>備考</th>
                         <th style={{ minWidth: '180px' }}>操作</th>
                       </tr>
                     </thead>
@@ -2408,6 +2466,18 @@ export function AttendancePage({ auth }: Props) {
                     setRequestFormData({ ...requestFormData, reason: e.target.value })
                   }
                   placeholder={isAdmin ? "勤務時間を直接修正する理由を入力してください" : "修正が必要な理由を入力してください（必須）"}
+                />
+              </div>
+              <div className="att-form-group" style={{ marginTop: '12px' }}>
+                <label style={{ fontWeight: 'bold' }}>備考 (報告書PDF等に反映)</label>
+                <input
+                  type="text"
+                  value={requestFormData.remarks}
+                  onChange={(e) =>
+                    setRequestFormData({ ...requestFormData, remarks: e.target.value })
+                  }
+                  placeholder="備考を入力してください"
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', marginTop: '4px' }}
                 />
               </div>
               <div className="att-modal__buttons">

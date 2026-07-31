@@ -217,6 +217,7 @@ export async function createAttendance(
     check_out?: string | null;
     edit_mode?: 'punch' | 'work';
     reason: string;
+    remarks?: string | null;
   },
 ): Promise<AttendanceRecord> {
   return request<AttendanceRecord>(
@@ -240,6 +241,7 @@ export async function updateAttendance(
     edit_mode?: 'punch' | 'work' | 'auto';
     reset_to_auto?: boolean;
     reason: string;
+    remarks?: string | null;
   },
 ): Promise<AttendanceRecord> {
   return request<AttendanceRecord>(

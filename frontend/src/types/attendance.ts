@@ -45,6 +45,7 @@ export interface PunchPeriod {
   device_name?: string | null;
   is_manual_work_time?: boolean;
   break_minutes?: number;
+  remarks?: string | null;
 }
 
 export interface DailyAttendanceDetail {
@@ -66,6 +67,7 @@ export interface DailyAttendanceDetail {
   is_auto_completed?: boolean;
   is_manual_work_time?: boolean;
   break_minutes?: number;
+  remarks?: string | null;
   punches?: PunchPeriod[];
   shifts?: { start_time: string; end_time: string }[];
   daily_alerts?: AlertResult[];
@@ -152,6 +154,7 @@ export interface AttendanceRecord {
   last_updated_at: string | null;
   last_updated_by_user_id: string | null;
   overtime_reason?: string | null;
+  remarks?: string | null;
   device_name?: string | null;
 }
 

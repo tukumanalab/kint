@@ -605,3 +605,16 @@ sequenceDiagram
 3. **未一致データの追跡・報告**:
    - 一致するアカウントが見つからなかった氏名はレスポンスの `unmatched_names` および `unmatched_rows` に集計し、フロントエンドモーダル上で表示報告する。
 
+---
+
+## 11. 勤務時間報告書（パートタイム職員等勤務時間報告書）データ取得および備考連携設計
+
+### API エンドポイント
+- `GET /api/v1/attendance/working-hours-report?year_month=YYYY-MM&user_id={user_id}`
+
+### 設計方針
+1. **日別備考の永続化**:
+   - `attendances` テーブルに `remarks` (TEXT) カラムを持たせ、日別勤怠詳細画面の各行インライン入力、または勤怠修正リクエスト (`PATCH /api/v1/attendance/{id}`) 経由で更新・永続化。
+2. **報告書データへの自動反映**:
+   - `GET /api/v1/attendance/working-hours-report` の取得時、各対象日の `valid_punches` の `remarks` を抽出して `WorkingHoursReportDayItem.remarks` に設定。
+   - フロントエンドの報告書プレビューモーダル (`WorkingHoursReportModal.tsx`) で各日の備考初期値として自動表示される。

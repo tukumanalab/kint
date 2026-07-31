@@ -26,6 +26,7 @@ class AttendanceRecord(BaseModel):
     last_updated_at: datetime | None = None
     last_updated_by_user_id: str | None = None
     overtime_reason: str | None = None
+    remarks: str | None = None
     device_name: str | None = None
 
     model_config = {"from_attributes": True}
@@ -43,6 +44,7 @@ class AttendanceCreateRequest(BaseModel):
     check_out: datetime | None = None
     edit_mode: Literal["punch", "work"] = "work"
     reason: str
+    remarks: str | None = None
 
 
 class AttendancePatchRequest(BaseModel):
@@ -55,6 +57,7 @@ class AttendancePatchRequest(BaseModel):
     edit_mode: Literal["punch", "work", "auto"] = "work"
     reset_to_auto: bool = False
     reason: str
+    remarks: str | None = None
 
 
 class AttendanceBreakUpdateRequest(BaseModel):
@@ -135,6 +138,7 @@ class PunchPeriod(BaseModel):
     calculated_check_out: datetime | None = None
     source: str | None = None
     overtime_reason: str | None = None
+    remarks: str | None = None
     device_name: str | None = None
     is_manual_work_time: bool = False
     break_minutes: int = 0
@@ -190,6 +194,7 @@ class DailyAttendanceDetail(BaseModel):
     ]
     source: str | None = None
     device_name: str | None = None
+    remarks: str | None = None
     is_auto_completed: bool = False
     is_manual_work_time: bool = False
     break_minutes: int = 0

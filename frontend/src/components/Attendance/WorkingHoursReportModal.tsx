@@ -23,19 +23,27 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
   const [bulkWorkContent, setBulkWorkContent] = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
+    let ignore = false;
     fetchWorkingHoursReport(token, yearMonth, userId)
       .then((data) => {
-        setReport(data);
-        setDays(data.days);
+        if (!ignore) {
+          setReport(data);
+          setDays(data.days);
+        }
       })
       .catch((err) => {
-        setError(err.message || '勤務時間報告書の取得に失敗しました');
+        if (!ignore) {
+          setError(err.message || '勤務時間報告書の取得に失敗しました');
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       });
+    return () => {
+      ignore = true;
+    };
   }, [token, yearMonth, userId]);
 
   function handleDayChange(index: number, field: 'work_content' | 'remarks', value: string) {
@@ -252,7 +260,7 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
             <div className="accounting-grid">
               <div className="accounting-row">
                 <span>単価＠ __________________ 円 × 時間数 __________________ ｈ ＝ __________________ 円</span>
-                <span className="tax-type">税区分　　月甲　月乙　日丙</span>
+                <span className="tax-type">税区分  月甲  月乙  日丙</span>
               </div>
               <div className="accounting-row accounting-row--aligned">
                 <span className="aligned-tax">源泉所得税額 __________________ 円</span>

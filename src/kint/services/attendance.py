@@ -858,6 +858,8 @@ class AttendanceService:
         )
 
         attendance.updated_reason = patch.reason
+        if patch.remarks is not None:
+            attendance.remarks = patch.remarks
         attendance.last_updated_by_user_id = actor.id
         attendance.last_updated_at = now
 
@@ -1393,6 +1395,7 @@ class AttendanceService:
                             calculated_check_out=p_calc_out,
                             source=a.source,
                             overtime_reason=a.overtime_reason,
+                            remarks=a.remarks,
                             device_name=a.device_name,
                             is_manual_work_time=a.is_manual_work_time,
                             break_minutes=a.break_minutes,
@@ -1420,6 +1423,7 @@ class AttendanceService:
                     status=status,
                     source=source,
                     device_name=sorted_atts[0].device_name if sorted_atts else None,
+                    remarks=sorted_atts[0].remarks if sorted_atts else None,
                     break_minutes=sum(a.break_minutes for a in day_atts) if day_atts else 0,
                     is_auto_completed=is_auto_completed,
                     is_manual_work_time=is_manual_day,
@@ -2366,6 +2370,7 @@ class AttendanceService:
             is_manual_work_time=is_manual,
             source="admin_manual",
             updated_reason=request.reason,
+            remarks=request.remarks,
             last_updated_by_user_id=actor.id,
             last_updated_at=now,
         )
@@ -2886,7 +2891,7 @@ class AttendanceService:
                             actual_work_time_str=actual_str,
                             requested_work_hours=req_hours,
                             work_content=default_content,
-                            remarks=None,
+                            remarks=p.remarks,
                         )
                     )
 

@@ -87,6 +87,7 @@
 | `work_end`                 | DATETIME | NULL                                                   | 勤務退勤日時（手動修正時等に使用）   |
 | `is_manual_work_time`      | INTEGER  | NOT NULL, DEFAULT 0                                    | 手動勤務時間修正フラグ（1=手動）     |
 | `overtime_reason`          | TEXT     | NULL                                                   | 残業理由                             |
+| `remarks`                  | TEXT     | NULL                                                   | 備考（報告書PDF等に反映）            |
 | `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service')) | 打刻元 |
 | `device_name`              | TEXT     | NULL                                                   | 打刻端末の登録名 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
@@ -334,6 +335,8 @@ erDiagram
     DATETIME check_in
     DATETIME check_out
     TEXT source
+    TEXT overtime_reason
+    TEXT remarks
     TEXT updated_reason
     INTEGER is_auto_completed
     DATETIME auto_completed_at

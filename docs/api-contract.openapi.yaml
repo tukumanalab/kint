@@ -1670,6 +1670,10 @@ components:
           type: string
           minLength: 1
           description: 修正理由。監査ログに保存されます。
+        remarks:
+          type: string
+          nullable: true
+          description: 備考。報告書PDF等に反映されます。
 
     AttendanceHistoryResponse:
       type: object
@@ -2118,6 +2122,10 @@ components:
         overtime_reason:
           type: string
           nullable: true
+        remarks:
+          type: string
+          nullable: true
+          description: 備考。報告書PDF等に反映されます。
         device_name:
           type: string
           nullable: true
