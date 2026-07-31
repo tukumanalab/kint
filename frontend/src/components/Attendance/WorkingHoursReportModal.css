@@ -137,7 +137,7 @@
   background-color: #f8fafc;
   font-weight: bold;
   text-align: center;
-  width: 80px;
+  width: 85px;
 }
 
 .header-label.font-small {
@@ -147,50 +147,68 @@
 
 .header-value {
   font-weight: normal;
-  padding-left: 6px;
+  padding-left: 8px;
 }
 
-.worker-id-value {
-  font-weight: normal;
-  padding-left: 6px;
-}
-
-.day-check-header {
-  width: 240px;
-  font-size: 10px;
-  text-align: center;
-}
-
-.day-check-cell {
-  padding: 1px !important;
-  text-align: center;
-  width: 240px;
-}
-
-.day-check-grid {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 100%;
-}
-
-.day-item {
-  font-size: 11px;
-  font-weight: bold;
-  padding: 1px 4px;
-}
-
-.name-and-seal {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-right: 8px;
+.department-cell {
   font-size: 13px;
 }
 
-.seal-mark {
+.kana-worker-id-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 12px 2px 8px !important;
+}
+
+.kana-value {
+  font-size: 12px;
+}
+
+.worker-id-value {
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.full-name-cell {
   font-size: 14px;
-  color: #000;
+  font-weight: bold;
+  text-align: center;
+}
+
+.seal-cell {
+  width: 38px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 15px;
+  border: 1px solid #000;
+  padding: 0 !important;
+}
+
+.day-check-header {
+  font-size: 10px;
+  text-align: center;
+  font-weight: bold;
+  background-color: #f8fafc;
+}
+
+.day-cell {
+  width: 30px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 11px;
+  border: 1px solid #000;
+  padding: 0 !important;
+}
+
+.day-cell--header {
+  font-weight: bold;
+  background-color: #f8fafc;
+  height: 18px;
+}
+
+.day-cell--box {
+  height: 22px;
 }
 
 /* 明細メインテーブル */
@@ -217,12 +235,12 @@
   padding: 2px 3px;
 }
 
-.col-date { width: 50px; }
-.col-time { width: 125px; }
-.col-break { width: 55px; }
-.col-actual { width: 55px; }
-.col-content { width: 260px; }
-.col-remarks { width: 110px; }
+.col-date { width: 48px; }
+.col-time { width: 110px; }
+.col-break { width: 48px; }
+.col-actual { width: 48px; }
+.col-content { width: 198px; }
+.col-remarks { width: 210px; }
 
 .cell-center { text-align: center; }
 .cell-left { text-align: left; }

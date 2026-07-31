@@ -127,40 +127,42 @@ export function WorkingHoursReportModal({ token, yearMonth, userId, onClose }: P
               <tbody>
                 <tr>
                   <td className="header-label">所属</td>
-                  <td className="header-value department-cell" colSpan={3}>
+                  <td className="header-value department-cell" colSpan={2}>
                     {report.user.department || ''}
                   </td>
-                  <td className="header-label day-check-header" colSpan={2}>
+                  <td className="header-label day-check-header" colSpan={6}>
                     所定の出勤曜日（該当欄に○）
                   </td>
                 </tr>
                 <tr>
                   <td className="header-label">カナ</td>
-                  <td className="header-value">{report.user.name_kana || ''}</td>
-                  <td className="header-value worker-id-value" colSpan={2}>
-                    {report.user.worker_id || ''}
+                  <td className="header-value kana-worker-id-cell">
+                    <span className="kana-value">{report.user.name_kana || ''}</span>
+                    <span className="worker-id-value">{report.user.worker_id || ''}</span>
                   </td>
-                  <td className="day-check-cell" colSpan={2} rowSpan={2}>
-                    <div className="day-check-grid">
-                      <div className="day-item">月</div>
-                      <div className="day-item">火</div>
-                      <div className="day-item">水</div>
-                      <div className="day-item">木</div>
-                      <div className="day-item">金</div>
-                      <div className="day-item">土</div>
-                    </div>
+                  <td className="seal-cell" rowSpan={2}>
+                    ㊞
                   </td>
+                  <td className="day-cell day-cell--header">月</td>
+                  <td className="day-cell day-cell--header">火</td>
+                  <td className="day-cell day-cell--header">水</td>
+                  <td className="day-cell day-cell--header">木</td>
+                  <td className="day-cell day-cell--header">金</td>
+                  <td className="day-cell day-cell--header">土</td>
                 </tr>
                 <tr>
                   <td className="header-label font-small">
                     パートタイム職員<br />氏 名
                   </td>
-                  <td className="header-value full-name-cell" colSpan={3}>
-                    <div className="name-and-seal">
-                      <span>{report.user.full_name}</span>
-                      <span className="seal-mark">㊞</span>
-                    </div>
+                  <td className="header-value full-name-cell">
+                    {report.user.full_name}
                   </td>
+                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box"></td>
                 </tr>
               </tbody>
             </table>
