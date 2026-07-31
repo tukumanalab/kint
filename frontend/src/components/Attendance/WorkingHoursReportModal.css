@@ -266,6 +266,23 @@
   display: none;
 }
 
+/* 備考欄: 日本語26文字以上が綺麗に入るようにフォントサイズ・文字間隔を調整 */
+.remarks-cell {
+  font-size: 8px;
+}
+
+.remarks-cell .report-table-input {
+  font-size: 8px;
+  letter-spacing: -0.4px;
+}
+
+.remarks-cell .print-text {
+  font-size: 8px;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+}
+
+
 /* 集計行 */
 .summary-row td {
   font-weight: bold;
