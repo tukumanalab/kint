@@ -544,6 +544,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /attendance/monthly-report/send:
+    post:
+      tags: [Attendance]
+      summary: 月次勤怠レポート通知の手動送信
+      description: 管理者が指定した年月および対象従業員に対して、手動で月次勤怠レポート通知メールを一括送信します。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year_month:
+                  type: string
+                  nullable: true
+                  pattern: '^\d{4}-\d{2}$'
+                  description: 対象年月 (YYYY-MM 形式)。指定がない場合は当月。
+                  example: '2026-07'
+                user_ids:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                  description: 送信対象のユーザーIDリスト。未指定時は全アクティブ従業員。
+              example:
+                year_month: '2026-07'
+                user_ids: ['user_id_1', 'user_id_2']
+      responses:
+        '200':
+          description: 手動送信処理成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, sent_count, failed_count, skipped_count, total_target, year_month]
+                properties:
+                  message:
+                    type: string
+                  sent_count:
+                    type: integer
+                  failed_count:
+                    type: integer
+                  skipped_count:
+                    type: integer
+                  total_target:
+                    type: integer
+                  year_month:
+                    type: string
+
   /attendance/working-hours-report:
     get:
       tags: [Attendance]

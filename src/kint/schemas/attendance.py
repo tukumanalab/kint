@@ -309,3 +309,41 @@ class AttendanceImportResponse(BaseModel):
     unmatched_names: list[str]
     unmatched_rows: list[AttendanceImportUnmatchedRow]
     errors: list[AttendanceImportRowError]
+
+
+class MonthlyReportSendRequest(BaseModel):
+    """月次勤怠レポート手動送信リクエスト。"""
+
+    year_month: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}$",
+        description="対象年月 (YYYY-MM 形式)。未指定の場合は実行時点の当月。",
+    )
+    user_ids: list[str] | None = Field(
+        default=None,
+        description="送信対象のユーザーIDリスト。未指定または空の場合は全アクティブ従業員が対象。",
+    )
+
+
+class MonthlyReportFailedUserItem(BaseModel):
+    """送信失敗・スキップとなったユーザーの詳細。"""
+
+    user_id: str
+    name: str
+    full_name: str | None = None
+    email: str | None = None
+    reason: str
+
+
+class MonthlyReportSendResponse(BaseModel):
+    """月次勤怠レポート手動送信レスポンス。"""
+
+    message: str
+    sent_count: int
+    failed_count: int
+    skipped_count: int
+    total_target: int
+    year_month: str
+    failed_users: list[MonthlyReportFailedUserItem] = Field(default_factory=list)
+
+

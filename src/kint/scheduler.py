@@ -72,8 +72,9 @@ async def _run_monthly_attendance_report() -> None:
             JST = timezone(timedelta(hours=9))
             today = datetime.now(JST).date()
 
-            await service.send_monthly_attendance_reports(today)
-            logger.info("定期月次勤怠レポート通知完了")
+            stats = await service.send_monthly_attendance_reports(target_date=today)
+            logger.info("定期月次勤怠レポート通知完了: %s", stats)
+
         except Exception as exc:
             logger.exception("定期月次勤怠レポート通知で予期しないエラー: %s", exc)
 

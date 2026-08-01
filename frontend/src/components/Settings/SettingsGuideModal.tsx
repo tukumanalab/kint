@@ -376,6 +376,15 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                   文面中に <code>{'{user_name}'}</code> や <code>{'{working_days}'}</code>、サイトアクセス用の <code>{'{app_base_url}'}</code> などの変数を記述すると、各従業員の実際のデータやサイトURLに自動置換されて送信されます。
                 </p>
 
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  手動メール送信
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  管理者権限で対象年月を指定し、アクティブな従業員一覧から送信対象者を選択して「今すぐレポートを送信する」を押すことで、任意のタイミングで月次レポートを一括手動送信できます。
+                  <br />
+                  初期表示では全員が選択（デフォルト全員対象）された状態になっています。
+                </p>
+
                 <div style={{
                   padding: '1rem',
                   borderRadius: '8px',

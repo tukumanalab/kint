@@ -7,6 +7,7 @@ import type {
   AttendanceHistoryResponse,
   AttendanceRecord,
   AttendanceImportResponse,
+  MonthlyReportSendResponse,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -338,3 +339,22 @@ export async function updateAttendanceBreak(
     token,
   );
 }
+
+export async function sendMonthlyReport(
+  token: string,
+  yearMonth?: string,
+  userIds?: string[],
+): Promise<MonthlyReportSendResponse> {
+  return request<MonthlyReportSendResponse>(
+    '/attendance/monthly-report/send',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        year_month: yearMonth || null,
+        user_ids: userIds || null,
+      }),
+    },
+    token,
+  );
+}
+

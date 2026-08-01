@@ -29,6 +29,8 @@ from kint.schemas.attendance import (
     AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
+    MonthlyReportSendRequest,
+    MonthlyReportSendResponse,
 )
 from kint.schemas.working_hours_report import WorkingHoursReportResponse
 from kint.services.attendance import AttendanceService
@@ -480,3 +482,39 @@ async def unacknowledge_alert(
 
     service = AttendanceService(session)
     await service.unacknowledge_alert(user_id, body.date, body.rule_id)
+
+
+@router.post("/monthly-report/send", response_model=MonthlyReportSendResponse)
+async def send_monthly_report_manual(
+    body: MonthlyReportSendRequest = MonthlyReportSendRequest(),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MonthlyReportSendResponse:
+    """月次勤怠レポート通知メールを手動で送信する。管理者専用。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+
+    service = AttendanceService(session)
+    result = await service.send_monthly_attendance_reports(
+        year_month=body.year_month,
+        user_ids=body.user_ids,
+    )
+
+    ym_str = result["year_month"]
+    sent = result["sent_count"]
+    target = result["total_target"]
+    msg = f"{ym_str} 分の月次勤怠レポート通知を送信しました（対象: {target}名, 送信成功: {sent}名, スキップ: {result['skipped_count']}名, エラー: {result['failed_count']}名）。"
+
+    return MonthlyReportSendResponse(
+        message=msg,
+        sent_count=result["sent_count"],
+        failed_count=result["failed_count"],
+        skipped_count=result["skipped_count"],
+        total_target=result["total_target"],
+        year_month=result["year_month"],
+        failed_users=result.get("failed_users", []),
+    )
+

@@ -10,12 +10,15 @@ import {
   restoreDatabaseBackup,
 } from '../../api/settings';
 import { syncShiftsNow } from '../../api/shifts';
+import { getUsers } from '../../api/user';
+import type { UserResponse } from '../../types/user';
 import { ApiError } from '../../types/error';
 import type { SettingsExportFile, SettingsImportResult, SystemSettings, AlertRule } from '../../types/settings';
 import type { UseAuth } from '../../hooks/useAuth';
 import { PunchDeviceManager } from './PunchDeviceManager';
 import { SettingsGuideModal } from './SettingsGuideModal';
 import { AttendanceAlertRulesManager } from './AttendanceAlertRulesManager';
+import { ManualReportModal } from './ManualReportModal';
 import './SettingsPage.css';
 
 interface Props {
@@ -200,6 +203,26 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setSyncing(false);
     }
   }
+
+  // 月次レポート手動送信用 state
+  const [showManualReportModal, setShowManualReportModal] = useState(false);
+  const [employeeUsers, setEmployeeUsers] = useState<UserResponse[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    getUsers(token)
+      .then((res) => {
+        const activeEmps = res.users.filter(
+          (u: UserResponse) => u.role === 'employee' && u.is_active
+        );
+        setEmployeeUsers(activeEmps);
+      })
+      .catch((err) => {
+        console.error('従業員一覧の取得に失敗しました:', err);
+      });
+  }, [token]);
+
+
 
   async function handleDbExport() {
     if (!token) return;
@@ -877,7 +900,28 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               </ul>
             </div>
           </div>
+
+          <div className="settings-field" style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--color-border-subtle, #e5e7eb)' }}>
+            <button
+              type="button"
+              className="settings-btn settings-btn--secondary"
+              onClick={() => setShowManualReportModal(true)}
+            >
+              手動で今すぐメール送信...
+            </button>
+            <p className="settings-field__hint" style={{ marginTop: '0.5rem' }}>
+              対象年月および送信対象の従業員を指定して月次勤怠レポートメールを一括送信するダイアログを開きます
+            </p>
+          </div>
         </section>
+
+        {showManualReportModal && token && (
+          <ManualReportModal
+            token={token}
+            employeeUsers={employeeUsers}
+            onClose={() => setShowManualReportModal(false)}
+          />
+        )}
 
         <AttendanceAlertRulesManager
           rules={attendanceAlertRules}

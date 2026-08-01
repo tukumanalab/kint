@@ -240,3 +240,116 @@ async def test_send_monthly_attendance_reports_custom_template(mock_send_email, 
     assert "こんにちは、佐藤 太郎様。" in body
     assert "KintLabよりお知らせです。" in body
     assert "勤務日数: 1日 / 申請時間: 8:00" in body
+
+
+@patch("kint.services.gmail.GmailAdapter.send_email")
+async def test_send_monthly_attendance_reports_with_user_ids(mock_send_email, session) -> None:
+    emp1 = await _create_user(
+        session,
+        id="emp_select_1",
+        name="田中",
+        full_name="田中 太郎",
+        email="tanaka@example.com",
+        role="employee",
+    )
+    emp2 = await _create_user(
+        session,
+        id="emp_select_2",
+        name="鈴木",
+        full_name="鈴木 次郎",
+        email="suzuki@example.com",
+        role="employee",
+    )
+
+    await _create_attendance(session, emp1.id, date(2026, 7, 5), 9, 17)
+    await _create_attendance(session, emp2.id, date(2026, 7, 5), 9, 17)
+
+    service = AttendanceService(session)
+    result = await service.send_monthly_attendance_reports(
+        year_month="2026-07",
+        user_ids=["emp_select_1"],
+    )
+
+    assert result["sent_count"] == 1
+    assert result["total_target"] == 1
+    assert result["year_month"] == "2026-07"
+
+    assert mock_send_email.call_count == 1
+    assert mock_send_email.call_args[0][0] == "tanaka@example.com"
+
+
+@patch("kint.services.gmail.GmailAdapter.send_email")
+async def test_manual_monthly_report_send_api(mock_send_email, client, session) -> None:
+    admin = await _create_user(
+        session,
+        id="admin_api_user",
+        name="AdminAPI",
+        full_name="Admin API",
+        email="admin_api@example.com",
+        role="admin",
+    )
+    emp = await _create_user(
+        session,
+        id="emp_api_user",
+        name="EmpAPI",
+        full_name="Emp API",
+        email="emp_api@example.com",
+        role="employee",
+    )
+
+    from kint.routers.auth import _create_access_token
+
+    admin_token = _create_access_token(admin.id, admin.token_version)
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    res = await client.post(
+        "/api/v1/attendance/monthly-report/send",
+        json={"year_month": "2026-07", "user_ids": [emp.id]},
+        headers=headers,
+    )
+    assert res.status_code == 200, f"status: {res.status_code}, body: {res.text}"
+    data = res.json()
+    assert data["sent_count"] == 1
+    assert data["total_target"] == 1
+    assert data["year_month"] == "2026-07"
+    assert "2026-07" in data["message"]
+
+
+@patch("kint.services.gmail.GmailAdapter.send_email")
+async def test_manual_monthly_report_send_api_with_missing_email(mock_send_email, client, session) -> None:
+    admin = await _create_user(
+        session,
+        id="admin_api_user2",
+        name="AdminAPI2",
+        full_name="Admin API 2",
+        email="admin_api2@example.com",
+        role="admin",
+    )
+    emp_no_email = await _create_user(
+        session,
+        id="emp_no_email",
+        name="NoEmailUser",
+        full_name="No Email User",
+        email="",
+        role="employee",
+    )
+
+    from kint.routers.auth import _create_access_token
+
+    admin_token = _create_access_token(admin.id, admin.token_version)
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    res = await client.post(
+        "/api/v1/attendance/monthly-report/send",
+        json={"year_month": "2026-07", "user_ids": [emp_no_email.id]},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["skipped_count"] == 1
+    assert len(data["failed_users"]) == 1
+    failed_item = data["failed_users"][0]
+    assert failed_item["user_id"] == emp_no_email.id
+    assert failed_item["name"] == "NoEmailUser"
+    assert "メールアドレス未設定" in failed_item["reason"]
+

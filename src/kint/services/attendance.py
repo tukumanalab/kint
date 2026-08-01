@@ -8,6 +8,7 @@ import math
 import re
 import uuid
 from datetime import UTC, date, datetime, timedelta, timezone
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -1505,16 +1506,36 @@ class AttendanceService:
 
         return data, att_map
 
-    async def send_monthly_attendance_reports(self, target_date: date) -> None:
-        """月末の自動通知メール送信処理。管理者（role == 'admin'）は送信対象外。"""
+    async def send_monthly_attendance_reports(
+        self,
+        target_date: date | None = None,
+        year_month: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """月次通知メール送信処理（自動バッチおよび手動送信兼用）。
+
+        管理者（role == 'admin'）は送信対象外。
+        user_ids が指定されている場合は指定ユーザーのみ、未指定/空の場合は全員（admin除く）を対象とする。
+        """
+        import calendar
         import logging
+        from datetime import timezone, timedelta
 
         from kint.services.gmail import GmailAdapter
 
         logger = logging.getLogger(__name__)
 
-        year = target_date.year
-        month = target_date.month
+        if year_month:
+            year, month = map(int, year_month.split("-"))
+        elif target_date:
+            year = target_date.year
+            month = target_date.month
+        else:
+            JST = timezone(timedelta(hours=9))
+            now = datetime.now(JST)
+            year = now.year
+            month = now.month
+
         _, last_day = calendar.monthrange(year, month)
 
         # 対象月の期間
@@ -1547,6 +1568,14 @@ class AttendanceService:
         subject_template = current_settings.monthly_report_subject
         body_template = current_settings.monthly_report_body
 
+        sent_count = 0
+        failed_count = 0
+        skipped_count = 0
+        total_target = 0
+        failed_users: list[dict[str, Any]] = []
+
+        user_id_set = set(user_ids) if user_ids else None
+
         # 3. 各従業員へのメール送信
         for user, summary, _ in monthly_data:
             # 管理者 (admin) は除外する
@@ -1558,12 +1587,27 @@ class AttendanceService:
                 )
                 continue
 
+            if user_id_set is not None and user.id not in user_id_set:
+                continue
+
+            total_target += 1
+
             if not user.email:
                 logger.warning(
                     "ユーザー %s (%s) のメールアドレスが未登録のため、"
                     "月次レポートを送信できませんでした。",
                     user.name,
                     user.id,
+                )
+                skipped_count += 1
+                failed_users.append(
+                    {
+                        "user_id": user.id,
+                        "name": user.name,
+                        "full_name": user.full_name,
+                        "email": user.email,
+                        "reason": "メールアドレス未設定のためスキップされました",
+                    }
                 )
                 continue
 
@@ -1600,6 +1644,7 @@ class AttendanceService:
                     user.name,
                     user.email,
                 )
+                sent_count += 1
             except Exception as e:
                 logger.error(
                     "ユーザー %s (%s) への月次レポート送信に失敗しました: %s",
@@ -1607,6 +1652,27 @@ class AttendanceService:
                     user.email,
                     e,
                 )
+                failed_count += 1
+                failed_users.append(
+                    {
+                        "user_id": user.id,
+                        "name": user.name,
+                        "full_name": user.full_name,
+                        "email": user.email,
+                        "reason": f"送信エラー: {e}",
+                    }
+                )
+
+        formatted_ym = f"{year:04d}-{month:02d}"
+        return {
+            "sent_count": sent_count,
+            "failed_count": failed_count,
+            "skipped_count": skipped_count,
+            "total_target": total_target,
+            "year_month": formatted_ym,
+            "failed_users": failed_users,
+        }
+
 
     async def get_monthly_summaries(
         self, year_month: str, user_id: str | None = None

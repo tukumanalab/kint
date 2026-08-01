@@ -181,4 +181,24 @@ export interface AttendanceImportResponse {
   errors: AttendanceImportRowError[];
 }
 
+export interface MonthlyReportFailedUserItem {
+  user_id: string;
+  name: string;
+  full_name?: string | null;
+  email?: string | null;
+  reason: string;
+}
+
+export interface MonthlyReportSendResponse {
+  message: string;
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  total_target: number;
+  year_month: string;
+  failed_users?: MonthlyReportFailedUserItem[];
+}
+
+
+
 
