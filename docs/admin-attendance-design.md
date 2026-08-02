@@ -340,6 +340,11 @@ components:
           type: string
           description: 氏名
           example: "山田 太郎"
+        worker_id:
+          type: string
+          nullable: true
+          description: 学籍番号・従業員ID
+          example: "1234567"
         email:
           type: string
           description: メールアドレス

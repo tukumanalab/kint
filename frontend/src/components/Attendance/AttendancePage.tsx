@@ -31,6 +31,7 @@ import type {
 import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
 import { WorkingHoursReportModal } from './WorkingHoursReportModal';
+import { PaymentInfoModal } from './PaymentInfoModal';
 import { formatHours } from '../../utils/time';
 
 const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
@@ -125,6 +126,7 @@ export function AttendancePage({ auth }: Props) {
   const [historyWorkDate, setHistoryWorkDate] = useState('');
 
   // 手動勤怠追加関連 (管理者用)
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showWorkingReportModal, setShowWorkingReportModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEditMode, setAddEditMode] = useState<'punch' | 'work'>('work');
@@ -1912,7 +1914,17 @@ export function AttendancePage({ auth }: Props) {
       {isAdmin && (
         <div className="attendance-section">
           <div className="att-summary-header">
-            <h2>月次勤務サマリー</h2>
+            <div className="att-summary-title-group">
+              <h2>月次勤務サマリー</h2>
+              <button
+                type="button"
+                className="att-btn att-btn--secondary att-payment-info-btn"
+                onClick={() => setShowPaymentModal(true)}
+                title="支払い情報を表示"
+              >
+                💳 支払い情報
+              </button>
+            </div>
             <div className="att-summary-search">
               <input
                 type="text"
@@ -3035,6 +3047,14 @@ export function AttendancePage({ auth }: Props) {
           yearMonth={yearMonth}
           userId={isAdmin ? (selectedUser?.user_id || undefined) : undefined}
           onClose={() => setShowWorkingReportModal(false)}
+        />
+      )}
+
+      {showPaymentModal && (
+        <PaymentInfoModal
+          summaries={summaries}
+          yearMonth={yearMonth}
+          onClose={() => setShowPaymentModal(false)}
         />
       )}
 

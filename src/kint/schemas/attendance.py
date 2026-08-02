@@ -113,6 +113,7 @@ class AttendanceMonthlySummary(BaseModel):
     user_id: str
     user_name: str
     full_name: str
+    worker_id: str | None = None
     email: str
     prescribed_days: int
     working_days: int

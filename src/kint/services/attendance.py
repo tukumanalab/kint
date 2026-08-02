@@ -1451,6 +1451,7 @@ class AttendanceService:
                 user_id=user.id,
                 user_name=user.name,
                 full_name=user.full_name,
+                worker_id=user.worker_id,
                 email=user.email,
                 prescribed_days=prescribed_days,
                 working_days=working_days,

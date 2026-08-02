@@ -55,6 +55,7 @@ async def _setup_test_data(session):
         id="emp_user",
         name="一般社員",
         full_name="Employee User",
+        worker_id="S1234567",
         email="emp@example.com",
         role="employee",
     )
@@ -149,6 +150,7 @@ class TestAttendanceSummaryAPI:
         assert len(data) == 1
 
         emp_summary = next(x for x in data if x["user_id"] == "emp_user")
+        assert emp_summary["worker_id"] == "S1234567"
         assert emp_summary["prescribed_days"] == 4
         assert emp_summary["working_days"] == 3
         assert emp_summary["late_count"] == 1

@@ -2,6 +2,7 @@ export interface AttendanceMonthlySummary {
   user_id: string;
   user_name: string;
   full_name: string;
+  worker_id?: string | null;
   email: string;
   prescribed_days: number;
   working_days: number;
