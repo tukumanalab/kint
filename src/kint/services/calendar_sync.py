@@ -4,7 +4,7 @@ import asyncio
 import logging
 import urllib.request
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from icalendar import Calendar, Event, vCalAddress, vDDDTypes
 from sqlalchemy import select
@@ -56,6 +56,8 @@ class CalendarSyncService:
     async def sync(self) -> dict[str, int]:
         """iCal を取得して shifts テーブルと同期する。
 
+        現在から前後 2 週間（14 日）のシフトのみを同期対象とする。
+
         Returns:
             inserted / updated / deleted / skipped の件数辞書。
 
@@ -74,6 +76,8 @@ class CalendarSyncService:
 
         cal = Calendar.from_ical(raw)
         today = date.today()
+        start_bound = today - timedelta(days=14)
+        end_bound = today + timedelta(days=14)
 
         inserted = updated = deleted = skipped = 0
         seen_uids: set[str] = set()
@@ -96,6 +100,16 @@ class CalendarSyncService:
             start_dt = _to_utc_datetime(dtstart)
             end_dt = _to_utc_datetime(dtend)
             shift_date = start_dt.date()
+
+            # 同期対象範囲（前後2週間）外のイベントはスキップ
+            if not (start_bound <= shift_date <= end_bound):
+                skipped += 1
+                logger.debug(
+                    "同期対象範囲（前後2週間）外のイベントをスキップします: uid=%s, shift_date=%s",
+                    uid,
+                    shift_date,
+                )
+                continue
 
             # ATTENDEE からユーザーを解決
             attendees = component.get("ATTENDEE")
@@ -159,11 +173,16 @@ class CalendarSyncService:
                     existing.shift_date = shift_date
                     updated += 1
 
-        # 今日以降のシフトのうち iCal に存在しないものを削除
+        # 同期対象範囲（前後2週間）内のシフトのうち iCal に存在しないものを削除
         if seen_uids:
-            result = await self.session.execute(select(Shift).where(Shift.shift_date >= today))
-            future_shifts = result.scalars().all()
-            to_delete = [s for s in future_shifts if s.google_event_id not in seen_uids]
+            result = await self.session.execute(
+                select(Shift).where(
+                    Shift.shift_date >= start_bound,
+                    Shift.shift_date <= end_bound,
+                )
+            )
+            range_shifts = result.scalars().all()
+            to_delete = [s for s in range_shifts if s.google_event_id not in seen_uids]
             for shift in to_delete:
                 await self.session.delete(shift)
                 deleted += 1
