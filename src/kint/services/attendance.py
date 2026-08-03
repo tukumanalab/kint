@@ -859,7 +859,7 @@ class AttendanceService:
         )
 
         attendance.updated_reason = patch.reason
-        if patch.remarks is not None:
+        if "remarks" in patch.model_fields_set:
             attendance.remarks = patch.remarks
         attendance.last_updated_by_user_id = actor.id
         attendance.last_updated_at = now

@@ -442,3 +442,52 @@ async def test_admin_patch_attendance_punch_mode(
     assert len(logs) == 1
     assert logs[0].before_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:00:00Z"
     assert logs[0].after_check_in.strftime("%Y-%m-%dT%H:%M:%SZ") == "2026-06-01T09:15:00Z"
+
+
+@pytest.mark.asyncio
+async def test_admin_patch_attendance_clear_remarks(
+    session: AsyncSession, client: AsyncClient
+) -> None:
+    """備考を null（空）に修正した際に DB 上の備考が正しく削除（None）されることをテストする。"""
+    await _create_user(
+        session, id="adminuser", name="管理者", email="admin@example.com", role="admin"
+    )
+    await _create_user(
+        session, id="empuser", name="従業員", email="emp@example.com", role="employee"
+    )
+
+    admin_token = await _login(client, "adminuser", "Password123")
+
+    att = Attendance(
+        id="att_patch_remarks",
+        user_id="empuser",
+        work_date=date(2026, 6, 1),
+        check_in=datetime(2026, 6, 1, 9, 0, tzinfo=UTC),
+        check_out=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+        remarks="既存の備考テキスト",
+        source="webusb_nfc",
+    )
+    session.add(att)
+    await session.commit()
+
+    # remarks に None (null) を指定して更新
+    resp = await client.patch(
+        "/api/v1/attendance/att_patch_remarks",
+        json={
+            "work_start": "2026-06-01T09:00:00Z",
+            "work_end": "2026-06-01T18:00:00Z",
+            "reason": "備考の削除",
+            "remarks": None,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["remarks"] is None
+
+    db_result = await session.execute(select(Attendance).where(Attendance.id == "att_patch_remarks"))
+    db_att = db_result.scalar_one_or_none()
+    assert db_att is not None
+    assert db_att.remarks is None
+
