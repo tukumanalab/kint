@@ -892,16 +892,16 @@ export function AttendancePage({ auth }: Props) {
   };
 
   const getRequestDiff = () => {
-    const origIn = requestFormData.originalCheckIn ? new Date(requestFormData.originalCheckIn) : null;
-    const origOut = requestFormData.originalCheckOut ? new Date(requestFormData.originalCheckOut) : null;
+    const origIn = requestFormData.originalCheckIn ? parseUtcDate(requestFormData.originalCheckIn) : null;
+    const origOut = requestFormData.originalCheckOut ? parseUtcDate(requestFormData.originalCheckOut) : null;
 
-    const calcOrigIn = requestFormData.calculatedCheckIn ? new Date(requestFormData.calculatedCheckIn) : null;
-    const calcOrigOut = requestFormData.calculatedCheckOut ? new Date(requestFormData.calculatedCheckOut) : null;
+    const calcOrigIn = requestFormData.calculatedCheckIn ? parseUtcDate(requestFormData.calculatedCheckIn) : null;
+    const calcOrigOut = requestFormData.calculatedCheckOut ? parseUtcDate(requestFormData.calculatedCheckOut) : null;
 
     const isoIn = toUTCISOString(requestFormData.requestedCheckInDate, requestFormData.requestedCheckInTime);
     const isoOut = toUTCISOString(requestFormData.requestedCheckOutDate, requestFormData.requestedCheckOutTime);
-    const reqIn = isoIn ? new Date(isoIn) : null;
-    const reqOut = isoOut ? new Date(isoOut) : null;
+    const reqIn = isoIn ? parseUtcDate(isoIn) : null;
+    const reqOut = isoOut ? parseUtcDate(isoOut) : null;
 
     const formatLocalDateAndTime = (d: Date | null) => {
       if (!d) return '未打刻';
@@ -944,10 +944,10 @@ export function AttendancePage({ auth }: Props) {
       };
     }
 
-    const origIn = request.original_check_in ? new Date(request.original_check_in) : null;
-    const origOut = request.original_check_out ? new Date(request.original_check_out) : null;
-    const reqIn = request.requested_check_in ? new Date(request.requested_check_in) : null;
-    const reqOut = request.requested_check_out ? new Date(request.requested_check_out) : null;
+    const origIn = request.original_check_in ? parseUtcDate(request.original_check_in) : null;
+    const origOut = request.original_check_out ? parseUtcDate(request.original_check_out) : null;
+    const reqIn = request.requested_check_in ? parseUtcDate(request.requested_check_in) : null;
+    const reqOut = request.requested_check_out ? parseUtcDate(request.requested_check_out) : null;
 
     const formatLocalDateAndTime = (d: Date | null) => {
       if (!d) return '未打刻';
@@ -966,8 +966,8 @@ export function AttendancePage({ auth }: Props) {
     const shiftEnd = targetDay?.shift_end;
 
     // 修正前の勤務時間は、すでにDB上の丸め後の calculated_check_in / calculated_check_out から計算するのが最も正確
-    const calcOrigIn = targetDay?.calculated_check_in ? new Date(targetDay.calculated_check_in) : null;
-    const calcOrigOut = targetDay?.calculated_check_out ? new Date(targetDay.calculated_check_out) : null;
+    const calcOrigIn = targetDay?.calculated_check_in ? parseUtcDate(targetDay.calculated_check_in) : null;
+    const calcOrigOut = targetDay?.calculated_check_out ? parseUtcDate(targetDay.calculated_check_out) : null;
 
     const origHours = calcOrigIn && calcOrigOut 
       ? (calcOrigOut.getTime() - calcOrigIn.getTime()) / (1000 * 60 * 60) 
