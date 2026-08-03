@@ -243,18 +243,20 @@ ${sheetEl.outerHTML}
                 <tr>
                   <td className="header-label">カナ</td>
                   <td className="header-value kana-worker-id-cell">
-                    <span className="kana-value">{report.user.name_kana || ''}</span>
-                    <span className="worker-id-value">{report.user.worker_id || ''}</span>
+                    <div className="kana-worker-id-inner">
+                      <span className="kana-value">{report.user.name_kana || ''}</span>
+                      <span className="worker-id-value">{report.user.worker_id || ''}</span>
+                    </div>
                   </td>
                   <td className="seal-cell" rowSpan={2}>
                     ㊞
                   </td>
-                  <td className="day-cell day-cell--header">月</td>
+                  <td className="day-cell day-cell--header day-cell--first">月</td>
                   <td className="day-cell day-cell--header">火</td>
                   <td className="day-cell day-cell--header">水</td>
                   <td className="day-cell day-cell--header">木</td>
                   <td className="day-cell day-cell--header">金</td>
-                  <td className="day-cell day-cell--header">土</td>
+                  <td className="day-cell day-cell--header day-cell--last">土</td>
                 </tr>
                 <tr>
                   <td className="header-label font-small">
@@ -263,12 +265,12 @@ ${sheetEl.outerHTML}
                   <td className="header-value full-name-cell">
                     {report.user.full_name}
                   </td>
+                  <td className="day-cell day-cell--box day-cell--first"></td>
                   <td className="day-cell day-cell--box"></td>
                   <td className="day-cell day-cell--box"></td>
                   <td className="day-cell day-cell--box"></td>
                   <td className="day-cell day-cell--box"></td>
-                  <td className="day-cell day-cell--box"></td>
-                  <td className="day-cell day-cell--box"></td>
+                  <td className="day-cell day-cell--box day-cell--last"></td>
                 </tr>
               </tbody>
             </table>

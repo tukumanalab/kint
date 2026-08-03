@@ -123,11 +123,11 @@
 .working-report-header-table {
   width: 100%;
   border-collapse: collapse;
-  border: 1.5px solid #000;
+  border: 2px solid #000;
 }
 
 .working-report-header-table td {
-  border: 1px solid #000;
+  border: 2px solid #000;
   padding: 2px 4px;
   font-size: 12px;
   vertical-align: middle;
@@ -156,11 +156,14 @@
 }
 
 .kana-worker-id-cell {
+  padding: 2px 12px 2px 8px !important;
+}
+
+.kana-worker-id-inner {
   display: flex;
   justify-content: flex-start;
   align-items: center;
   gap: 16px;
-  padding: 2px 12px 2px 8px !important;
 }
 
 .kana-value {
@@ -183,7 +186,7 @@
   text-align: center;
   vertical-align: middle;
   font-size: 15px;
-  border: 1px solid #000;
+  border: 2px solid #000;
   padding: 0 !important;
 }
 
@@ -194,7 +197,7 @@
   background-color: #f8fafc;
 }
 
-.day-cell {
+.working-report-header-table td.day-cell {
   width: 30px;
   text-align: center;
   vertical-align: middle;
@@ -203,14 +206,24 @@
   padding: 0 !important;
 }
 
-.day-cell--header {
+.working-report-header-table td.day-cell--header {
   font-weight: bold;
   background-color: #f8fafc;
   height: 18px;
+  border-top: 2px solid #000;
 }
 
-.day-cell--box {
+.working-report-header-table td.day-cell--box {
   height: 22px;
+  border-bottom: 2px solid #000;
+}
+
+.working-report-header-table td.day-cell--first {
+  border-left: 2px solid #000;
+}
+
+.working-report-header-table td.day-cell--last {
+  border-right: 2px solid #000;
 }
 
 /* 明細メインテーブル */
