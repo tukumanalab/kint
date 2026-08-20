@@ -1520,7 +1520,7 @@ class AttendanceService:
         """
         import calendar
         import logging
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
 
         from kint.services.gmail import GmailAdapter
 
@@ -1673,7 +1673,6 @@ class AttendanceService:
             "year_month": formatted_ym,
             "failed_users": failed_users,
         }
-
 
     async def get_monthly_summaries(
         self, year_month: str, user_id: str | None = None
@@ -2910,7 +2909,8 @@ class AttendanceService:
 
             # 確定された勤務時間 (calculated_check_in かつ calculated_check_out) を持つセグメントのみ抽出
             valid_punches = [
-                p for p in punches
+                p
+                for p in punches
                 if p.calculated_check_in is not None and p.calculated_check_out is not None
             ]
 
@@ -2989,4 +2989,3 @@ class AttendanceService:
             total_actual_work_time_str=total_actual_work_time_str,
             total_requested_work_hours=total_requested_work_hours,
         )
-

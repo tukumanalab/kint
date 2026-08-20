@@ -83,7 +83,6 @@ async def get_working_hours_report(
     )
 
 
-
 @router.patch("/{attendance_id}", response_model=AttendanceRecord)
 async def patch_attendance(
     attendance_id: str,
@@ -517,4 +516,3 @@ async def send_monthly_report_manual(
         year_month=result["year_month"],
         failed_users=result.get("failed_users", []),
     )
-

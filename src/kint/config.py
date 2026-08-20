@@ -60,5 +60,4 @@ class Settings(BaseSettings):
     working_report_default_content: str = "青学つくまなラボ 利用者対応"
 
 
-
 settings = Settings()

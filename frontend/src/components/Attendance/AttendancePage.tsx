@@ -332,6 +332,13 @@ export function AttendancePage({ auth }: Props) {
       if (e) {
         e.stopPropagation();
       }
+      const hasWorked =
+        (summary.working_days > 0) ||
+        (summary.total_requested_hours > 0) ||
+        (summary.total_working_hours > 0);
+      if (!hasWorked) {
+        return;
+      }
       handleViewDetail(summary, { silent: true });
       setShowWorkingReportModal(true);
     },
@@ -1970,79 +1977,100 @@ export function AttendancePage({ auth }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSummaries.map((summary) => (
-                      <tr
-                        key={summary.user_id}
-                        className={`att-summary-tr ${selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}`}
-                        onClick={() => handleViewDetail(summary)}
-                      >
-                        <td>
-                          <strong>{summary.user_name}</strong>
-                          {summary.full_name && (
-                            <span className="att-fullname"> ({summary.full_name})</span>
-                          )}
-                        </td>
-                        <td>{summary.prescribed_days}日</td>
-                        <td>{summary.working_days}日</td>
-                        <td>
-                          <span className={summary.absence_days > 0 ? 'att-text--danger' : ''}>
-                            {summary.absence_days}日
-                          </span>
-                        </td>
-                        <td>
-                          <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
-                            {summary.incomplete_days}件
-                          </span>
-                        </td>
-                        <td>
-                          <span className={summary.unacknowledged_alert_count > 0 ? 'att-text--danger' : ''}>
-                            {summary.unacknowledged_alert_count} / {summary.alert_count}件
-                          </span>
-                        </td>
-                        <td>{formatHours(summary.total_requested_hours)} ({formatHours(summary.total_working_hours)})</td>
-                        <td>{formatHours(summary.yearly_working_hours)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="att-btn att-btn--small att-btn--secondary"
-                            onClick={(e) => handleOpenReportForUser(summary, e)}
-                            title="勤務時間報告書を表示・出力"
-                          >
-                            📄 報告書
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredSummaries.map((summary) => {
+                      const hasWorked =
+                        (summary.working_days > 0) ||
+                        (summary.total_requested_hours > 0) ||
+                        (summary.total_working_hours > 0);
+                      return (
+                        <tr
+                          key={summary.user_id}
+                          className={`att-summary-tr ${selectedUser?.user_id === summary.user_id ? 'tr--selected' : ''}`}
+                          onClick={() => handleViewDetail(summary)}
+                        >
+                          <td>
+                            <strong>{summary.user_name}</strong>
+                            {summary.full_name && (
+                              <span className="att-fullname"> ({summary.full_name})</span>
+                            )}
+                          </td>
+                          <td>{summary.prescribed_days}日</td>
+                          <td>{summary.working_days}日</td>
+                          <td>
+                            <span className={summary.absence_days > 0 ? 'att-text--danger' : ''}>
+                              {summary.absence_days}日
+                            </span>
+                          </td>
+                          <td>
+                            <span className={summary.incomplete_days > 0 ? 'att-text--warning' : ''}>
+                              {summary.incomplete_days}件
+                            </span>
+                          </td>
+                          <td>
+                            <span className={summary.unacknowledged_alert_count > 0 ? 'att-text--danger' : ''}>
+                              {summary.unacknowledged_alert_count} / {summary.alert_count}件
+                            </span>
+                          </td>
+                          <td>{formatHours(summary.total_requested_hours)} ({formatHours(summary.total_working_hours)})</td>
+                          <td>{formatHours(summary.yearly_working_hours)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="att-btn att-btn--small att-btn--secondary"
+                              onClick={(e) => handleOpenReportForUser(summary, e)}
+                              disabled={!hasWorked}
+                              title={
+                                hasWorked
+                                  ? '勤務時間報告書を表示・出力'
+                                  : '当月の勤務実績がないため報告書を出力できません'
+                              }
+                            >
+                              📄 報告書
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
             <div className="att-mobile-summary-cards">
-              {filteredSummaries.map((summary) => (
-                <div
-                  key={summary.user_id}
-                  className={`att-summary-card ${selectedUser?.user_id === summary.user_id ? 'att-summary-card--selected' : ''}`}
-                  onClick={() => handleViewDetail(summary)}
-                >
-                  <div className="att-summary-card__header">
-                    <div className="att-summary-card__name">
-                      <strong>{summary.user_name}</strong>
-                      {summary.full_name && (
-                        <span className="att-summary-card__fullname">{summary.full_name}</span>
-                      )}
+              {filteredSummaries.map((summary) => {
+                const hasWorked =
+                  (summary.working_days > 0) ||
+                  (summary.total_requested_hours > 0) ||
+                  (summary.total_working_hours > 0);
+                return (
+                  <div
+                    key={summary.user_id}
+                    className={`att-summary-card ${selectedUser?.user_id === summary.user_id ? 'att-summary-card--selected' : ''}`}
+                    onClick={() => handleViewDetail(summary)}
+                  >
+                    <div className="att-summary-card__header">
+                      <div className="att-summary-card__name">
+                        <strong>{summary.user_name}</strong>
+                        {summary.full_name && (
+                          <span className="att-summary-card__fullname">{summary.full_name}</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="att-btn att-btn--small att-btn--secondary"
+                          onClick={(e) => handleOpenReportForUser(summary, e)}
+                          disabled={!hasWorked}
+                          title={
+                            hasWorked
+                              ? '勤務時間報告書を表示・出力'
+                              : '当月の勤務実績がないため報告書を出力できません'
+                          }
+                        >
+                          📄 報告書
+                        </button>
+                        <span className="att-summary-card__arrow">›</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        type="button"
-                        className="att-btn att-btn--small att-btn--secondary"
-                        onClick={(e) => handleOpenReportForUser(summary, e)}
-                        title="勤務時間報告書を表示・出力"
-                      >
-                        📄 報告書
-                      </button>
-                      <span className="att-summary-card__arrow">›</span>
-                    </div>
-                  </div>
                   <div className="att-summary-card__stats">
                     <div className="att-summary-card__stat">
                       <span className="att-summary-card__stat-value">{summary.working_days}<small>/{summary.prescribed_days}</small></span>
@@ -2073,7 +2101,8 @@ export function AttendancePage({ auth }: Props) {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            })}
             </div>
             </>
           )}

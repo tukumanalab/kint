@@ -90,6 +90,24 @@ const mockSummaries = [
     unacknowledged_alert_count: 0,
     yearly_working_hours: 144,
   },
+  {
+    user_id: 'no-work-user',
+    user_name: 'noworker',
+    full_name: '未勤務太郎',
+    email: 'nowork@example.com',
+    prescribed_days: 10,
+    working_days: 0,
+    total_working_hours: 0,
+    total_requested_hours: 0,
+    total_overtime_hours: 0,
+    late_count: 0,
+    early_leave_count: 0,
+    absence_days: 0,
+    incomplete_days: 0,
+    alert_count: 0,
+    unacknowledged_alert_count: 0,
+    yearly_working_hours: 0,
+  },
 ];
 
 const mockDetail = {
@@ -467,7 +485,7 @@ describe('AttendancePage - Guide', () => {
     expect(elements.length).toBeGreaterThan(0);
   });
 
-  it('管理者でログインし、月次サマリーの操作列にある「勤務時間報告書」ボタンをクリックすると報告書モーダルが開くこと', async () => {
+  it('管理者でログインし、勤務実績がある従業員の「報告書」ボタンをクリックすると報告書モーダルが開くこと', async () => {
     render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
 
     await waitFor(() => {
@@ -475,7 +493,13 @@ describe('AttendancePage - Guide', () => {
     });
 
     const reportBtns = screen.getAllByRole('button', { name: '📄 報告書' });
-    expect(reportBtns.length).toBeGreaterThan(0);
+    // mockSummaries には2人（employee: 勤務実績あり, noworker: 勤務実績なし）
+    // デスクトップテーブル + モバイルカードで合計4個のボタンが存在
+    expect(reportBtns.length).toBe(4);
+
+    // 勤務実績ありのボタン（最初）は有効
+    expect(reportBtns[0]).not.toBeDisabled();
+    expect(reportBtns[0]).toHaveAttribute('title', '勤務時間報告書を表示・出力');
 
     fireEvent.click(reportBtns[0]);
 
@@ -483,6 +507,27 @@ describe('AttendancePage - Guide', () => {
     await waitFor(() => {
       expect(screen.getByText(/パートタイム職員等勤務時間報告書/)).toBeInTheDocument();
     });
+  });
+
+  it('管理者でログインし、当月に勤務実績がない従業員の「報告書」ボタンは無効化されておりクリックできないこと', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
+    });
+
+    const reportBtns = screen.getAllByRole('button', { name: '📄 報告書' });
+    // 2人目（未勤務太郎）のデスクトップボタン
+    const noWorkReportBtn = reportBtns[1];
+    expect(noWorkReportBtn).toBeDisabled();
+    expect(noWorkReportBtn).toHaveAttribute(
+      'title',
+      '当月の勤務実績がないため報告書を出力できません'
+    );
+
+    // クリックしてもモーダルは開かない
+    fireEvent.click(noWorkReportBtn);
+    expect(screen.queryByText(/パートタイム職員等勤務時間報告書/)).not.toBeInTheDocument();
   });
 });
 

@@ -346,5 +346,3 @@ class MonthlyReportSendResponse(BaseModel):
     total_target: int
     year_month: str
     failed_users: list[MonthlyReportFailedUserItem] = Field(default_factory=list)
-
-
