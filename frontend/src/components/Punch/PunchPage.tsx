@@ -438,7 +438,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
             <div className="fallback-form" style={{ marginTop: '1.5rem' }}>
               <div className="form-field">
                 <label htmlFor="overtimeReason" className="form-label">
-                  超過理由 <span className="form-required">*</span>
+                  超過を承認した管理者と理由 <span className="form-required">*</span>
                 </label>
                 <input
                   id="overtimeReason"
@@ -446,7 +446,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                   className="form-input"
                   value={overtimeReason}
                   onChange={(e) => setOvertimeReason(e.target.value)}
-                  placeholder="例: 会議が長引いたため"
+                  placeholder="例: 〇〇先生による来客対応の指示"
                   required
                   autoComplete="off"
                 />
