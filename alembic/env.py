@@ -41,6 +41,10 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         if connection.dialect.name == "sqlite":
             connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            # PRAGMA 実行で SQLAlchemy が autobegin したトランザクションを閉じる。
+            # 閉じないと Alembic が「外部トランザクション中」と判断して commit せず、
+            # 接続クローズ時の rollback で alembic_version の更新が失われる。
+            connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

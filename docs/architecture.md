@@ -143,6 +143,7 @@ erDiagram
   CARD ||--o{ ATTENDANCE : 利用
   SHIFT ||--o{ ATTENDANCE : 照合
   ATTENDANCE ||--o{ ATTENDANCE_CHANGE_LOG : 変更履歴
+  USER ||--o{ ATTENDANCE_MONTHLY_COMMENT : "updated_by"
 ```
 
 ## 6. 勤怠修正ポリシー

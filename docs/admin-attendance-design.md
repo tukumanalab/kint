@@ -592,6 +592,12 @@ sequenceDiagram
    - 一括計算および CSV 出力用ビジネスロジックの実装（`@backend` または `@database` に委譲）。
 6. **`frontend/src/`**:
    - 管理者ダッシュボードへの「月次勤怠一覧」「CSVダウンロード」画面の追加（`@frontend` に委譲）。
+7. **月次勤務サマリー コメント（管理者共有メモ）機能（`## 12`）**:
+   - 新規テーブル `attendance_monthly_comments`（`src/kint/models/monthly_comment.py` `AttendanceMonthlyComment`）の追加。
+   - 新規サービス `src/kint/services/monthly_comment.py` `MonthlyCommentService` の追加。
+   - `src/kint/services/user.py` `hard_delete_user` に、削除対象ユーザーを `updated_by_user_id` に持つコメント行を `NULL` 化する後始末処理を追加。
+   - `src/kint/routers/attendance.py` に `GET /attendance/summary/comment`, `PUT /attendance/summary/comment` を追加。
+   - フロントエンド新規コンポーネント `frontend/src/components/Attendance/MonthlyCommentPanel.tsx` の追加。
 
 ---
 
@@ -623,3 +629,148 @@ sequenceDiagram
 2. **報告書データへの自動反映**:
    - `GET /api/v1/attendance/working-hours-report` の取得時、各対象日の `valid_punches` の `remarks` を抽出して `WorkingHoursReportDayItem.remarks` に設定。
    - フロントエンドの報告書プレビューモーダル (`WorkingHoursReportModal.tsx`) で各日の備考初期値として自動表示される。
+
+---
+
+## 12. 月次勤務サマリー コメント（管理者共有メモ）機能設計
+
+### 12-1. ユースケース
+- **UC-05: 月次勤務サマリーの管理者共有メモの参照・編集**
+  - 管理者は、指定年月（`YYYY-MM`）につき 1 件、勤務時間の付け替えや修正の経緯などを共有するための自由記述メモを閲覧・編集できる。
+  - メモは投稿者を限定せず、管理者であれば誰でも上書き編集・削除（空保存）できる。最終更新者・最終更新日時は常に最新の編集者の情報に更新される。
+
+### 12-2. 画面配置
+- 勤怠管理画面の「月次勤務サマリー」見出し直下（ヘッダーブロックとサマリー表の間）に、選択中の年月に対応するメモ欄をインライン表示する。
+- 年月を切り替えると、表示されるメモもその年月のものに切り替わる（年月ごとに 1 件）。
+- 一般従業員には本パネル自体を表示しない。
+- 未登録の年月では「メモはありません」を表示し、「編集」操作で新規作成扱いとなる。
+- 本文が 6 行以上の場合は先頭 5 行のみ表示し、「続きを表示」/「折りたたむ」トグルで全文表示を切り替える（年月切替時は折りたたみ状態に戻る）。本文は左揃えで表示する。
+
+### 12-3. API エンドポイント設計 (OpenAPI 仕様)
+以下は追加する OpenAPI 3.1 互換設計スニペットである。両エンドポイントとも管理者（`role == 'admin'`）専用であり、一般従業員からのアクセスは 403 を返す。月ロック（締め）中の年月であっても編集を許可する（月ロックチェックは行わない）。
+
+```yaml
+/attendance/summary/comment:
+  get:
+    tags: [Attendance]
+    summary: 月次勤務サマリー コメント（管理者共有メモ）の取得
+    description: >-
+      指定された年月の管理者共有メモを取得します。管理者専用エンドポイントです。
+      未登録の年月に対しても 200 で空のメモ（body=""）を返却します（404 にしない）。
+    parameters:
+      - in: query
+        name: year_month
+        required: true
+        schema:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+        description: 対象の年月（YYYY-MM 形式）
+    responses:
+      '200':
+        description: メモの取得成功（未登録の場合も含む）
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonthlyCommentResponse'
+      '403':
+        description: 権限不足（管理者以外）
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+      '422':
+        description: year_month の形式不正
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+  put:
+    tags: [Attendance]
+    summary: 月次勤務サマリー コメント（管理者共有メモ）の作成・更新
+    description: >-
+      指定された年月の管理者共有メモを作成・上書き更新します。管理者専用エンドポイントです。
+      管理者であれば投稿者に関わらず誰でも上書き編集できます（last-write-wins）。
+      body が空（前後の空白除去後に空文字）の場合はメモを削除します。
+      月ロック（締め）中の年月であっても実行可能です。
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MonthlyCommentUpsertRequest'
+    responses:
+      '200':
+        description: 作成・更新（または空保存による削除）成功
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonthlyCommentResponse'
+      '403':
+        description: 権限不足（管理者以外）
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+      '422':
+        description: year_month の形式不正、または body が 2000 文字超過
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+```
+
+### 12-4. スキーマ定義
+```yaml
+components:
+  schemas:
+    MonthlyCommentUpsertRequest:
+      type: object
+      required: [year_month]
+      properties:
+        year_month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2026-05"
+        body:
+          type: string
+          maxLength: 2000
+          default: ""
+          description: メモ本文。前後の空白を除去した結果が空文字の場合は削除扱い。
+
+    MonthlyCommentResponse:
+      type: object
+      required: [year_month, body]
+      properties:
+        year_month:
+          type: string
+          example: "2026-05"
+        body:
+          type: string
+          description: メモ本文。未登録の場合は空文字。
+        updated_by_user_id:
+          type: string
+          nullable: true
+          description: 最終更新者のユーザーID。未登録、または最終更新者が退会済みの場合は null。
+        updated_by_name:
+          type: string
+          nullable: true
+          description: 最終更新者の表示名。未登録、または最終更新者が退会済みの場合は null。
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最終更新日時。未登録の場合は null。
+```
+
+### 12-5. DB 定義
+- 新規テーブル `attendance_monthly_comments`（`year_month` TEXT(7) PK、`body`、`updated_by_user_id` FK `users.id` ON DELETE SET NULL、`created_at`、`updated_at`）を追加する。
+- 物理モデルの詳細は `docs/database-design.md` `### 2-10. attendance_monthly_comments` を正とする。
+- ユーザーが完全削除（物理削除）された場合、`hard_delete_user` 処理内で当該ユーザーが最終更新者となっているメモ行の `updated_by_user_id` を `NULL` 化する（メモ本文自体は削除しない）。
+
+### 12-6. 権限・運用ルール
+- **閲覧・編集権限**: 管理者（`role == 'admin'`）のみ。一般従業員には画面上にパネル自体を表示せず、API も 403 を返す。
+- **編集者の制限なし**: 投稿者に関わらず、管理者であれば誰でも上書き編集・削除できる。
+- **空保存 = 削除**: `body` を空文字（前後空白除去後）で PUT すると、既存のメモ行を削除し、空のレスポンスを返す。
+- **月ロック中も編集可**: `attendance_locks` による締め処理の状態に関わらず、本メモの参照・編集は常に可能（意図的に月ロックチェックを行わない）。
+- **並行編集は last-write-wins**: 明示的な「保存」ボタン方式とし、フロントエンドは編集開始時に最新のメモを再取得することで競合を緩和する。サーバー側での楽観ロックは行わない。
+- **CSV / 勤務時間報告書PDF / 支払い情報ダイアログには非掲載**: 本メモは内部の管理者間共有用途に限定し、`GET /attendance/export`（CSV）、勤務時間報告書（`working-hours-report`）、支払い情報ダイアログの集計・出力データには一切含めない。

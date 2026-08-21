@@ -8,6 +8,7 @@ from kint.models.attendance import (
 )
 from kint.models.card import Card
 from kint.models.email_verification import EmailVerificationRequest
+from kint.models.monthly_comment import AttendanceMonthlyComment
 from kint.models.notification import Notification
 from kint.models.shift import Shift
 from kint.models.system_setting import SystemSetting
@@ -21,6 +22,7 @@ __all__ = [
     "AttendanceChangeLog",
     "AttendanceCorrectionRequest",
     "AttendanceLock",
+    "AttendanceMonthlyComment",
     "Shift",
     "UserProfileChangeLog",
     "EmailVerificationRequest",

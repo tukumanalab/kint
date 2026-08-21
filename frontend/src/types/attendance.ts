@@ -200,6 +200,12 @@ export interface MonthlyReportSendResponse {
   failed_users?: MonthlyReportFailedUserItem[];
 }
 
-
+export interface MonthlyComment {
+  year_month: string;
+  body: string;
+  updated_by_user_id: string | null;
+  updated_by_name: string | null;
+  updated_at: string | null;
+}
 
 

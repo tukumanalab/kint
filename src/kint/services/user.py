@@ -241,6 +241,7 @@ class UserService:
         )
         from kint.models.card import Card
         from kint.models.email_verification import EmailVerificationRequest
+        from kint.models.monthly_comment import AttendanceMonthlyComment
         from kint.models.notification import Notification
         from kint.models.shift import Shift
         from kint.models.user_profile_change_log import UserProfileChangeLog
@@ -314,6 +315,13 @@ class UserService:
         await self.session.execute(delete(Card).where(Card.user_id == user_id))
         await self.session.execute(delete(Notification).where(Notification.user_id == user_id))
         await self.session.execute(delete(Shift).where(Shift.user_id == user_id))
+
+        # 10.4. 月次勤務サマリーコメントの最終更新者を NULL にする（本文は残す）
+        await self.session.execute(
+            update(AttendanceMonthlyComment)
+            .where(AttendanceMonthlyComment.updated_by_user_id == user_id)
+            .values(updated_by_user_id=None)
+        )
 
         # 10.5. システム設定の更新者を system ユーザーに変更（updated_by_user_id が RESTRICT のため）
         from kint.models.system_setting import SystemSetting

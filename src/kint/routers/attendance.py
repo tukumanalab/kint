@@ -29,11 +29,14 @@ from kint.schemas.attendance import (
     AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
+    MonthlyCommentResponse,
+    MonthlyCommentUpsertRequest,
     MonthlyReportSendRequest,
     MonthlyReportSendResponse,
 )
 from kint.schemas.working_hours_report import WorkingHoursReportResponse
 from kint.services.attendance import AttendanceService
+from kint.services.monthly_comment import MonthlyCommentService
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
@@ -164,6 +167,40 @@ async def get_monthly_detail(
         )
     service = AttendanceService(session)
     return await service.get_monthly_detail(year_month, user_id=user_id)
+
+
+@router.get("/summary/comment", response_model=MonthlyCommentResponse)
+async def get_monthly_comment(
+    year_month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MonthlyCommentResponse:
+    """月次勤務サマリー コメント（管理者共有メモ）を取得する。管理者のみ実行可能。"""
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+    service = MonthlyCommentService(session)
+    return await service.get_comment(year_month)
+
+
+@router.put("/summary/comment", response_model=MonthlyCommentResponse)
+async def upsert_monthly_comment(
+    body: MonthlyCommentUpsertRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MonthlyCommentResponse:
+    """月次勤務サマリー コメント（管理者共有メモ）を作成・更新する。管理者のみ実行可能。
+    空（strip 後）の本文で保存した場合はメモを削除する。月ロック中でも実行可能。
+    """
+    if current_user.role != "admin":
+        raise KintForbiddenError(
+            code="FORBIDDEN",
+            message="この操作は管理者のみ許可されています",
+        )
+    service = MonthlyCommentService(session)
+    return await service.upsert_comment(body, current_user)
 
 
 @router.get("/export")

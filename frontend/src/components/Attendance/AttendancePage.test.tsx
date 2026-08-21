@@ -12,6 +12,8 @@ vi.mock('../../api/attendance', async (importOriginal) => {
     getMonthlyAttendanceDetail: vi.fn(),
     listCorrectionRequests: vi.fn(),
     getAttendanceHistory: vi.fn(),
+    getMonthlyComment: vi.fn(),
+    saveMonthlyComment: vi.fn(),
   };
 });
 
@@ -163,6 +165,14 @@ const mockHistory = {
   total: 1,
 };
 
+const mockEmptyMonthlyComment = {
+  year_month: '2026-06',
+  body: '',
+  updated_by_user_id: null,
+  updated_by_name: null,
+  updated_at: null,
+};
+
 describe('AttendancePage - History', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -176,6 +186,7 @@ describe('AttendancePage - History', () => {
     vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(attendanceApi.getMonthlyAttendanceDetail).mockResolvedValue(mockDetail);
     vi.mocked(attendanceApi.getAttendanceHistory).mockResolvedValue(mockHistory);
+    vi.mocked(attendanceApi.getMonthlyComment).mockResolvedValue(mockEmptyMonthlyComment);
   });
 
   it('管理者でログインし、詳細カレンダーで履歴ボタンをクリックすると履歴が表示されること', async () => {
@@ -356,6 +367,7 @@ describe('AttendancePage - Search', () => {
     vi.clearAllMocks();
     vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockMultipleSummaries);
     vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(attendanceApi.getMonthlyComment).mockResolvedValue(mockEmptyMonthlyComment);
   });
 
   it('管理者画面で検索ワードを入力すると、合致する従業員のみが表示されること', async () => {
@@ -444,6 +456,7 @@ describe('AttendancePage - Guide', () => {
     vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockSummaries);
     vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(attendanceApi.getMonthlyAttendanceDetail).mockResolvedValue(mockDetail);
+    vi.mocked(attendanceApi.getMonthlyComment).mockResolvedValue(mockEmptyMonthlyComment);
   });
 
   it('一般従業員でログインし、使い方ガイドボタンをクリックすると従業員用ガイドが表示されること', async () => {
@@ -531,5 +544,33 @@ describe('AttendancePage - Guide', () => {
   });
 });
 
+describe('AttendancePage - MonthlyCommentPanel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue(mockSummaries);
+    vi.mocked(attendanceApi.listCorrectionRequests).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(attendanceApi.getMonthlyAttendanceDetail).mockResolvedValue(mockDetail);
+    vi.mocked(attendanceApi.getMonthlyComment).mockResolvedValue(mockEmptyMonthlyComment);
+  });
 
+  it('管理者でログインした場合、月次勤務サマリーにコメントパネルが表示されること', async () => {
+    render(<AttendancePage auth={makeAuth(mockAdminUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('月次勤務サマリー')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('💬 コメント（管理者共有メモ）')).toBeInTheDocument();
+  });
+
+  it('一般従業員でログインした場合、コメントパネルは表示されないこと', async () => {
+    render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('💬 コメント（管理者共有メモ）')).not.toBeInTheDocument();
+  });
+});
 

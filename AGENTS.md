@@ -201,6 +201,7 @@ cp .env.example .env
 - **Card**: NFCカード (card_idm, user_id, is_active) — FeliCa IDm で識別
 - **Attendance**: 出退勤記録 (user_id, check_in, check_out, date, card_idm)
 - **Shift**: シフト情報 (user_id, date, start_time, end_time, google_event_id)
+- **AttendanceMonthlyComment**: 月次勤務サマリーの管理者共有メモ (year_month PK, body, updated_by_user_id)
 
 ## NFC (WebUSB + PaSoRi) 概要
 

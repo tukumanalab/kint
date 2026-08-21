@@ -215,6 +215,23 @@ class AttendanceMonthlyDetailResponse(BaseModel):
     is_locked: bool = False
 
 
+class MonthlyCommentUpsertRequest(BaseModel):
+    """月次勤務サマリー コメント（管理者共有メモ）作成・更新リクエスト。"""
+
+    year_month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    body: str = Field("", max_length=2000)
+
+
+class MonthlyCommentResponse(BaseModel):
+    """月次勤務サマリー コメント（管理者共有メモ）レスポンス。"""
+
+    year_month: str
+    body: str = ""
+    updated_by_user_id: str | None = None
+    updated_by_name: str | None = None
+    updated_at: datetime | None = None
+
+
 class AttendanceCorrectionRequestCreate(BaseModel):
     """勤怠修正申請作成リクエスト。"""
 

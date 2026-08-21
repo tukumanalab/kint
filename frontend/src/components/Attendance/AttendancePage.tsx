@@ -32,7 +32,8 @@ import './AttendancePage.css';
 import { AttendanceGuideModal } from './AttendanceGuideModal';
 import { WorkingHoursReportModal } from './WorkingHoursReportModal';
 import { PaymentInfoModal } from './PaymentInfoModal';
-import { formatHours } from '../../utils/time';
+import { MonthlyCommentPanel } from './MonthlyCommentPanel';
+import { formatHours, parseUtcDate } from '../../utils/time';
 
 const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
   if (!timeStr) return { hour: '', minute: '' };
@@ -800,14 +801,6 @@ export function AttendancePage({ auth }: Props) {
   const renderSource = (source: string | null, deviceName?: string | null) => {
     if (deviceName) return deviceName;
     return getSourceLabel(source);
-  };
-
-  const parseUtcDate = (timeStr: string): Date => {
-    const normalized =
-      timeStr.includes('T') && !timeStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(timeStr)
-        ? `${timeStr}Z`
-        : timeStr;
-    return new Date(normalized);
   };
 
   const formatTime = (timeStr: string | null) => {
@@ -1952,6 +1945,7 @@ export function AttendancePage({ auth }: Props) {
               )}
             </div>
           </div>
+          {auth.token && <MonthlyCommentPanel token={auth.token} yearMonth={yearMonth} />}
           {loading && summaries.length === 0 ? (
             <div className="att-loading">読み込み中...</div>
           ) : summaries.length === 0 ? (

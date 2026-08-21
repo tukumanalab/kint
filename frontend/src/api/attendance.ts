@@ -8,6 +8,7 @@ import type {
   AttendanceRecord,
   AttendanceImportResponse,
   MonthlyReportSendResponse,
+  MonthlyComment,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -60,6 +61,29 @@ export async function getMonthlyAttendanceDetail(
   return request<AttendanceMonthlyDetailResponse>(
     `/attendance/monthly?${params.toString()}`,
     { method: 'GET' },
+    token,
+  );
+}
+
+export async function getMonthlyComment(
+  token: string,
+  yearMonth: string,
+): Promise<MonthlyComment> {
+  const params = new URLSearchParams({ year_month: yearMonth });
+  return request<MonthlyComment>(
+    `/attendance/summary/comment?${params.toString()}`,
+    { method: 'GET' },
+    token,
+  );
+}
+
+export async function saveMonthlyComment(
+  token: string,
+  body: { year_month: string; body: string },
+): Promise<MonthlyComment> {
+  return request<MonthlyComment>(
+    '/attendance/summary/comment',
+    { method: 'PUT', body: JSON.stringify(body) },
     token,
   );
 }

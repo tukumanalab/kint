@@ -17,6 +17,7 @@
 | `shifts`                    | iCal から取得したシフト情報              |
 | `system_settings`           | 管理画面から変更可能なシステム設定値     |
 | `attendance_alert_acknowledgments` | アラートの確認（承認）済みの記録       |
+| `attendance_monthly_comments` | 月次勤務サマリーの管理者共有メモ（年月単位） |
 
 ---
 
@@ -285,6 +286,27 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 
 ---
 
+### 2-10. `attendance_monthly_comments`
+
+月次勤務サマリー（年月単位）の管理者共有メモ。年月につき1行。
+
+| カラム名 | 型 | 制約 | 説明 |
+|---|---|---|---|
+| `year_month` | TEXT(7) | PK | 対象年月（"YYYY-MM"） |
+| `body` | TEXT | NOT NULL | メモ本文 |
+| `updated_by_user_id` | TEXT | NULL, FK → users.id ON DELETE SET NULL | 最終更新者 |
+| `created_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 作成日時 |
+| `updated_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 最終更新日時 |
+
+運用ルール:
+- 年月ごとに 1 行のみ。管理者であれば投稿者に関わらず誰でも上書き編集できる（last-write-wins）。
+- `body` が空（前後空白除去後）で保存された場合は行自体を削除する（空文字での保存は行わない）。
+- ユーザーが完全削除（物理削除）された場合、`updated_by_user_id` を `NULL` 化し、`body` は削除せず残す。
+- 月ロック（`attendance_locks`）の状態に関わらず編集可能（月ロックの対象外）。
+- 勤怠管理画面の管理者専用機能であり、CSV エクスポート・勤務時間報告書（PDF）・支払い情報ダイアログの出力データには含めない。
+
+---
+
 ## 3. ERD（物理モデル）
 
 ```mermaid
@@ -388,6 +410,14 @@ erDiagram
     DATETIME created_at
   }
 
+  attendance_monthly_comments {
+    TEXT year_month PK
+    TEXT body
+    TEXT updated_by_user_id FK
+    DATETIME created_at
+    DATETIME updated_at
+  }
+
   users ||--o{ cards : 所有
   users ||--o{ attendances : 記録
   users ||--o{ attendance_change_logs : 実行
@@ -402,6 +432,7 @@ erDiagram
   shifts ||--o{ attendances : 照合
   users ||--o{ attendance_alert_acknowledgments : 対象
   users ||--o{ attendance_alert_acknowledgments : 確認者
+  users ||--o{ attendance_monthly_comments : "updated_by"
 ```
 
 ---

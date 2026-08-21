@@ -1579,3 +1579,91 @@
   }
 }
 
+/* 月次勤務サマリー コメント（管理者共有メモ） */
+.att-monthly-comment-panel {
+  text-align: left;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.att-monthly-comment-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.att-monthly-comment-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #24292e;
+}
+
+.att-monthly-comment-panel__meta {
+  font-size: 12px;
+  color: #586069;
+}
+
+.att-monthly-comment-panel__body {
+  text-align: left;
+  font-size: 14px;
+  color: #24292e;
+  line-height: 1.6;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+
+.att-monthly-comment-panel__toggle {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #0366d6;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.att-monthly-comment-panel__toggle:hover {
+  text-decoration: underline;
+}
+
+.att-monthly-comment-panel__empty {
+  color: #959da5;
+  font-style: italic;
+}
+
+.att-monthly-comment-panel__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.att-monthly-comment-panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .att-monthly-comment-panel__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .att-monthly-comment-panel__textarea {
+    font-size: 16px;
+  }
+}
+
