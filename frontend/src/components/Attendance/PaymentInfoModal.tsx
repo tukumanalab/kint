@@ -105,10 +105,10 @@ export function PaymentInfoModal({ summaries, yearMonth, onClose }: PaymentInfoM
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ fontSize: '1.5rem' }}>💳</span>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700', letterSpacing: '-0.025em' }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700', letterSpacing: '-0.025em', color: '#ffffff' }}>
                 支払い情報 ({formattedYearMonth})
               </h2>
-              <span style={{ fontSize: '0.75rem', opacity: 0.85, display: 'block', marginTop: '2px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.9)', display: 'block', marginTop: '2px' }}>
                 当月に勤務実績のある従業員の集計と支払先一覧
               </span>
             </div>
