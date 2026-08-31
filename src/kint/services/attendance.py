@@ -50,6 +50,8 @@ from kint.schemas.attendance import (
     AttendancePatchRequest,
     AttendanceRecord,
     DailyAttendanceDetail,
+    MonthlyAttendanceHistoryItem,
+    MonthlyAttendanceHistoryResponse,
     PunchPeriod,
     ShiftPeriod,
 )
@@ -996,6 +998,95 @@ class AttendanceService:
             for log in logs
         ]
         return AttendanceHistoryResponse(items=items, total=len(items))
+
+    async def get_monthly_history(
+        self, year_month: str, user_id: str | None = None
+    ) -> MonthlyAttendanceHistoryResponse:
+        """指定した年月の勤怠変更履歴一覧を返します（changed_at 降順）。
+
+        user_id が指定されている場合は対象ユーザーのみ、None の場合は対象月全体の全ユーザーが対象。
+        """
+        try:
+            year, month = map(int, year_month.split("-"))
+            last_day = calendar.monthrange(year, month)[1]
+            start_date = date(year, month, 1)
+            end_date = date(year, month, last_day)
+        except Exception as e:
+            raise KintBadRequestError(
+                code="INVALID_YEAR_MONTH",
+                message=f"無効な年月フォーマットです: {year_month} (YYYY-MM)",
+            ) from e
+
+        from sqlalchemy.orm import aliased
+
+        ActorUser = aliased(User, name="actor_user")
+        TargetUser = aliased(User, name="target_user")
+
+        stmt = (
+            select(
+                AttendanceChangeLog,
+                Attendance.work_date,
+                TargetUser.id.label("target_user_id"),
+                TargetUser.name.label("target_user_name"),
+                TargetUser.full_name.label("target_user_full_name"),
+                ActorUser.name.label("actor_name"),
+                ActorUser.full_name.label("actor_full_name"),
+            )
+            .join(Attendance, AttendanceChangeLog.attendance_id == Attendance.id)
+            .join(TargetUser, Attendance.user_id == TargetUser.id)
+            .outerjoin(ActorUser, AttendanceChangeLog.actor_user_id == ActorUser.id)
+            .where(
+                Attendance.work_date >= start_date,
+                Attendance.work_date <= end_date,
+            )
+        )
+
+        if user_id:
+            stmt = stmt.where(Attendance.user_id == user_id)
+
+        stmt = stmt.order_by(AttendanceChangeLog.changed_at.desc())
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        def _ensure_utc(dt: datetime | None) -> datetime | None:
+            if dt is None:
+                return None
+            return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
+
+        items = []
+        for log, work_date, t_id, t_name, t_full_name, a_name, a_full_name in rows:
+            actor_name_str = a_name if a_name else (log.actor_user_id or "system")
+            items.append(
+                MonthlyAttendanceHistoryItem(
+                    id=log.id,
+                    attendance_id=log.attendance_id,
+                    work_date=work_date,
+                    target_user_id=t_id,
+                    target_user_name=t_name or "",
+                    target_user_full_name=t_full_name,
+                    actor_user_id=log.actor_user_id,
+                    actor_name=actor_name_str,
+                    actor_full_name=a_full_name,
+                    actor_role=log.actor_role,  # type: ignore[arg-type]
+                    changed_at=_ensure_utc(log.changed_at),  # type: ignore[arg-type]
+                    before=AttendanceHistorySnapshot(
+                        check_in=_ensure_utc(log.before_check_in),
+                        check_out=_ensure_utc(log.before_check_out),
+                        work_start=_ensure_utc(log.before_work_start),
+                        work_end=_ensure_utc(log.before_work_end),
+                    ),
+                    after=AttendanceHistorySnapshot(
+                        check_in=_ensure_utc(log.after_check_in),
+                        check_out=_ensure_utc(log.after_check_out),
+                        work_start=_ensure_utc(log.after_work_start),
+                        work_end=_ensure_utc(log.after_work_end),
+                    ),
+                    reason=log.reason,
+                )
+            )
+
+        return MonthlyAttendanceHistoryResponse(items=items, total=len(items))
 
     async def _calculate_period_data(
         self, from_date: date, to_date: date, user_id: str | None = None

@@ -208,4 +208,27 @@ export interface MonthlyComment {
   updated_at: string | null;
 }
 
+export interface MonthlyAttendanceHistoryItem {
+  id: string;
+  attendance_id: string;
+  work_date: string;
+  target_user_id: string;
+  target_user_name: string;
+  target_user_full_name?: string | null;
+  actor_user_id: string;
+  actor_name: string;
+  actor_full_name?: string | null;
+  actor_role: 'admin' | 'employee' | 'system';
+  changed_at: string;
+  before: AttendanceHistorySnapshot;
+  after: AttendanceHistorySnapshot;
+  reason: string;
+}
+
+export interface MonthlyAttendanceHistoryResponse {
+  items: MonthlyAttendanceHistoryItem[];
+  total: number;
+}
+
+
 

@@ -9,6 +9,7 @@ import type {
   AttendanceImportResponse,
   MonthlyReportSendResponse,
   MonthlyComment,
+  MonthlyAttendanceHistoryResponse,
 } from '../types/attendance';
 import { ApiError } from '../types/error';
 import type { ErrorResponse } from '../types/error';
@@ -50,6 +51,22 @@ export async function getAttendanceSummary(
     params.append('user_id', userId);
   }
   return request<AttendanceMonthlySummary[]>(`/attendance/summary?${params.toString()}`, { method: 'GET' }, token);
+}
+
+export async function getMonthlyAttendanceHistory(
+  token: string,
+  yearMonth: string,
+  userId?: string,
+): Promise<MonthlyAttendanceHistoryResponse> {
+  const params = new URLSearchParams({ year_month: yearMonth });
+  if (userId) {
+    params.append('user_id', userId);
+  }
+  return request<MonthlyAttendanceHistoryResponse>(
+    `/attendance/monthly-history?${params.toString()}`,
+    { method: 'GET' },
+    token,
+  );
 }
 
 export async function getMonthlyAttendanceDetail(

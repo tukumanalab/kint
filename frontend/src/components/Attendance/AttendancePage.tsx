@@ -33,6 +33,7 @@ import { AttendanceGuideModal } from './AttendanceGuideModal';
 import { WorkingHoursReportModal } from './WorkingHoursReportModal';
 import { PaymentInfoModal } from './PaymentInfoModal';
 import { MonthlyCommentPanel } from './MonthlyCommentPanel';
+import { MonthlyEditLogPanel } from './MonthlyEditLogPanel';
 import { formatHours, parseUtcDate } from '../../utils/time';
 
 const parseTimeStr = (timeStr: string | null, roundTo5: boolean = false) => {
@@ -81,6 +82,7 @@ export function AttendancePage({ auth }: Props) {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showEditLogPanel, setShowEditLogPanel] = useState(false);
   // CSVインポート関連
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -322,10 +324,16 @@ export function AttendancePage({ auth }: Props) {
   const handleViewDetail = useCallback(
     async (summary: AttendanceMonthlySummary, options?: { silent?: boolean }) => {
       if (!auth.token) return;
+      // すでに選択されている従業員の行を再クリックした場合は選択解除
+      if (selectedUser?.user_id === summary.user_id && !options?.silent) {
+        setSelectedUser(null);
+        setDetailData(null);
+        return;
+      }
       setSelectedUser(summary);
       loadDetail(summary.user_id, yearMonth, options);
     },
-    [auth.token, loadDetail, yearMonth]
+    [auth.token, selectedUser?.user_id, loadDetail, yearMonth]
   );
 
   const handleOpenReportForUser = useCallback(
@@ -1726,6 +1734,17 @@ export function AttendancePage({ auth }: Props) {
             <span>📖</span> 使い方ガイド
           </button>
 
+          {!isAdmin && (
+            <button
+              type="button"
+              className={`att-btn ${showEditLogPanel ? 'att-btn--primary' : 'att-btn--secondary'}`}
+              onClick={() => setShowEditLogPanel((prev) => !prev)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginRight: '8px' }}
+            >
+              📝 編集ログ
+            </button>
+          )}
+
           {isAdmin && (
             <div className="attendance-page__csv-buttons">
               <button
@@ -1923,6 +1942,14 @@ export function AttendancePage({ auth }: Props) {
                 title="支払い情報を表示"
               >
                 💳 支払い情報
+              </button>
+              <button
+                type="button"
+                className={`att-btn ${showEditLogPanel ? 'att-btn--primary' : 'att-btn--secondary'}`}
+                onClick={() => setShowEditLogPanel((prev) => !prev)}
+                title="当月の編集ログを表示"
+              >
+                📝 編集ログ
               </button>
             </div>
             <div className="att-summary-search">
@@ -2194,6 +2221,17 @@ export function AttendancePage({ auth }: Props) {
             </div>
           )}
         </div>
+      )}
+
+      {/* 月次編集ログパネル表示 */}
+      {showEditLogPanel && auth.token && (
+        <MonthlyEditLogPanel
+          token={auth.token}
+          yearMonth={yearMonth}
+          userId={selectedUser ? selectedUser.user_id : (isAdmin ? undefined : auth.user?.id)}
+          targetUserName={selectedUser ? selectedUser.user_name : (!isAdmin ? auth.user?.name : undefined)}
+          onClose={() => setShowEditLogPanel(false)}
+        />
       )}
 
       {/* 修正申請作成モーダル */}

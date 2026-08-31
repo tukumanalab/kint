@@ -363,3 +363,32 @@ class MonthlyReportSendResponse(BaseModel):
     total_target: int
     year_month: str
     failed_users: list[MonthlyReportFailedUserItem] = Field(default_factory=list)
+
+
+class MonthlyAttendanceHistoryItem(BaseModel):
+    """月次勤怠変更履歴の1件。"""
+
+    id: str
+    attendance_id: str
+    work_date: date
+    target_user_id: str
+    target_user_name: str
+    target_user_full_name: str | None = None
+    actor_user_id: str
+    actor_name: str
+    actor_full_name: str | None = None
+    actor_role: Literal["admin", "employee", "system"]
+    changed_at: datetime
+    before: AttendanceHistorySnapshot
+    after: AttendanceHistorySnapshot
+    reason: str
+
+    model_config = {"from_attributes": True}
+
+
+class MonthlyAttendanceHistoryResponse(BaseModel):
+    """月次勤怠変更履歴レスポンス。"""
+
+    items: list[MonthlyAttendanceHistoryItem]
+    total: int
+

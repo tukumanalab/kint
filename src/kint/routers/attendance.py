@@ -29,6 +29,7 @@ from kint.schemas.attendance import (
     AttendanceMonthlySummary,
     AttendancePatchRequest,
     AttendanceRecord,
+    MonthlyAttendanceHistoryResponse,
     MonthlyCommentResponse,
     MonthlyCommentUpsertRequest,
     MonthlyReportSendRequest,
@@ -84,6 +85,22 @@ async def get_working_hours_report(
     return await service.get_working_hours_report_data(
         year_month=year_month, user_id=target_user_id
     )
+
+
+@router.get("/monthly-history", response_model=MonthlyAttendanceHistoryResponse)
+async def get_monthly_attendance_history(
+    year_month: str = Query(..., description="対象年月 (YYYY-MM 形式)"),
+    user_id: str | None = Query(default=None, description="対象ユーザー ID（管理者は任意指定、一般従業員は自動で自分のみ）"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> MonthlyAttendanceHistoryResponse:
+    """月次勤怠編集ログ（変更履歴）を取得する。"""
+    target_user_id = user_id
+    if current_user.role == "employee":
+        target_user_id = current_user.id
+
+    service = AttendanceService(session)
+    return await service.get_monthly_history(year_month=year_month, user_id=target_user_id)
 
 
 @router.patch("/{attendance_id}", response_model=AttendanceRecord)
