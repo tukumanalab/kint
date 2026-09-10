@@ -359,6 +359,13 @@ class PunchService:
                 )
 
         attendance = await self._get_open_attendance(user.id)
+        if attendance is not None and attendance.check_in is not None:
+            # 24時間を超えて放置された未退勤レコードには退勤打刻を紐付けず、新しい出勤打刻として扱う
+            elapsed_seconds = (
+                self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)
+            ).total_seconds()
+            if elapsed_seconds > 24 * 3600:
+                attendance = None
 
         # 5分以内の退勤打刻の場合、出勤記録を取り消す（削除する）
         is_cancelled = False
@@ -714,6 +721,12 @@ class AttendanceService:
                 message="退勤時刻は出勤時刻よりも後の時刻を指定してください。",
             )
 
+        if req_out is not None and (req_out - req_in).total_seconds() > 7 * 24 * 3600:
+            raise KintBadRequestError(
+                code="ATTENDANCE_RANGE_TOO_LARGE",
+                message="出勤日時から退勤日時までの期間が長すぎます（最大7日間）。退勤日付をご確認ください。",
+            )
+
         for other in other_attendances:
             # 手動設定レコードの場合は手動勤務時間、自動の場合は打刻時間を対象とする
             other_in = _ensure_utc(
@@ -751,7 +764,13 @@ class AttendanceService:
                 local_out = other_out.astimezone(JST) if other_out else None
 
                 in_str = local_in.strftime("%Y-%m-%d %H:%M:%S")
-                out_str = local_out.strftime("%H:%M:%S") if local_out else "未退勤"
+                if local_out is None:
+                    out_str = "未退勤"
+                elif local_out.date() == local_in.date():
+                    out_str = local_out.strftime("%H:%M:%S")
+                else:
+                    out_str = local_out.strftime("%Y-%m-%d %H:%M:%S")
+
                 raise KintBadRequestError(
                     code="ATTENDANCE_OVERLAP",
                     message=(

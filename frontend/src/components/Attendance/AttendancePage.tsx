@@ -242,6 +242,22 @@ export function AttendancePage({ auth }: Props) {
       checkOutStr = new Date(`${addFormData.checkOutDate}T${addFormData.checkOutTime}:00`).toISOString();
     }
 
+    if (checkInStr && checkOutStr) {
+      const inTime = new Date(checkInStr).getTime();
+      const outTime = new Date(checkOutStr).getTime();
+      if (inTime >= outTime) {
+        alert('退勤時刻は出勤時刻より後の日時を指定してください。');
+        return;
+      }
+      const diffHours = (outTime - inTime) / (1000 * 60 * 60);
+      if (diffHours >= 24) {
+        const days = Math.floor(diffHours / 24);
+        if (!window.confirm(`出勤日時から退勤日時まで ${days} 日以上離れています（${diffHours.toFixed(1)}時間）。\n本当にこの日時で追加してよろしいですか？`)) {
+          return;
+        }
+      }
+    }
+
     try {
       if (addEditMode === 'punch') {
         await createAttendance(auth.token, {
@@ -638,6 +654,13 @@ export function AttendancePage({ auth }: Props) {
       if (!isAdmin && outTime - inTime <= 5 * 60 * 1000) {
         alert('出勤時刻から5分以内の退勤時刻への修正申請は受け付けられません。');
         return;
+      }
+      const diffHours = (outTime - inTime) / (1000 * 60 * 60);
+      if (diffHours >= 24) {
+        const days = Math.floor(diffHours / 24);
+        if (!window.confirm(`出勤日時から退勤日時まで ${days} 日以上離れています（${diffHours.toFixed(1)}時間）。\n本当にこの日時で登録してよろしいですか？`)) {
+          return;
+        }
       }
     }
 
@@ -2404,11 +2427,29 @@ export function AttendancePage({ auth }: Props) {
                 </div>
 
                 <div className="att-form-group" style={{ marginTop: '12px' }}>
-                  <label className="att-sub-label">
-                    {isAdmin 
-                      ? (editMode === 'work' ? '勤務退勤日時' : '退勤打刻日時') 
-                      : '退勤希望日時'}
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                    <label className="att-sub-label" style={{ marginBottom: 0 }}>
+                      {isAdmin 
+                        ? (editMode === 'work' ? '勤務退勤日時' : '退勤打刻日時') 
+                        : '退勤希望日時'}
+                    </label>
+                    {requestFormData.requestedCheckInDate && requestFormData.requestedCheckOutDate && requestFormData.requestedCheckInDate !== requestFormData.requestedCheckOutDate && (
+                      <span style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeeba', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                        ⚠️ 日跨ぎ ({requestFormData.requestedCheckOutDate})
+                      </span>
+                    )}
+                    {requestFormData.requestedCheckInDate && requestFormData.requestedCheckOutDate && requestFormData.requestedCheckInDate !== requestFormData.requestedCheckOutDate && (
+                      <button
+                        type="button"
+                        className="att-btn att-btn--link"
+                        style={{ fontSize: '11px', padding: 0 }}
+                        onClick={() => setRequestFormData(prev => ({ ...prev, requestedCheckOutDate: prev.requestedCheckInDate }))}
+                        disabled={isAdmin && editMode === 'work' && resetToAuto}
+                      >
+                        出勤日と同日にする
+                      </button>
+                    )}
+                  </div>
                   <div className="att-datetime-picker-row">
                     <input
                       type="date"
@@ -2889,9 +2930,26 @@ export function AttendancePage({ auth }: Props) {
               </div>
 
               <div className="att-form-group" style={{ marginTop: '12px' }}>
-                <label className="att-sub-label">
-                  {addEditMode === 'work' ? '勤務退勤日時' : '退勤打刻日時'}
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                  <label className="att-sub-label" style={{ marginBottom: 0 }}>
+                    {addEditMode === 'work' ? '勤務退勤日時' : '退勤打刻日時'}
+                  </label>
+                  {addFormData.checkInDate && addFormData.checkOutDate && addFormData.checkInDate !== addFormData.checkOutDate && (
+                    <span style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeeba', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                      ⚠️ 日跨ぎ ({addFormData.checkOutDate})
+                    </span>
+                  )}
+                  {addFormData.checkInDate && addFormData.checkOutDate && addFormData.checkInDate !== addFormData.checkOutDate && (
+                    <button
+                      type="button"
+                      className="att-btn att-btn--link"
+                      style={{ fontSize: '11px', padding: 0 }}
+                      onClick={() => setAddFormData(prev => ({ ...prev, checkOutDate: prev.checkInDate }))}
+                    >
+                      出勤日と同日にする
+                    </button>
+                  )}
+                </div>
                 <div className="att-datetime-picker-row">
                   <input
                     type="date"
