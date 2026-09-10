@@ -2457,20 +2457,29 @@ class AttendanceService:
                 )
 
                 if proposed_check_out <= check_in_utc:
-                    logger.warning(
-                        "シフト終了時刻がチェックイン時刻以前のため、自動補完をスキップします。 "
-                        "attendance_id=%s, check_in=%s, shift_end=%s",
-                        att.id,
-                        att.check_in,
-                        proposed_check_out,
+                    # シフト予約終了以降に打刻している場合、退勤打刻時刻を当日の 23:59 (JST) にして日跨ぎ勤務を回避する
+                    from datetime import time, timedelta, timezone
+
+                    JST = timezone(timedelta(hours=9))
+                    # 当日の JST 23:59:00
+                    eod_jst = datetime.combine(att.work_date, time(23, 59, 0), tzinfo=JST)
+                    eod_utc = eod_jst.astimezone(UTC)
+
+                    # 万一 check_in が 23:59:00 JST 以降の場合の安全策
+                    if check_in_utc >= eod_utc:
+                        eod_utc = check_in_utc + timedelta(seconds=1)
+
+                    proposed_check_out = eod_utc
+                    completion_reason = (
+                        "シフト終了後の打刻かつ退勤忘れのため当日の23:59でシステム自動補完"
                     )
-                    skipped += 1
-                    continue
+                else:
+                    completion_reason = "退勤忘れのためシフト終了時刻でシステム自動補完"
 
                 att.check_out = proposed_check_out
                 att.is_auto_completed = True
                 att.auto_completed_at = now
-                att.updated_reason = "退勤忘れのためシフト終了時刻でシステム自動補完"
+                att.updated_reason = completion_reason
                 att.last_updated_by_user_id = "system"
                 att.last_updated_at = now
 
@@ -2484,7 +2493,7 @@ class AttendanceService:
                     before_check_out=None,
                     after_check_in=before_check_in,
                     after_check_out=att.check_out,
-                    reason="退勤忘れのためシフト終了時刻でシステム自動補完",
+                    reason=completion_reason,
                     changed_at=now,
                 )
                 self.session.add(log)
