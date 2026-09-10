@@ -90,7 +90,9 @@ async def get_working_hours_report(
 @router.get("/monthly-history", response_model=MonthlyAttendanceHistoryResponse)
 async def get_monthly_attendance_history(
     year_month: str = Query(..., description="対象年月 (YYYY-MM 形式)"),
-    user_id: str | None = Query(default=None, description="対象ユーザー ID（管理者は任意指定、一般従業員は自動で自分のみ）"),
+    user_id: str | None = Query(
+        default=None, description="対象ユーザー ID（管理者は任意指定、一般従業員は自動で自分のみ）"
+    ),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> MonthlyAttendanceHistoryResponse:

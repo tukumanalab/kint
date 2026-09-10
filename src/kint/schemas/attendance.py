@@ -391,4 +391,3 @@ class MonthlyAttendanceHistoryResponse(BaseModel):
 
     items: list[MonthlyAttendanceHistoryItem]
     total: int
-

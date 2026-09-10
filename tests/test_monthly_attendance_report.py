@@ -316,7 +316,9 @@ async def test_manual_monthly_report_send_api(mock_send_email, client, session) 
 
 
 @patch("kint.services.gmail.GmailAdapter.send_email")
-async def test_manual_monthly_report_send_api_with_missing_email(mock_send_email, client, session) -> None:
+async def test_manual_monthly_report_send_api_with_missing_email(
+    mock_send_email, client, session
+) -> None:
     admin = await _create_user(
         session,
         id="admin_api_user2",
@@ -352,4 +354,3 @@ async def test_manual_monthly_report_send_api_with_missing_email(mock_send_email
     assert failed_item["user_id"] == emp_no_email.id
     assert failed_item["name"] == "NoEmailUser"
     assert "メールアドレス未設定" in failed_item["reason"]
-

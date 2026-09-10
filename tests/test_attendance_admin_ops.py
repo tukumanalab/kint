@@ -486,8 +486,9 @@ async def test_admin_patch_attendance_clear_remarks(
     data = resp.json()
     assert data["remarks"] is None
 
-    db_result = await session.execute(select(Attendance).where(Attendance.id == "att_patch_remarks"))
+    db_result = await session.execute(
+        select(Attendance).where(Attendance.id == "att_patch_remarks")
+    )
     db_att = db_result.scalar_one_or_none()
     assert db_att is not None
     assert db_att.remarks is None
-

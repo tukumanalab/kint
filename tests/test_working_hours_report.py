@@ -32,6 +32,7 @@ async def test_get_working_hours_report_data(session: AsyncSession):
     await session.commit()
 
     from datetime import timezone
+
     UTC = timezone.utc
 
     # 2026-07-01 に JST 13:00〜18:00 (UTC 04:00〜09:00, 休憩0分) の勤怠記録を作成
@@ -196,7 +197,9 @@ async def test_deleted_attendance_record_excluded_from_report(session: AsyncSess
     await session.commit()
 
     service = AttendanceService(session)
-    report = await service.get_working_hours_report_data(year_month="2026-07", user_id="user-del-test")
+    report = await service.get_working_hours_report_data(
+        year_month="2026-07", user_id="user-del-test"
+    )
 
     # 07-03 の明細を取得
     day3 = [d for d in report.days if d.date == date(2026, 7, 3)][0]
@@ -243,7 +246,9 @@ async def test_working_hours_report_summary_consistency(session: AsyncSession):
     _, summary, _ = period_data[0]
 
     # 報告書データの取得
-    report = await service.get_working_hours_report_data(year_month="2026-07", user_id="user-cons-1")
+    report = await service.get_working_hours_report_data(
+        year_month="2026-07", user_id="user-cons-1"
+    )
 
     # 1. Webサマリーの「申請勤務時間」 == 報告書の「計算欄」
     assert report.total_requested_work_hours == summary.total_requested_hours
@@ -289,7 +294,9 @@ async def test_working_hours_report_custom_default_content(session: AsyncSession
     await session.commit()
 
     service = AttendanceService(session)
-    report = await service.get_working_hours_report_data(year_month="2026-07", user_id="user-content-1")
+    report = await service.get_working_hours_report_data(
+        year_month="2026-07", user_id="user-content-1"
+    )
 
     day15 = [d for d in report.days if d.date == date(2026, 7, 15)][0]
     assert day15.work_content == "研究室ラボ サポート業務"
@@ -300,6 +307,7 @@ async def test_working_hours_report_custom_default_content(session: AsyncSession
 async def test_working_hours_report_local_timezone(session: AsyncSession):
     """UTC で保存された時刻がローカルタイム (JST +09:00) の HH:MM 表記で報告書に出力されることを検証。"""
     from datetime import timezone, timedelta
+
     UTC = timezone.utc
     user = User(
         id="user-tz-1",
@@ -357,6 +365,7 @@ async def test_working_hours_report_endpoint(client: AsyncClient, session: Async
 
     # JWT トークン生成
     from kint.routers.auth import _create_access_token
+
     token_emp = _create_access_token("emp-1", 1)
     token_admin = _create_access_token("admin-1", 1)
 
@@ -390,6 +399,7 @@ async def test_working_hours_report_endpoint(client: AsyncClient, session: Async
 async def test_working_hours_report_with_remarks(session: AsyncSession):
     """勤怠データに入力された備考 (remarks) が報告書データに正しく反映されることを検証。"""
     from datetime import timezone
+
     UTC = timezone.utc
     user = User(
         id="user-rmk-1",
@@ -421,4 +431,3 @@ async def test_working_hours_report_with_remarks(session: AsyncSession):
 
     day5 = [d for d in report.days if d.date == date(2026, 7, 5)][0]
     assert day5.remarks == "直行直帰のため事前申請済"
-

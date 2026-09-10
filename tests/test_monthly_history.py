@@ -11,9 +11,15 @@ from tests.test_attendance_summary import _create_user, _login
 @pytest.mark.asyncio
 async def test_get_monthly_history(client: AsyncClient, session: AsyncSession) -> None:
     # ユーザーを作成
-    admin = await _create_user(session, id="admin_hist", name="admin_hist", email="admin_hist@example.com", role="admin")
-    emp1 = await _create_user(session, id="emp1_hist", name="emp1_hist", email="emp1_hist@example.com", role="employee")
-    emp2 = await _create_user(session, id="emp2_hist", name="emp2_hist", email="emp2_hist@example.com", role="employee")
+    admin = await _create_user(
+        session, id="admin_hist", name="admin_hist", email="admin_hist@example.com", role="admin"
+    )
+    emp1 = await _create_user(
+        session, id="emp1_hist", name="emp1_hist", email="emp1_hist@example.com", role="employee"
+    )
+    emp2 = await _create_user(
+        session, id="emp2_hist", name="emp2_hist", email="emp2_hist@example.com", role="employee"
+    )
 
     admin_headers = {"Authorization": f"Bearer {await _login(client, 'admin_hist')}"}
     emp1_headers = {"Authorization": f"Bearer {await _login(client, 'emp1_hist')}"}
