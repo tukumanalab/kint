@@ -308,6 +308,20 @@ describe('AttendancePage - History', () => {
     });
   });
 
+  it('一般従業員でログインした場合、サマリー・詳細の取得がループせず詳細が表示され続けること', async () => {
+    render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    });
+
+    // 再取得ループ（詳細の表示・非表示の点滅）が発生しないことを確認
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(screen.getByText(/日別勤怠詳細/)).toBeInTheDocument();
+    expect(attendanceApi.getAttendanceSummary).toHaveBeenCalledTimes(1);
+    expect(attendanceApi.getMonthlyAttendanceDetail).toHaveBeenCalledTimes(1);
+  });
+
   it('詳細カレンダーに1週間毎の週次集計行（勤務日数・勤務時間）が表示されること', async () => {
     render(<AttendancePage auth={makeAuth(mockEmployeeUser)} />);
 

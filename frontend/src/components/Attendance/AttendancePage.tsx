@@ -396,8 +396,10 @@ export function AttendancePage({ auth }: Props) {
         });
 
         // 一般従業員の場合は、自動的に詳細もロードしてあげる
+        // (handleViewDetail は選択トグル動作を含み、依存関係経由で再取得ループを起こすため使わない)
         if (!isAdmin && data.length > 0) {
-          handleViewDetail(data[0], { silent: isSilent });
+          setSelectedUser(data[0]);
+          loadDetail(data[0].user_id, yearMonth, { silent: isSilent });
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : '勤怠データの取得に失敗しました');
@@ -407,7 +409,7 @@ export function AttendancePage({ auth }: Props) {
         }
       }
     },
-    [auth.token, yearMonth, isAdmin, handleViewDetail]
+    [auth.token, yearMonth, isAdmin, loadDetail]
   );
 
   const handleToggleAlertAcknowledgment = async (date: string, ruleId: string, currentStatus: boolean) => {
