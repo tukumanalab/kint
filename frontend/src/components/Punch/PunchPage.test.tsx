@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PunchPage } from './PunchPage';
 import * as punchApi from '../../api/punch';
+import * as faceApi from '../../api/face';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 
 vi.mock('../../hooks/useWebUSBFeliCa', () => ({ useWebUSBFeliCa: vi.fn() }));
@@ -10,6 +11,11 @@ vi.mock('../../utils/browser', () => ({ isWebUSBSupported: vi.fn(() => true) }))
 describe('PunchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(faceApi, 'getFacePunchConfig').mockResolvedValue({
+      enabled: false,
+      countdown_seconds: 3,
+      cooldown_seconds: 5,
+    });
     vi.mocked(useWebUSBFeliCa).mockReturnValue({
       status: 'idle',
       idm: null,
@@ -239,5 +245,34 @@ describe('PunchPage', () => {
 
     // 時間経過前でも成功通知が残っていることを検証
     expect(screen.getByText('出勤しました')).toBeInTheDocument();
+  });
+
+  it('顔認証打刻が無効設定の場合は「顔認証」タブが表示されない', async () => {
+    vi.spyOn(faceApi, 'getFacePunchConfig').mockResolvedValue({
+      enabled: false,
+      countdown_seconds: 3,
+      cooldown_seconds: 5,
+    });
+
+    render(<PunchPage />);
+
+    await waitFor(() => {
+      expect(faceApi.getFacePunchConfig).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('tab', { name: '顔認証' })).not.toBeInTheDocument();
+  });
+
+  it('顔認証打刻が有効設定の場合は「顔認証」タブが表示される', async () => {
+    vi.spyOn(faceApi, 'getFacePunchConfig').mockResolvedValue({
+      enabled: true,
+      countdown_seconds: 3,
+      cooldown_seconds: 5,
+    });
+
+    render(<PunchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: '顔認証' })).toBeInTheDocument();
+    });
   });
 });

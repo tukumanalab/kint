@@ -17,6 +17,8 @@ import type { UserResponse, UserCreateRequest, UserPatchRequest, MeCardListItem 
 import type { UseAuth } from '../../hooks/useAuth';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
+import { getUserFace, putUserFace, deleteUserFace } from '../../api/face';
+import { FaceRegistration } from '../Face/FaceRegistration';
 import { UserManagementGuideModal } from './UserManagementGuideModal';
 import './UserManagementPage.css';
 import '../MyProfile/MyProfilePage.css';
@@ -410,6 +412,7 @@ export function UserManagementPage({ auth }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [nfcTargetUser, setNfcTargetUser] = useState<UserResponse | null>(null);
+  const [faceTargetUser, setFaceTargetUser] = useState<UserResponse | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showGuide, setShowGuide] = useState(false);
 
@@ -681,6 +684,15 @@ export function UserManagementPage({ auth }: Props) {
                     >
                       カード
                     </button>
+                    {user.role !== 'admin' && (
+                      <button
+                        type="button"
+                        className="btn btn--small btn--secondary"
+                        onClick={() => setFaceTargetUser(user)}
+                      >
+                        顔データ{user.has_face_data ? ' ✓' : ''}
+                      </button>
+                    )}
                     {user.id !== 'system' && (
                       user.is_active ? (
                         <button
@@ -744,6 +756,20 @@ export function UserManagementPage({ auth }: Props) {
         <UserNfcCardsModal
           user={nfcTargetUser}
           onClose={() => setNfcTargetUser(null)}
+          token={token}
+        />
+      )}
+      {faceTargetUser && (
+        <UserFaceModal
+          user={faceTargetUser}
+          onClose={(hasFaceData) => {
+            if (hasFaceData !== undefined) {
+              setUsers((prev) =>
+                prev.map((u) => (u.id === faceTargetUser.id ? { ...u, has_face_data: hasFaceData } : u)),
+              );
+            }
+            setFaceTargetUser(null);
+          }}
           token={token}
         />
       )}
@@ -1103,6 +1129,73 @@ function UserNfcCardsModal({ user, token, onClose }: UserNfcCardsModalProps) {
 
         <div className="myprofile-dialog__actions myprofile-dialog__actions--right" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
           <button type="button" className="btn btn--secondary" onClick={onClose}>
+            閉じる
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+// ===== 管理者用 顔認証データ管理モーダル =====
+
+interface UserFaceModalProps {
+  user: UserResponse;
+  token: string;
+  onClose: (hasFaceData?: boolean) => void;
+}
+
+function UserFaceModal({ user, token, onClose }: UserFaceModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [hasFaceData, setHasFaceData] = useState<boolean | undefined>(user.has_face_data);
+
+  useEffect(() => {
+    dialogRef.current?.showModal();
+  }, []);
+
+  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
+    if (e.target === dialogRef.current) onClose(hasFaceData);
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="myprofile-dialog"
+      onCancel={() => onClose(hasFaceData)}
+      onClick={handleBackdropClick}
+    >
+      <div className="myprofile-dialog__inner">
+        <div className="myprofile-dialog__header">
+          <h2 className="myprofile-dialog__title">{user.full_name} の顔認証データ</h2>
+          <button
+            type="button"
+            className="myprofile-dialog__close"
+            aria-label="閉じる"
+            onClick={() => onClose(hasFaceData)}
+          >
+            ✕
+          </button>
+        </div>
+        <FaceRegistration
+          mode="admin"
+          facingMode="user"
+          fetchStatus={async () => {
+            const s = await getUserFace(token, user.id);
+            setHasFaceData(s.registered);
+            return s;
+          }}
+          saveDescriptors={async (descriptors) => {
+            const s = await putUserFace(token, user.id, { descriptors });
+            setHasFaceData(s.registered);
+            return s;
+          }}
+          deleteFace={async () => {
+            await deleteUserFace(token, user.id);
+            setHasFaceData(false);
+          }}
+        />
+        <div className="myprofile-dialog__actions myprofile-dialog__actions--right">
+          <button type="button" className="btn btn--secondary" onClick={() => onClose(hasFaceData)}>
             閉じる
           </button>
         </div>

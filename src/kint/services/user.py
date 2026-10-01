@@ -56,9 +56,19 @@ class UserService:
 
     async def list_users(self) -> UsersListResponse:
         """ユーザー一覧を返す。"""
+        from kint.services.face import FaceService
+
         result = await self.session.execute(select(User).order_by(User.created_at))
         users = result.scalars().all()
-        return UsersListResponse(users=[UserResponse.model_validate(u) for u in users])
+        face_svc = FaceService(self.session)
+        has_face_map = await face_svc.has_face_data_map([u.id for u in users])
+
+        responses: list[UserResponse] = []
+        for u in users:
+            resp = UserResponse.model_validate(u)
+            resp.has_face_data = has_face_map.get(u.id, False)
+            responses.append(resp)
+        return UsersListResponse(users=responses)
 
     async def search_punch_candidates(
         self, query: str, limit: int = 10

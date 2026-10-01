@@ -31,7 +31,14 @@ uv sync
 
 # Frontend 依存インストール
 cd frontend && npm install
+
+# 顔認証打刻用のモデルファイルを public/face-models に配置（npm install 後に一度実行）
+npm run copy-face-models
 ```
+
+> **Note (顔認証打刻機能):**
+> 顔認証打刻（`@vladmandic/face-api`）はブラウザが `public/face-models/` 配下のモデルファイルを取得して動作します。`npm run copy-face-models`（`node_modules/@vladmandic/face-api/model/` から必要なモデルファイルをコピーするスクリプト）を実行し忘れると、顔検出が動作しません。`npm run build` の前段階としても実行してください。
+> また、カメラ (`getUserMedia`) は HTTPS 環境でのみ動作するため、ローカル開発では `http://localhost` からのアクセス（`localhost` は例外的に許可される）で確認してください。
 
 ### 打刻・シフト連携の環境変数
 

@@ -7,7 +7,7 @@ from pydantic import BaseModel, model_validator
 
 
 class PunchRequest(BaseModel):
-    """打刻リクエスト。card_idm または user_id+reason のいずれかが必須。"""
+    """打刻リクエスト。card_idm、face_match_token、user_id+reason のいずれかが必須。"""
 
     device_id: str
     occurred_at: datetime
@@ -17,17 +17,20 @@ class PunchRequest(BaseModel):
     reason: str | None = None
     overtime_reason: str | None = None
     confirm_no_overtime: bool = False
+    face_match_token: str | None = None
 
     @model_validator(mode="after")
     def validate_punch_method(self) -> "PunchRequest":
-        """card_idm または user_id+reason のいずれかを検証する。"""
+        """card_idm、face_match_token、または user_id+reason のいずれかを検証する。"""
         if self.card_idm is not None:
+            return self
+        if self.face_match_token is not None:
             return self
         if self.user_id is not None:
             if not self.reason or not self.reason.strip():
                 raise ValueError("user_id 打刻時は reason が必須です")
             return self
-        raise ValueError("card_idm または user_id のいずれかを指定してください")
+        raise ValueError("card_idm、face_match_token、または user_id のいずれかを指定してください")
 
 
 class PunchResponse(BaseModel):
@@ -39,7 +42,7 @@ class PunchResponse(BaseModel):
     user_name: str
     action: Literal["check_in", "check_out", "cancelled"] | None = None
     occurred_at: datetime
-    method: Literal["card_idm", "user_id"]
+    method: Literal["card_idm", "user_id", "face"]
     message: str
     calculated_time: datetime | None = None
     current_working_hours: float | None = None

@@ -15,6 +15,9 @@
 - **実装URL**: `/settings/profile` または `/my-profile`（TBD）
 - **API依存**: BE-09（GET /me、PATCH /me/profile、PATCH /me/password）
 
+> **注記（スコープ外の追加セクション）**
+> 本ドキュメントは FE-07（プロフィール編集・パスワード変更）の設計を対象としており、その後マイページ画面に追加された「NFCカード登録」および「顔認証データ登録」（`FaceRegistration` コンポーネント、`GET/PUT/DELETE /api/v1/me/face`）の詳細設計は本書のスコープ外です。顔認証データ登録の仕様は `AGENTS.md`（顔認証打刻機能）および `docs/specification.md`（5-16）を参照してください。
+
 ---
 
 ## 2. 画面状態遷移図

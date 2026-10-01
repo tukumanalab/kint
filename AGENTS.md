@@ -52,21 +52,25 @@ kint/
 │       │   ├── __init__.py
 │       │   ├── user.py
 │       │   ├── card.py
-│       │   └── attendance.py
+│       │   ├── attendance.py
+│       │   └── face_descriptor.py # 顔認証ディスクリプタモデル
 │       ├── schemas/             # Pydantic schemas
-│       │   └── punch_device.py  # 打刻端末管理スキーマ
+│       │   ├── punch_device.py  # 打刻端末管理スキーマ
+│       │   └── face.py          # 顔認証打刻スキーマ
 │       ├── routers/             # APIルーター
 │       │   ├── __init__.py
 │       │   ├── auth.py
 │       │   ├── attendance.py
 │       │   ├── admin.py
 │       │   ├── calendar.py
-│       │   └── punch_device.py  # 打刻端末制限・管理ルーター
+│       │   ├── punch_device.py  # 打刻端末制限・管理ルーター
+│       │   └── face_punch.py    # 顔認証打刻ルーター
 │       ├── services/            # ビジネスロジック
 │       │   ├── attendance.py
 │       │   ├── calendar.py      # Google Calendar 連携
 │       │   ├── user.py
-│       │   └── punch_device.py  # 打刻端末サービス
+│       │   ├── punch_device.py  # 打刻端末サービス
+│       │   └── face.py          # 顔認証ディスクリプタ登録・照合サービス
 │       └── static/              # Vite ビルド成果物配信用
 ├── frontend/                    # React SPA — Web管理画面
 │   ├── package.json
@@ -83,12 +87,21 @@ kint/
 │       │   ├── ShiftCalendar.tsx
 │       │   ├── AttendanceList.tsx
 │       │   ├── Admin/
+│       │   ├── Face/
+│       │   │   └── FaceRegistration.tsx # 顔データ登録・削除の共通コンポーネント
+│       │   ├── Punch/
+│       │   │   ├── FacePunchPanel.tsx   # 顔認証打刻パネル（カメラ・自動打刻）
+│       │   │   └── FaceAvatar.tsx       # 打刻結果を案内するアバター表示
 │       │   └── Settings/
 │       │       └── PunchDeviceManager.tsx # 打刻端末管理コンポーネント
 │       ├── hooks/               # カスタムフック
 │       │   ├── useAuth.ts
-│       │   └── useNfcReader.ts
+│       │   ├── useNfcReader.ts
+│       │   ├── useCamera.ts     # カメラ (getUserMedia) 制御フック
+│       │   └── usePunchSubmission.ts # 打刻送信共通フック
 │       ├── nfc/                 # WebUSB + PaSoRi NFC 通信
+│       ├── face/                # ブラウザ内顔ディスクリプタ抽出 (@vladmandic/face-api)
+│       │   └── faceEngine.ts
 │       ├── pages/               # ページコンポーネント
 │       └── types/               # TypeScript 型定義
 ├── tests/                       # Backend テスト
@@ -96,7 +109,8 @@ kint/
 │       ├── test_attendance.py
 │       ├── test_calendar.py
 │       ├── test_auth.py
-│       └── test_punch_device.py # 打刻端末制限テスト
+│       ├── test_punch_device.py # 打刻端末制限テスト
+│       └── test_face_punch.py   # 顔認証打刻テスト
 ├── .agents/
 │   └── skills/
 │       └── deploy/
@@ -179,7 +193,8 @@ uv run alembic upgrade head
 uv run alembic revision --autogenerate -m "description"
 
 # 本番ビルド (フロントエンド)
-cd frontend && npm ci && VITE_GOOGLE_CLIENT_ID=<Client_ID> npm run build
+# npm run copy-face-models は顔認証打刻用モデルファイルの配置（build 前に一度実行）
+cd frontend && npm ci && npm run copy-face-models && VITE_GOOGLE_CLIENT_ID=<Client_ID> npm run build
 
 # PM2（バックエンド本番起動）
 pm2 start ecosystem.config.js
@@ -202,6 +217,7 @@ cp .env.example .env
 - **Attendance**: 出退勤記録 (user_id, check_in, check_out, date, card_idm)
 - **Shift**: シフト情報 (user_id, date, start_time, end_time, google_event_id)
 - **AttendanceMonthlyComment**: 月次勤務サマリーの管理者共有メモ (year_month PK, body, updated_by_user_id)
+- **FaceDescriptor**: 顔認証用の128次元特徴量ディスクリプタ (user_id, descriptor(float32バイナリ), created_at) — 写真は保存しない
 
 ## NFC (WebUSB + PaSoRi) 概要
 
@@ -254,6 +270,26 @@ cp .env.example .env
   - 初めてその端末で打刻を開いた場合（未登録状態）は、「未登録の端末です」というエラー画面と、管理者ログインへの導線が表示されます。
   - 管理者がログインし、「設定」画面の最下部にある「打刻端末管理」セクションから端末名を入力して登録を行うことで、その端末で誰でも打刻画面を開けるようになります。
   - 管理者は「設定」画面から現在の端末の登録を取り消す（`localStorage` からクリアする）ことができます。
+
+## 顔認証打刻機能
+
+- **概要**:
+  - 打刻ページ（未ログイン待ち受け画面）に「顔認証」タブを追加し、ブラウザのカメラで撮影した顔を照合して自動的に出退勤を打刻する機能です。デフォルトでは無効化されており、「システム設定」画面の「顔認証打刻」セクションで管理者が有効化する必要があります。
+  - `@vladmandic/face-api`（ブラウザ内 TinyFaceDetector + 128次元特徴量抽出）を用いてブラウザ側で顔ディスクリプタを算出し、**写真そのものはサーバーに送信・保存しません**。サーバーには 128 次元の数値ディスクリプタ（float32バイナリ）のみを保存します（`face_descriptors` テーブル）。
+  - 打刻ページと同様、顔照合系 API (`GET /api/v1/face-punch/config`, `POST /api/v1/face-punch/identify`) は `X-Punch-Device-Token` ヘッダー（打刻端末制限機能で発行されたトークン）による端末検証が必須です。
+- **顔データの登録**:
+  - **従業員本人**: 「マイページ」画面から、カメラ同意チェックの上、正面・上下左右の5枚を「📸 撮影」ボタンで1枚ずつ撮影して自身の顔データを登録・削除できます。
+  - **管理者による代理登録**: 「ユーザー管理」画面の対象ユーザー行にある「顔データ」ボタンから、Webカメラを使って対象者の顔データを登録・削除できます。
+  - **管理者ユーザーへの登録は不可**: 管理者 (`role == 'admin'`) は打刻対象外のため、本人・代理登録のいずれも `ADMIN_FACE_NOT_ALLOWED` エラーとなり登録できません。
+- **照合ロジック**:
+  - 取得したディスクリプタと、登録済み全ユーザー（有効かつ非管理者）の顔ディスクリプタとのユークリッド距離を計算し、最も距離が近いユーザーを候補とします。
+  - 当日シフトがある、または24時間以内の未退勤（オープン）勤怠があるユーザーは「シフトあり」として扱われ、しきい値 `face_match_threshold`（デフォルト 0.45）で判定し、一致すればカウントダウン（`face_punch_countdown_seconds`）後に自動打刻します（カウントダウン中は「取消」ボタンでキャンセル可能）。
+  - それ以外の「シフト外」ユーザーはより厳しいしきい値 `face_match_threshold_no_shift`（デフォルト 0.38）で判定し、一致した場合も自動打刻はせず「〇〇さんで打刻する / 違う」の確認ボタンで本人確認を求めます。
+  - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し、いずれのしきい値を満たしていても不一致として扱います（誤認識防止）。
+  - 照合に成功すると、60秒間のみ有効な短命トークン `face_match_token`（JWT）を発行し、打刻 API (`POST /api/v1/punches`) にはこのトークンのみを送信します（打刻方式 `method: "face"`、打刻元 `source: 'webcam_face'`）。
+- **アバターと音声案内**:
+  - 打刻画面にはイラストアバター（`FaceAvatar`）が表示され、認識時には `speechSynthesis`（Web Speech API）で「おはようございます、〇〇さん」等のあいさつを日本語音声で読み上げます。
+  - カメラ開始のクリック操作を契機に音声合成の自動再生制限を事前に解除します。
 
 ## ログイン継続時間の設定機能
 

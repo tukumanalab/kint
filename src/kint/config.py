@@ -58,6 +58,11 @@ class Settings(BaseSettings):
         '{"id": "default-6", "target": "weekly_working_hours", "operator": ">", "threshold_value": 18.0, "message": "要確認：たくさん働いています"}]'
     )
     working_report_default_content: str = "青学つくまなラボ 利用者対応"
+    # 顔認証打刻設定
+    face_punch_enabled: bool = False
+    face_match_threshold: float = 0.45
+    face_match_threshold_no_shift: float = 0.38
+    face_punch_countdown_seconds: int = 3
 
 
 settings = Settings()

@@ -18,6 +18,7 @@
 | `system_settings`           | 管理画面から変更可能なシステム設定値     |
 | `attendance_alert_acknowledgments` | アラートの確認（承認）済みの記録       |
 | `attendance_monthly_comments` | 月次勤務サマリーの管理者共有メモ（年月単位） |
+| `face_descriptors`          | 顔認証打刻用の顔特徴量ディスクリプタ（写真は保存しない） |
 
 ---
 
@@ -89,7 +90,7 @@
 | `is_manual_work_time`      | INTEGER  | NOT NULL, DEFAULT 0                                    | 手動勤務時間修正フラグ（1=手動）     |
 | `overtime_reason`          | TEXT     | NULL                                                   | 残業理由                             |
 | `remarks`                  | TEXT     | NULL                                                   | 備考（報告書PDF等に反映）            |
-| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service')) | 打刻元 |
+| `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service','webcam_face')) | 打刻元 |
 | `device_name`              | TEXT     | NULL                                                   | 打刻端末の登録名 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
@@ -102,6 +103,7 @@
 運用ルール:
 - 通常打刻: `source = 'webusb_nfc'`（WebUSB で取得した `card_idm` を解決）
 - カード忘れ打刻: `source = 'web_user_id'`（`user_id` 直接指定、理由必須）
+- 顔認証打刻: `source = 'webcam_face'`（`face_match_token` から解決した `user_id` を使用）
 
 制約:
 - `uq_attendances_user_work_date` — (user_id, work_date) UNIQUE（1日1レコード）
@@ -256,9 +258,13 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 | `punch_result_display_seconds` | integer (文字列) | 30 | 打刻結果表示時間（秒） |
 | `monthly_report_time` | string (文字列) | `"20:00"` | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記） |
 | `login_token_expire_hours` | integer (文字列) | 168 | ログイン継続時間（時間） |
+| `face_punch_enabled` | boolean (文字列) | false | 顔認証打刻の有効化フラグ |
+| `face_match_threshold` | float (文字列) | 0.45 | 顔認証一致判定しきい値（シフトあり、0.2〜0.8） |
+| `face_match_threshold_no_shift` | float (文字列) | 0.38 | 顔認証一致判定しきい値（シフト外、0.2〜0.8） |
+| `face_punch_countdown_seconds` | integer (文字列) | 3 | 顔認証打刻の自動打刻までのカウントダウン秒数 |
 
 運用ルール:
-- `key` は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "login_token_expire_hours"}` のみ許容する。
+- `key` は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "login_token_expire_hours", "face_punch_enabled", "face_match_threshold", "face_match_threshold_no_shift", "face_punch_countdown_seconds"}` のみ許容する（実際にはこの他にも運用中の設定キーが存在する。詳細は `src/kint/services/settings.py` を正とする）。
 - `value` はすべて文字列として格納し、サービス層で型変換する。
 
 - `shift_ical_url` の空文字列 `""` は null（未設定）として扱う。
@@ -304,6 +310,28 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 - ユーザーが完全削除（物理削除）された場合、`updated_by_user_id` を `NULL` 化し、`body` は削除せず残す。
 - 月ロック（`attendance_locks`）の状態に関わらず編集可能（月ロックの対象外）。
 - 勤怠管理画面の管理者専用機能であり、CSV エクスポート・勤務時間報告書（PDF）・支払い情報ダイアログの出力データには含めない。
+
+---
+
+### 2-11. `face_descriptors`
+
+顔認証打刻用の顔特徴量ディスクリプタ（128次元、float32バイナリ）。写真そのものは保存しない。
+
+| カラム名     | 型          | 制約                                          | 説明                             |
+|--------------|-------------|-----------------------------------------------|----------------------------------|
+| `id`         | TEXT        | PK                                            | UUID v4                          |
+| `user_id`    | TEXT        | NOT NULL, FK → users.id ON DELETE CASCADE     | 対象ユーザー                     |
+| `descriptor` | BLOB        | NOT NULL                                      | 128次元特徴量ベクトル（float32 × 128 のバイナリ） |
+| `created_at` | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP           | 登録日時                         |
+
+運用ルール:
+- 1 ユーザーにつき 1〜5 件登録可能（登録時は既存レコードを全削除してから置換登録する）。
+- 管理者ユーザー (`role = 'admin'`) への登録はサービス層で拒否する（`ADMIN_FACE_NOT_ALLOWED`）。
+- 照合時は、有効 (`is_active=1`) かつ非管理者ユーザーのディスクリプタのみを対象にユークリッド距離を計算する。
+- ユーザーが物理削除された場合、`ON DELETE CASCADE` により関連する顔ディスクリプタも削除される。
+
+インデックス:
+- `ix_face_descriptors_user_id` — 通常インデックス（ユーザー別ディスクリプタ検索）
 
 ---
 
@@ -418,6 +446,13 @@ erDiagram
     DATETIME updated_at
   }
 
+  face_descriptors {
+    TEXT id PK
+    TEXT user_id FK
+    BLOB descriptor
+    DATETIME created_at
+  }
+
   users ||--o{ cards : 所有
   users ||--o{ attendances : 記録
   users ||--o{ attendance_change_logs : 実行
@@ -433,6 +468,7 @@ erDiagram
   users ||--o{ attendance_alert_acknowledgments : 対象
   users ||--o{ attendance_alert_acknowledgments : 確認者
   users ||--o{ attendance_monthly_comments : "updated_by"
+  users ||--o{ face_descriptors : 登録
 ```
 
 ---

@@ -31,6 +31,10 @@ export interface SystemSettings {
   overtime_allowance_minutes: number;
   attendance_alert_rules: AlertRule[];
   working_report_default_content: string;
+  face_punch_enabled: boolean;
+  face_match_threshold: number;
+  face_match_threshold_no_shift: number;
+  face_punch_countdown_seconds: number;
 }
 
 export interface SettingsPatchRequest {
@@ -49,6 +53,10 @@ export interface SettingsPatchRequest {
   overtime_allowance_minutes?: number;
   attendance_alert_rules?: AlertRule[];
   working_report_default_content?: string;
+  face_punch_enabled?: boolean;
+  face_match_threshold?: number;
+  face_match_threshold_no_shift?: number;
+  face_punch_countdown_seconds?: number;
 }
 
 export interface SettingsExportFile {

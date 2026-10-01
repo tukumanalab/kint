@@ -51,3 +51,6 @@ class User(Base):
     email_verification_requests: Mapped[list["EmailVerificationRequest"]] = relationship(  # noqa: F821
         back_populates="user", foreign_keys="EmailVerificationRequest.user_id"
     )
+    face_descriptors: Mapped[list["FaceDescriptor"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )

@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { isWebUSBSupported } from '../../utils/browser';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
-import { postPunch, searchPunchUsers } from '../../api/punch';
-import { initAudio, playPunchSuccess, playPunchError } from '../../utils/audio';
-import { ApiError } from '../../types/error';
-import type { PunchRequest, PunchResponse, PunchUserCandidate } from '../../types/punch';
+import { searchPunchUsers } from '../../api/punch';
+import { getFacePunchConfig } from '../../api/face';
+import { initAudio } from '../../utils/audio';
+import { usePunchSubmission } from '../../hooks/usePunchSubmission';
+import type { PunchUserCandidate } from '../../types/punch';
+import type { FacePunchConfig } from '../../types/face';
+import { FacePunchPanel } from './FacePunchPanel';
 import './PunchPage.css';
 import { formatHours } from '../../utils/time';
 
 const DEVICE_ID = 'web-browser';
 
-type PunchMode = 'nfc' | 'fallback';
+type PunchMode = 'nfc' | 'fallback' | 'face';
 
 interface FallbackFormState {
   userQuery: string;
@@ -49,29 +52,9 @@ function actionLabel(action: 'check_in' | 'check_out' | 'cancelled'): string {
   return '打刻取消';
 }
 
-/** エラーコードをユーザー向けメッセージに変換する */
-function apiErrorMessage(err: ApiError): string {
-  if (err.status === 404) {
-    return 'カードまたはユーザーが登録されていません。管理者にお問い合わせください。';
-  }
-  if (err.status === 409) {
-    if (err.body.code === 'PUNCH_COOLDOWN_ACTIVE') {
-      return err.body.message;
-    }
-    return '既に打刻済みです。';
-  }
-  if (err.status === 422) {
-    return '入力内容に不備があります。理由を入力してください。';
-  }
-  return err.body.message ?? '打刻に失敗しました。もう一度お試しください。';
-}
-
 export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const webUSBSupported = isWebUSBSupported();
   const [mode, setMode] = useState<PunchMode>(webUSBSupported ? 'nfc' : 'fallback');
-  const [punchResult, setPunchResult] = useState<PunchResponse | null>(null);
-  const [punchError, setPunchError] = useState<string | null>(null);
-  const [isPunching, setIsPunching] = useState(false);
   const [fallback, setFallback] = useState<FallbackFormState>({
     userQuery: '',
     selectedUser: null,
@@ -80,105 +63,38 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const [userCandidates, setUserCandidates] = useState<PunchUserCandidate[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [userSearchError, setUserSearchError] = useState<string | null>(null);
-  const [overtimeRequest, setOvertimeRequest] = useState<{
-    payload: PunchRequest;
-    message: string;
-  } | null>(null);
-  const [overtimeReason, setOvertimeReason] = useState('');
-  const [showOvertimeField, setShowOvertimeField] = useState(false);
+  const [faceConfig, setFaceConfig] = useState<FacePunchConfig | null>(null);
 
   const nfc = useWebUSBFeliCa();
   const pollingRef = useRef(false);
   const searchRequestRef = useRef(0);
-  const resultTimerRef = useRef<number | null>(null);
-  const errorTimerRef = useRef<number | null>(null);
   const lastPunchRef = useRef<{ idm: string; timestamp: number } | null>(null);
+
+  const punchSubmission = usePunchSubmission({ displaySeconds });
+  const {
+    punchResult,
+    punchError,
+    isPunching,
+    overtimeRequest,
+    overtimeReason,
+    showOvertimeField,
+    setOvertimeReason,
+    openOvertimeReasonField,
+    submitNoOvertime,
+    submitOvertimeReason,
+    cancelOvertimeRequest,
+    executePunch,
+  } = punchSubmission;
 
   const statusInfo = statusLabel(nfc.status);
 
-  const clearResultTimer = () => {
-    if (resultTimerRef.current !== null) {
-      window.clearTimeout(resultTimerRef.current);
-      resultTimerRef.current = null;
-    }
-  };
-
-  const clearErrorTimer = () => {
-    if (errorTimerRef.current !== null) {
-      window.clearTimeout(errorTimerRef.current);
-      errorTimerRef.current = null;
-    }
-  };
-
-  const showPunchResultWithTimeout = (resp: PunchResponse, seconds: number) => {
-    if (!resp.action) {
-      // actionがnull（連続打刻無視など）の場合は直前の打刻成功結果を上書き・削除せず維持する
-      return;
-    }
-    clearResultTimer();
-    clearErrorTimer();
-    setPunchResult(resp);
-    setPunchError(null);
-    if (resp.action) {
-      playPunchSuccess(resp.action);
-    }
-    resultTimerRef.current = window.setTimeout(() => {
-      setPunchResult(null);
-      resultTimerRef.current = null;
-    }, seconds * 1000);
-  };
-
-  const showPunchErrorWithTimeout = (errMessage: string, seconds: number, isCooldownError: boolean = false) => {
-    clearErrorTimer();
-    if (!isCooldownError) {
-      clearResultTimer();
-      setPunchResult(null);
-    }
-    setPunchError(errMessage);
-    playPunchError();
-    errorTimerRef.current = window.setTimeout(() => {
-      setPunchError(null);
-      errorTimerRef.current = null;
-    }, seconds * 1000);
-  };
-
+  // 顔認証打刻設定を取得（有効な場合のみタブを表示）
   useEffect(() => {
-    return () => {
-      clearResultTimer();
-      clearErrorTimer();
-    };
-  }, []);
-
-  async function submitPunchWithConfirmation(
-    payload: PunchRequest
-  ): Promise<PunchResponse | 'requires_overtime_reason' | null> {
     const deviceToken = localStorage.getItem('kint_punch_device_token');
-    const response = await postPunch(payload, deviceToken);
-    if (response.status === 'requires_overtime_reason') {
-      setOvertimeRequest({ payload, message: response.message });
-      setShowOvertimeField(false);
-      setOvertimeReason('');
-      return 'requires_overtime_reason';
-    }
-
-    if (response.status !== 'requires_confirmation') {
-      return response;
-    }
-
-    const confirmed = window.confirm(response.message);
-    if (!confirmed) {
-      return null;
-    }
-
-    const secondResponse = await postPunch({ ...payload, confirm: true }, deviceToken);
-    if (secondResponse.status === 'requires_overtime_reason') {
-      setOvertimeRequest({ payload: { ...payload, confirm: true }, message: secondResponse.message });
-      setShowOvertimeField(false);
-      setOvertimeReason('');
-      return 'requires_overtime_reason';
-    }
-    return secondResponse;
-  }
+    getFacePunchConfig(deviceToken)
+      .then((cfg) => setFaceConfig(cfg))
+      .catch(() => setFaceConfig(null));
+  }, []);
 
   // 接続済みになったら自動でカード読み取り → 打刻 → リセット を繰り返す
   useEffect(() => {
@@ -204,31 +120,12 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
             return;
           }
           lastPunchRef.current = { idm, timestamp: now };
-          
-          setIsPunching(true);
-          try {
-            const resp = await submitPunchWithConfirmation({
-              card_idm: idm,
-              device_id: DEVICE_ID,
-              occurred_at: new Date().toISOString(),
-            });
-            if (resp && resp !== 'requires_overtime_reason') {
-              showPunchResultWithTimeout(resp, displaySeconds);
-            }
-          } catch (err) {
-            const isCooldown = err instanceof ApiError && err.status === 409 && err.body.code === 'PUNCH_COOLDOWN_ACTIVE';
-            let duration = displaySeconds;
-            if (isCooldown && err instanceof ApiError && err.body.detail?.remaining_seconds !== undefined) {
-              duration = Number(err.body.detail.remaining_seconds);
-            }
-            if (err instanceof ApiError) {
-              showPunchErrorWithTimeout(apiErrorMessage(err), duration, isCooldown);
-            } else {
-              showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', duration, isCooldown);
-            }
-          } finally {
-            setIsPunching(false);
-          }
+
+          await executePunch({
+            card_idm: idm,
+            device_id: DEVICE_ID,
+            occurred_at: new Date().toISOString(),
+          });
         }
       } finally {
         pollingRef.current = false;
@@ -301,37 +198,17 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   async function handleFallbackPunch(e: React.FormEvent) {
     e.preventDefault();
     void initAudio();
-    
+
     if (!fallback.selectedUser || !fallback.reason.trim()) return;
-    setIsPunching(true);
-    try {
-      const resp = await submitPunchWithConfirmation({
-        user_id: fallback.selectedUser.id,
-        reason: fallback.reason.trim(),
-        device_id: DEVICE_ID,
-        occurred_at: new Date().toISOString(),
-      });
-      if (resp && resp !== 'requires_overtime_reason') {
-        showPunchResultWithTimeout(resp, displaySeconds);
-        setFallback({ userQuery: '', selectedUser: null, reason: '' });
-        setUserCandidates([]);
-      } else if (resp === 'requires_overtime_reason') {
-        setFallback({ userQuery: '', selectedUser: null, reason: '' });
-        setUserCandidates([]);
-      }
-    } catch (err) {
-      const isCooldown = err instanceof ApiError && err.status === 409 && err.body.code === 'PUNCH_COOLDOWN_ACTIVE';
-      let duration = displaySeconds;
-      if (isCooldown && err instanceof ApiError && err.body.detail?.remaining_seconds !== undefined) {
-        duration = Number(err.body.detail.remaining_seconds);
-      }
-      if (err instanceof ApiError) {
-        showPunchErrorWithTimeout(apiErrorMessage(err), duration, isCooldown);
-      } else {
-        showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', duration, isCooldown);
-      }
-    } finally {
-      setIsPunching(false);
+    const resp = await executePunch({
+      user_id: fallback.selectedUser.id,
+      reason: fallback.reason.trim(),
+      device_id: DEVICE_ID,
+      occurred_at: new Date().toISOString(),
+    });
+    if (resp) {
+      setFallback({ userQuery: '', selectedUser: null, reason: '' });
+      setUserCandidates([]);
     }
   }
 
@@ -352,16 +229,18 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
       )}
 
       {/* モード切り替えタブ */}
-      {webUSBSupported && (
+      {(webUSBSupported || faceConfig?.enabled) && (
         <div className="punch-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={mode === 'nfc'}
-            className={`punch-tab ${mode === 'nfc' ? 'punch-tab--active' : ''}`}
-            onClick={() => setMode('nfc')}
-          >
-            NFC カード打刻
-          </button>
+          {webUSBSupported && (
+            <button
+              role="tab"
+              aria-selected={mode === 'nfc'}
+              className={`punch-tab ${mode === 'nfc' ? 'punch-tab--active' : ''}`}
+              onClick={() => setMode('nfc')}
+            >
+              NFC カード打刻
+            </button>
+          )}
           <button
             role="tab"
             aria-selected={mode === 'fallback'}
@@ -370,6 +249,16 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
           >
             カード忘れ打刻
           </button>
+          {faceConfig?.enabled && (
+            <button
+              role="tab"
+              aria-selected={mode === 'face'}
+              className={`punch-tab ${mode === 'face' ? 'punch-tab--active' : ''}`}
+              onClick={() => setMode('face')}
+            >
+              顔認証
+            </button>
+          )}
         </div>
       )}
 
@@ -386,7 +275,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                 className="btn btn--primary"
                 onClick={() => {
                   void initAudio();
-                  setShowOvertimeField(true);
+                  openOvertimeReasonField();
                 }}
               >
                 許可済みの超過勤務
@@ -394,25 +283,9 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
               <button
                 className="btn btn--secondary"
                 disabled={isPunching}
-                onClick={async () => {
+                onClick={() => {
                   void initAudio();
-                  setIsPunching(true);
-                  try {
-                    const resp = await postPunch({
-                      ...overtimeRequest.payload,
-                      confirm_no_overtime: true,
-                    });
-                    showPunchResultWithTimeout(resp, displaySeconds);
-                    setOvertimeRequest(null);
-                  } catch (err) {
-                    if (err instanceof ApiError) {
-                      showPunchErrorWithTimeout(apiErrorMessage(err), displaySeconds);
-                    } else {
-                      showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', displaySeconds);
-                    }
-                  } finally {
-                    setIsPunching(false);
-                  }
+                  void submitNoOvertime();
                 }}
               >
                 {isPunching ? '打刻中...' : '超過申請せず打刻'}
@@ -429,7 +302,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                   fontWeight: '500'
                 }}
                 disabled={isPunching}
-                onClick={() => setOvertimeRequest(null)}
+                onClick={cancelOvertimeRequest}
               >
                 キャンセル
               </button>
@@ -456,32 +329,14 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                   type="button"
                   className="btn btn--primary"
                   disabled={isPunching || !overtimeReason.trim()}
-                  onClick={async () => {
-                    setIsPunching(true);
-                    try {
-                      const resp = await postPunch({
-                        ...overtimeRequest.payload,
-                        overtime_reason: overtimeReason.trim(),
-                      });
-                      showPunchResultWithTimeout(resp, displaySeconds);
-                      setOvertimeRequest(null);
-                    } catch (err) {
-                      if (err instanceof ApiError) {
-                        showPunchErrorWithTimeout(apiErrorMessage(err), displaySeconds);
-                      } else {
-                        showPunchErrorWithTimeout('打刻に失敗しました。もう一度お試しください。', displaySeconds);
-                      }
-                    } finally {
-                      setIsPunching(false);
-                    }
-                  }}
+                  onClick={() => void submitOvertimeReason()}
                 >
                   {isPunching ? '申請中...' : '超過勤務申請'}
                 </button>
                 <button
                   type="button"
                   className="btn btn--secondary"
-                  onClick={() => setOvertimeRequest(null)}
+                  onClick={cancelOvertimeRequest}
                   disabled={isPunching}
                 >
                   キャンセル
@@ -631,6 +486,11 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
               </form>
             </section>
           )}
+
+          {/* ===== 顔認証モード ===== */}
+          {mode === 'face' && faceConfig?.enabled && (
+            <FacePunchPanel config={faceConfig} punchSubmission={punchSubmission} />
+          )}
         </>
       )}
 
@@ -643,7 +503,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
           <p className="punch-result__name">{punchResult.user_name}</p>
           <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
           <p className="punch-result__message">{punchResult.message}</p>
-          
+
           {punchResult.action === 'check_in' && punchResult.calculated_time && (
             <div className="punch-result__extra">
               <span className="punch-result__extra-label">勤務出勤時刻 (丸め後): </span>

@@ -50,6 +50,10 @@ class SettingsResponse(BaseModel):
     overtime_allowance_minutes: int
     attendance_alert_rules: list[AlertRule]
     working_report_default_content: str
+    face_punch_enabled: bool
+    face_match_threshold: float
+    face_match_threshold_no_shift: float
+    face_punch_countdown_seconds: int
 
 
 class SettingsPatchRequest(BaseModel):
@@ -70,6 +74,10 @@ class SettingsPatchRequest(BaseModel):
     overtime_allowance_minutes: int | None = Field(default=None, ge=0, le=120)
     attendance_alert_rules: list[AlertRule] | None = None
     working_report_default_content: str | None = Field(default=None, min_length=1, max_length=200)
+    face_punch_enabled: bool | None = None
+    face_match_threshold: float | None = Field(default=None, ge=0.2, le=0.8)
+    face_match_threshold_no_shift: float | None = Field(default=None, ge=0.2, le=0.8)
+    face_punch_countdown_seconds: int | None = Field(default=None, ge=0, le=30)
 
     @field_validator("shift_sync_time", mode="before")
     @classmethod
@@ -110,6 +118,10 @@ class SettingsPatchRequest(BaseModel):
             and self.overtime_allowance_minutes is None
             and self.attendance_alert_rules is None
             and self.working_report_default_content is None
+            and self.face_punch_enabled is None
+            and self.face_match_threshold is None
+            and self.face_match_threshold_no_shift is None
+            and self.face_punch_countdown_seconds is None
             and "shift_sync_time" not in self.model_fields_set
             and "monthly_report_time" not in self.model_fields_set
         ):
