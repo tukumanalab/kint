@@ -4,6 +4,7 @@ import math
 import struct
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from jose import JWTError, jwt
 from sqlalchemy import delete, select
@@ -11,9 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.config import settings as env_settings
 from kint.exceptions import KintForbiddenError, KintNotFoundError, KintUnauthorizedError
+from kint.models.attendance import Attendance
 from kint.models.face_descriptor import FaceDescriptor
 from kint.models.user import User
-from kint.schemas.face import FaceIdentifyResponse, FaceStatus
+from kint.schemas.face import FaceIdentifyResponse, FaceStatus, FaceVerifyResponse
 from kint.services.settings import SettingsService
 
 _ALGORITHM = "HS256"
@@ -128,29 +130,102 @@ class FaceService:
             )
         return user_id
 
-    async def identify(self, descriptor: list[float], now: datetime) -> FaceIdentifyResponse:
-        """顔ディスクリプタから最も一致するユーザーを照合し、一致すれば打刻トークンを発行する。"""
-        from kint.services.attendance import PunchService  # 循環 import を避けるため遅延 import
-
-        settings_svc = SettingsService(self.session)
-        threshold_shift = await settings_svc.get_float("face_match_threshold")
-        threshold_no_shift = await settings_svc.get_float("face_match_threshold_no_shift")
-
+    async def _rank_users(
+        self, descriptor: list[float]
+    ) -> tuple[list[tuple[str, float]], dict[str, User]]:
+        """有効な非管理者ユーザーをユーザー別最小距離の昇順で並べて返す（ユーザー辞書付き）。"""
         result = await self.session.execute(
             select(FaceDescriptor, User)
             .join(User, FaceDescriptor.user_id == User.id)
             .where(User.is_active == 1, User.role != "admin")
         )
-        rows = result.all()
-
         best_per_user: dict[str, float] = {}
         user_map: dict[str, User] = {}
-        for fd, user in rows:
-            vec = _decode_descriptor(fd.descriptor)
-            dist = _euclidean_distance(vec, descriptor)
+        for fd, user in result.all():
+            dist = _euclidean_distance(_decode_descriptor(fd.descriptor), descriptor)
             user_map[user.id] = user
             if user.id not in best_per_user or dist < best_per_user[user.id]:
                 best_per_user[user.id] = dist
+        return sorted(best_per_user.items(), key=lambda kv: kv[1]), user_map
+
+    async def _get_shift_state(self, user_id: str, now: datetime) -> tuple[Attendance | None, bool]:
+        """未退勤レコード（24時間以内）と「シフトあり扱い」かどうかを返す。"""
+        from kint.services.attendance import PunchService  # 循環 import を避けるため遅延 import
+
+        punch_svc = PunchService(self.session)
+        has_shift = await punch_svc._has_shift_for_check_in(user_id, now)
+        open_attendance = await punch_svc._get_open_attendance(user_id)
+        # 打刻処理と同様、24時間を超えて放置された未退勤レコードは退勤対象として扱わない
+        if open_attendance is not None and (
+            open_attendance.check_in is None
+            or (now - punch_svc._as_utc(open_attendance.check_in)).total_seconds() > 24 * 3600
+        ):
+            open_attendance = None
+        return open_attendance, has_shift or open_attendance is not None
+
+    async def verify_user(
+        self, user_id: str, descriptor: list[float], now: datetime
+    ) -> FaceVerifyResponse:
+        """指定ユーザーの顔データで照合テストを行う。トークン発行・打刻は行わない。
+
+        他ユーザーの情報（ID・名前・距離）はレスポンスに含めない。
+        """
+        own = await self.session.execute(
+            select(FaceDescriptor).where(FaceDescriptor.user_id == user_id)
+        )
+        own_rows = own.scalars().all()
+        if not own_rows:
+            raise KintNotFoundError(
+                code="FACE_NOT_REGISTERED", message="顔データが登録されていません"
+            )
+        distance = min(
+            _euclidean_distance(_decode_descriptor(r.descriptor), descriptor) for r in own_rows
+        )
+
+        settings_svc = SettingsService(self.session)
+        threshold = await settings_svc.get_float("face_match_threshold")
+        threshold_no_shift = await settings_svc.get_float("face_match_threshold_no_shift")
+
+        ranked, _ = await self._rank_users(descriptor)
+        best_is_self = bool(ranked) and ranked[0][0] == user_id
+        ambiguous = (
+            best_is_self and len(ranked) > 1 and (ranked[1][1] - ranked[0][1]) < _AMBIGUOUS_MARGIN
+        )
+        _, has_shift = await self._get_shift_state(user_id, now)
+        limit = threshold if has_shift else threshold_no_shift
+
+        reason: Literal["ok", "too_far", "other_user_closer", "ambiguous"]
+        if not best_is_self:
+            reason = "other_user_closer"
+        elif ambiguous:
+            reason = "ambiguous"
+        elif distance > limit:
+            reason = "too_far"
+        else:
+            reason = "ok"
+
+        if reason != "ok":
+            result: Literal["recognized", "recognized_with_confirmation", "not_recognized"] = (
+                "not_recognized"
+            )
+        else:
+            result = "recognized" if has_shift else "recognized_with_confirmation"
+        return FaceVerifyResponse(
+            result=result,
+            reason=reason,
+            distance=round(distance, 4),
+            threshold=threshold,
+            threshold_no_shift=threshold_no_shift,
+            has_shift=has_shift,
+        )
+
+    async def identify(self, descriptor: list[float], now: datetime) -> FaceIdentifyResponse:
+        """顔ディスクリプタから最も一致するユーザーを照合し、一致すれば打刻トークンを発行する。"""
+        settings_svc = SettingsService(self.session)
+        threshold_shift = await settings_svc.get_float("face_match_threshold")
+        threshold_no_shift = await settings_svc.get_float("face_match_threshold_no_shift")
+
+        ranked, user_map = await self._rank_users(descriptor)
 
         no_match = FaceIdentifyResponse(
             matched=False,
@@ -162,23 +237,13 @@ class FaceService:
             face_match_token=None,
             greeting_kind=None,
         )
-        if not best_per_user:
+        if not ranked:
             return no_match
 
-        ranked = sorted(best_per_user.items(), key=lambda kv: kv[1])
         best_user_id, best_dist = ranked[0]
         second_dist = ranked[1][1] if len(ranked) > 1 else None
 
-        punch_svc = PunchService(self.session)
-        has_shift = await punch_svc._has_shift_for_check_in(best_user_id, now)
-        open_attendance = await punch_svc._get_open_attendance(best_user_id)
-        # 打刻処理と同様、24時間を超えて放置された未退勤レコードは退勤対象として扱わない
-        if open_attendance is not None and (
-            open_attendance.check_in is None
-            or (now - punch_svc._as_utc(open_attendance.check_in)).total_seconds() > 24 * 3600
-        ):
-            open_attendance = None
-        on_shift_like = has_shift or open_attendance is not None
+        open_attendance, on_shift_like = await self._get_shift_state(best_user_id, now)
 
         threshold = threshold_shift if on_shift_like else threshold_no_shift
         ambiguous = second_dist is not None and (second_dist - best_dist) < _AMBIGUOUS_MARGIN

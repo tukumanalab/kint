@@ -162,6 +162,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /me/face/verify:
+    post:
+      tags: [User]
+      summary: 本人の顔認証テスト
+      description: >-
+        打刻時と同じ照合ロジックで、現在の顔が本人として認識されるかを判定します。トークン発行・打刻は行わず、他ユーザーの情報は返しません。顔認証打刻設定が無効でも利用できます。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceIdentifyRequest'
+      responses:
+        '200':
+          description: テスト結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceVerifyResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 顔データ未登録 (FACE_NOT_REGISTERED) または対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（次元数不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /me/face:
     get:
       tags: [User]
@@ -444,6 +482,56 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: 対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{user_id}/face/verify:
+    post:
+      tags: [User]
+      summary: 対象ユーザーの顔認証テスト（管理者）
+      description: >-
+        打刻時と同じ照合ロジックで、現在の顔が本人として認識されるかを判定します。トークン発行・打刻は行わず、他ユーザーの情報は返しません。顔認証打刻設定が無効でも利用できます。管理者専用。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceIdentifyRequest'
+      responses:
+        '200':
+          description: テスト結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceVerifyResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 顔データ未登録 (FACE_NOT_REGISTERED) または対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（次元数不正）
           content:
             application/json:
               schema:
@@ -1912,6 +2000,30 @@ components:
           description: ブラウザ側で算出した128次元の顔ディスクリプタ（有限数値のみ）
           items:
             type: number
+
+    FaceVerifyResponse:
+      type: object
+      required: [result, reason, distance, threshold, threshold_no_shift, has_shift]
+      properties:
+        result:
+          type: string
+          enum: [recognized, recognized_with_confirmation, not_recognized]
+          description: recognized=自動打刻される / recognized_with_confirmation=シフト外のため確認ボタンが表示される / not_recognized=認識されない
+        reason:
+          type: string
+          enum: [ok, too_far, other_user_closer, ambiguous]
+        distance:
+          type: number
+          description: 本人の登録ディスクリプタとの最小ユークリッド距離（小数4桁）
+        threshold:
+          type: number
+          description: シフトあり時のしきい値 (face_match_threshold)
+        threshold_no_shift:
+          type: number
+          description: シフト外のしきい値 (face_match_threshold_no_shift)
+        has_shift:
+          type: boolean
+          description: 当日シフトあり、または24時間以内の未退勤勤怠がある（＝シフトあり相当）か
 
     FaceIdentifyResponse:
       type: object

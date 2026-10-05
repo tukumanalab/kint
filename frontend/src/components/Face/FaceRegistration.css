@@ -172,3 +172,27 @@
     min-height: 3rem;
   }
 }
+
+.face-registration__test-result {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.face-registration__test-result--ok {
+  background: #e8f5e9;
+  border-color: #81c784;
+  color: #1b5e20;
+}
+
+.face-registration__test-result--ng {
+  background: #fff4e5;
+  border-color: #ffb74d;
+  color: #7a4100;
+}
+
+.face-registration__test-result-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}

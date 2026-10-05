@@ -1,5 +1,7 @@
 """ユーザー管理ルーター。管理者専用の CRUD エンドポイントを提供する。"""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +9,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
-from kint.schemas.face import FaceDescriptorIn, FaceStatus
+from kint.schemas.face import FaceDescriptorIn, FaceIdentifyRequest, FaceStatus, FaceVerifyResponse
 from kint.schemas.user import (
     MeCardListItem,
     MeCardPatchRequest,
@@ -187,6 +189,19 @@ async def put_user_face(
     _require_admin(current_user)
     service = FaceService(session)
     return await service.register_descriptors(user_id, body.descriptors)
+
+
+@router.post("/{user_id}/face/verify", response_model=FaceVerifyResponse)
+async def verify_user_face(
+    user_id: str,
+    body: FaceIdentifyRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceVerifyResponse:
+    """対象ユーザーの顔データで照合テストを行う。管理者専用。"""
+    _require_admin(current_user)
+    service = FaceService(session)
+    return await service.verify_user(user_id, body.descriptor, datetime.now(tz=UTC))
 
 
 @router.delete("/{user_id}/face", status_code=204)

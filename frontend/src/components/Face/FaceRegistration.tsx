@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { detectSingleDescriptor, preloadFaceModels } from '../../face/faceEngine';
-import type { FaceStatus } from '../../types/face';
+import type { FaceStatus, FaceVerifyResult } from '../../types/face';
 import './FaceRegistration.css';
 
 const CAPTURE_PROMPTS = ['正面を向いてください', '少し左を向いてください', '少し右を向いてください', '少し上を向いてください', '少し下を向いてください'];
@@ -13,6 +13,42 @@ function detectFailureMessage(reason: 'no_face' | 'multiple_faces' | 'too_small'
   return '顔が小さすぎます。カメラに近づいてください。';
 }
 
+const VERIFY_REASON_TEXT: Record<FaceVerifyResult['reason'], string> = {
+  ok: '',
+  too_far: '登録データとの差が大きいです。明るい場所で撮り直すか、顔データを再登録してください。',
+  other_user_closer: '他の登録者により近いと判定されました。顔データの再登録をおすすめします。',
+  ambiguous: '他の登録者と区別しにくい状態です。顔データの再登録をおすすめします。',
+};
+
+function FaceVerifyResultPanel({ result }: { result: FaceVerifyResult }) {
+  const recognized = result.result !== 'not_recognized';
+  return (
+    <div
+      className={`face-registration__test-result face-registration__test-result--${recognized ? 'ok' : 'ng'}`}
+      role="status"
+    >
+      {result.result === 'recognized' && (
+        <p className="face-registration__test-result-title">✅ 本人として認識されます（自動打刻）</p>
+      )}
+      {result.result === 'recognized_with_confirmation' && (
+        <p className="face-registration__test-result-title">
+          ✅ 本人として認識されます（シフト外のため打刻時に確認ボタンが表示されます）
+        </p>
+      )}
+      {result.result === 'not_recognized' && (
+        <>
+          <p className="face-registration__test-result-title">⚠️ 認識されませんでした</p>
+          <p>{VERIFY_REASON_TEXT[result.reason]}</p>
+        </>
+      )}
+      <p className="face-registration__hint">
+        一致度の距離: {result.distance.toFixed(3)}（しきい値 シフト時 {result.threshold} / シフト外{' '}
+        {result.threshold_no_shift}、小さいほど一致）
+      </p>
+    </div>
+  );
+}
+
 export interface FaceRegistrationProps {
   /** マイページ（自分自身）か管理者代理登録かで文言・カメラ向きを調整する */
   mode: 'self' | 'admin';
@@ -20,9 +56,11 @@ export interface FaceRegistrationProps {
   fetchStatus: () => Promise<FaceStatus>;
   saveDescriptors: (descriptors: number[][]) => Promise<FaceStatus>;
   deleteFace: () => Promise<void>;
+  /** 顔認証テスト API。指定すると登録済みのとき「顔認証をテスト」ボタンを表示する */
+  verifyFace?: (descriptor: number[]) => Promise<FaceVerifyResult>;
 }
 
-type Phase = 'idle' | 'capturing' | 'ready_to_submit' | 'submitting';
+type Phase = 'idle' | 'capturing' | 'ready_to_submit' | 'submitting' | 'testing';
 
 /**
  * 顔認証データの登録・確認・削除を行う共通コンポーネント。
@@ -34,6 +72,7 @@ export function FaceRegistration({
   fetchStatus,
   saveDescriptors,
   deleteFace,
+  verifyFace,
 }: FaceRegistrationProps) {
   const camera = useCamera({ facingMode });
   const [status, setStatus] = useState<FaceStatus | null>(null);
@@ -49,6 +88,9 @@ export function FaceRegistration({
   const [deleting, setDeleting] = useState(false);
   const [modelState, setModelState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [shooting, setShooting] = useState(false);
+
+  const [testResult, setTestResult] = useState<FaceVerifyResult | null>(null);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
 
   const busyRef = useRef(false);
 
@@ -90,6 +132,59 @@ export function FaceRegistration({
         setModelState('error');
       });
     await camera.start();
+  }
+
+  /** 顔認証テストを開始する（カメラ起動＋モデル準備） */
+  async function handleStartTest() {
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setTestResult(null);
+    setTestMessage(null);
+    setModelState('loading');
+    setPhase('testing');
+    preloadFaceModels()
+      .then(() => setModelState('ready'))
+      .catch((e: unknown) => {
+        console.warn('[FaceRegistration] model load failed:', e);
+        setModelState('error');
+      });
+    await camera.start();
+  }
+
+  /** 「テストする」押下時に現在のフレームから特徴量を取得し照合結果を表示する */
+  async function handleRunTest() {
+    if (busyRef.current || !verifyFace) return;
+    const video = camera.videoRef.current;
+    if (!video || video.readyState < 2) {
+      setTestMessage('カメラの準備中です。少し待ってからもう一度押してください。');
+      return;
+    }
+    busyRef.current = true;
+    setShooting(true);
+    setTestMessage(null);
+    try {
+      const detected = await detectSingleDescriptor(video);
+      if (!detected.ok) {
+        setTestResult(null);
+        setTestMessage(detectFailureMessage(detected.reason));
+        return;
+      }
+      setTestResult(await verifyFace(detected.descriptor));
+    } catch (e) {
+      console.warn('[FaceRegistration] verify failed:', e);
+      setTestResult(null);
+      setTestMessage('テストに失敗しました。もう一度お試しください。');
+    } finally {
+      busyRef.current = false;
+      setShooting(false);
+    }
+  }
+
+  function handleEndTest() {
+    camera.stop();
+    setTestResult(null);
+    setTestMessage(null);
+    setPhase('idle');
   }
 
   /** 「撮影」ボタン押下時に現在のフレームから顔特徴量を 1 件取得する */
@@ -209,6 +304,16 @@ export function FaceRegistration({
               >
                 {deleting ? '削除中...' : '削除する'}
               </button>
+              {verifyFace && phase === 'idle' && (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => void handleStartTest()}
+                  disabled={deleting}
+                >
+                  顔認証をテスト
+                </button>
+              )}
             </>
           ) : (
             <p className="face-registration__status-line face-registration__status-line--muted">
@@ -291,6 +396,51 @@ export function FaceRegistration({
             </button>
             <button type="button" className="btn btn--secondary" onClick={handleCancelCapture}>
               中止
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'testing' && (
+        <div className="face-registration__capture">
+          <div className="face-registration__viewport">
+            <video
+              ref={camera.videoRef}
+              className="face-registration__video"
+              autoPlay
+              muted
+              playsInline
+              aria-label="カメラプレビュー"
+            />
+            <div className="face-registration__guide-oval" aria-hidden="true" />
+          </div>
+          <p className="face-registration__hint">
+            楕円の枠に顔を合わせて「テストする」を押すと、実際の打刻と同じ照合で認識されるか確認できます。
+          </p>
+          {modelState === 'loading' && (
+            <p className="face-registration__hint" role="status">顔認識モデルを準備中です...</p>
+          )}
+          {modelState === 'error' && (
+            <p className="form-error" role="alert">
+              顔認識モデルの読み込みに失敗しました。ページを再読み込みしてお試しください。
+            </p>
+          )}
+          {camera.errorMessage && (
+            <p className="form-error" role="alert">{camera.errorMessage}</p>
+          )}
+          {testMessage && <p className="face-registration__capture-message" role="alert">{testMessage}</p>}
+          {testResult && <FaceVerifyResultPanel result={testResult} />}
+          <div className="face-registration__capture-actions">
+            <button
+              type="button"
+              className="btn btn--primary face-registration__shutter"
+              onClick={() => void handleRunTest()}
+              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
+            >
+              {shooting ? 'テスト中...' : '🔍 テストする'}
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={handleEndTest}>
+              終了
             </button>
           </div>
         </div>

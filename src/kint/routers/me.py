@@ -1,5 +1,7 @@
 """マイページ API ルーター。本人プロフィール編集エンドポイントを提供する。"""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +9,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.models.user import User
 from kint.schemas.auth import UserProfile
-from kint.schemas.face import FaceDescriptorIn, FaceStatus
+from kint.schemas.face import FaceDescriptorIn, FaceIdentifyRequest, FaceStatus, FaceVerifyResponse
 from kint.schemas.notification import NotificationListResponse, NotificationResponse
 from kint.schemas.user import (
     EmailChangeAcceptedResponse,
@@ -120,6 +122,17 @@ async def put_my_face(
     """本人の顔データを登録（既存を置換）する。管理者は登録不可。"""
     service = FaceService(session)
     return await service.register_descriptors(current_user.id, body.descriptors)
+
+
+@router.post("/face/verify", response_model=FaceVerifyResponse)
+async def verify_my_face(
+    body: FaceIdentifyRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceVerifyResponse:
+    """本人の顔データで照合テストを行う（打刻・トークン発行はしない）。"""
+    service = FaceService(session)
+    return await service.verify_user(current_user.id, body.descriptor, datetime.now(tz=UTC))
 
 
 @router.delete("/face", status_code=204)

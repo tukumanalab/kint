@@ -66,6 +66,17 @@ class FaceIdentifyResponse(BaseModel):
     greeting_kind: Literal["check_in", "check_out"] | None = None
 
 
+class FaceVerifyResponse(BaseModel):
+    """顔認証テスト結果。他ユーザーの情報は含めない。"""
+
+    result: Literal["recognized", "recognized_with_confirmation", "not_recognized"]
+    reason: Literal["ok", "too_far", "other_user_closer", "ambiguous"]
+    distance: float
+    threshold: float
+    threshold_no_shift: float
+    has_shift: bool
+
+
 class FacePunchConfig(BaseModel):
     """顔認証打刻設定（キオスク端末向け）。"""
 

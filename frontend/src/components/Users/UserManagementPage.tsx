@@ -17,7 +17,7 @@ import type { UserResponse, UserCreateRequest, UserPatchRequest, MeCardListItem 
 import type { UseAuth } from '../../hooks/useAuth';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
-import { getUserFace, putUserFace, deleteUserFace } from '../../api/face';
+import { getUserFace, putUserFace, deleteUserFace, verifyUserFace } from '../../api/face';
 import { FaceRegistrationDialog } from '../Face/FaceRegistrationDialog';
 import { UserManagementGuideModal } from './UserManagementGuideModal';
 import './UserManagementPage.css';
@@ -1167,6 +1167,7 @@ function UserFaceModal({ user, token, onClose }: UserFaceModalProps) {
         await deleteUserFace(token, user.id);
         setHasFaceData(false);
       }}
+      verifyFace={(descriptor) => verifyUserFace(token, user.id, descriptor)}
       onClose={() => onClose(hasFaceData)}
     />
   );

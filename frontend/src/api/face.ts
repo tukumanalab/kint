@@ -6,6 +6,7 @@ import type {
   FacePunchConfig,
   FaceIdentifyRequest,
   FaceIdentifyResponse,
+  FaceVerifyResult,
 } from '../types/face';
 
 const BASE = '/api/v1';
@@ -57,6 +58,15 @@ export async function deleteMyFace(token: string): Promise<void> {
   return request<void>('/me/face', { method: 'DELETE' }, token);
 }
 
+/** 本人の顔データで顔認証テストを行う */
+export async function verifyMyFace(token: string, descriptor: number[]): Promise<FaceVerifyResult> {
+  return request<FaceVerifyResult>(
+    '/me/face/verify',
+    { method: 'POST', body: JSON.stringify({ descriptor }) },
+    token,
+  );
+}
+
 // ===== 管理者による代理登録 (ユーザー管理) =====
 
 export async function getUserFace(token: string, userId: string): Promise<FaceStatus> {
@@ -77,6 +87,19 @@ export async function putUserFace(
 
 export async function deleteUserFace(token: string, userId: string): Promise<void> {
   return request<void>(`/users/${encodeURIComponent(userId)}/face`, { method: 'DELETE' }, token);
+}
+
+/** 対象ユーザーの顔データで顔認証テストを行う (管理者専用) */
+export async function verifyUserFace(
+  token: string,
+  userId: string,
+  descriptor: number[],
+): Promise<FaceVerifyResult> {
+  return request<FaceVerifyResult>(
+    `/users/${encodeURIComponent(userId)}/face/verify`,
+    { method: 'POST', body: JSON.stringify({ descriptor }) },
+    token,
+  );
 }
 
 // ===== 顔認証打刻 (未ログイン端末) =====

@@ -542,3 +542,135 @@ class TestFaceMatchPunch:
         )
         assert resp.status_code == 401
         assert resp.json()["code"] == "FACE_MATCH_TOKEN_INVALID"
+
+
+class TestFaceVerify:
+    """顔認証テスト (POST /me/face/verify, /users/{id}/face/verify) のテスト。"""
+
+    @staticmethod
+    async def _register(client: AsyncClient, user_id: str, vec: list[float]) -> None:
+        """管理者経由で顔データを登録する。"""
+        admin_token = await _login("verify-admin")
+        resp = await client.put(
+            f"/api/v1/users/{user_id}/face",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"descriptors": [vec]},
+        )
+        assert resp.status_code == 200
+
+    @staticmethod
+    async def _verify(client: AsyncClient, user_id: str, vec: list[float]):
+        token = await _login(user_id)
+        return await client.post(
+            "/api/v1/me/face/verify",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"descriptor": vec},
+        )
+
+    async def _setup(self, session: AsyncSession) -> None:
+        await _create_user(session, id="verify-admin", role="admin", email="va@example.com")
+        await _create_user(session, id="me", email="me@example.com")
+
+    async def test_recognized_with_shift(self, client: AsyncClient, session: AsyncSession) -> None:
+        await self._setup(session)
+        now = datetime.now(tz=UTC)
+        await _create_shift(
+            session,
+            user_id="me",
+            start_time=now - timedelta(hours=1),
+            end_time=now + timedelta(hours=4),
+        )
+        await self._register(client, "me", _vec(0.0))
+        resp = await self._verify(client, "me", _vec(0.1))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result"] == "recognized"
+        assert data["reason"] == "ok"
+        assert data["has_shift"] is True
+        assert data["distance"] == 0.1
+        assert data["threshold"] == 0.45
+        assert data["threshold_no_shift"] == 0.38
+
+    async def test_recognized_with_confirmation_without_shift(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await self._setup(session)
+        await self._register(client, "me", _vec(0.0))
+        data = (await self._verify(client, "me", _vec(0.1))).json()
+        assert data["result"] == "recognized_with_confirmation"
+        assert data["reason"] == "ok"
+        assert data["has_shift"] is False
+
+    async def test_too_far(self, client: AsyncClient, session: AsyncSession) -> None:
+        await self._setup(session)
+        await self._register(client, "me", _vec(0.0))
+        data = (await self._verify(client, "me", _vec(1.0))).json()
+        assert data["result"] == "not_recognized"
+        assert data["reason"] == "too_far"
+
+    async def test_other_user_closer(self, client: AsyncClient, session: AsyncSession) -> None:
+        await self._setup(session)
+        await _create_user(session, id="other", name="他人", email="other@example.com")
+        await self._register(client, "me", _vec(0.0))
+        await self._register(client, "other", _vec(0.3))
+        data = (await self._verify(client, "me", _vec(0.3))).json()
+        assert data["result"] == "not_recognized"
+        assert data["reason"] == "other_user_closer"
+
+    async def test_ambiguous(self, client: AsyncClient, session: AsyncSession) -> None:
+        await self._setup(session)
+        await _create_user(session, id="other", name="他人", email="other@example.com")
+        await self._register(client, "me", _vec(0.0))
+        await self._register(client, "other", _vec(0.03))
+        data = (await self._verify(client, "me", _vec(0.0))).json()
+        assert data["result"] == "not_recognized"
+        assert data["reason"] == "ambiguous"
+
+    async def test_response_has_no_other_user_info(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await self._setup(session)
+        await _create_user(session, id="other", name="他人さん", email="other@example.com")
+        await self._register(client, "me", _vec(0.0))
+        await self._register(client, "other", _vec(0.1))
+        resp = await self._verify(client, "me", _vec(0.0))
+        assert set(resp.json().keys()) == {
+            "result",
+            "reason",
+            "distance",
+            "threshold",
+            "threshold_no_shift",
+            "has_shift",
+        }
+        assert "other" not in resp.text and "他人" not in resp.text
+
+    async def test_not_registered_returns_404(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await self._setup(session)
+        resp = await self._verify(client, "me", _vec(0.0))
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "FACE_NOT_REGISTERED"
+
+    async def test_admin_endpoint_and_non_admin_forbidden(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await self._setup(session)
+        await _create_user(session, id="emp2", email="emp2@example.com")
+        await self._register(client, "me", _vec(0.0))
+        admin_token = await _login("verify-admin")
+        resp = await client.post(
+            "/api/v1/users/me/face/verify",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"descriptor": _vec(0.05)},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["result"] == "recognized_with_confirmation"
+
+        emp_token = await _login("emp2")
+        forbidden = await client.post(
+            "/api/v1/users/me/face/verify",
+            headers={"Authorization": f"Bearer {emp_token}"},
+            json={"descriptor": _vec(0.05)},
+        )
+        assert forbidden.status_code == 403

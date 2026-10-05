@@ -7,7 +7,7 @@ import type { UseAuth } from '../../hooks/useAuth';
 import type { MeCardListItem } from '../../types/user';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
-import { getMyFace, putMyFace, deleteMyFace } from '../../api/face';
+import { getMyFace, putMyFace, deleteMyFace, verifyMyFace } from '../../api/face';
 import { FaceRegistrationDialog } from '../Face/FaceRegistrationDialog';
 import type { FaceStatus } from '../../types/face';
 import './MyProfilePage.css';
@@ -842,6 +842,7 @@ export function MyProfilePage({ auth }: Props) {
           fetchStatus={() => getMyFace(token)}
           saveDescriptors={(descriptors) => putMyFace(token, { descriptors })}
           deleteFace={() => deleteMyFace(token)}
+          verifyFace={(descriptor) => verifyMyFace(token, descriptor)}
           onClose={() => {
             setOpenDialog(null);
             loadFaceStatus();

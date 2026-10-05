@@ -316,6 +316,9 @@
   - シフト外のユーザーはより厳しい `face_match_threshold_no_shift`（既定 0.38）で判定し、一致してもボタン押下による確認を求める。
   - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し不一致として扱う。
   - 照合成功時は 60 秒間のみ有効な `face_match_token`（JWT）を発行し、打刻 API にはこのトークンのみを送信する（打刻方式 `method: "face"`、打刻元 `source: "webcam_face"`）。
+- **顔認証テスト**: 顔データ登録済みのユーザーは、登録ダイアログから `POST /api/v1/me/face/verify`（管理者は `POST /api/v1/users/{user_id}/face/verify`、管理者専用）で現在の顔が本人として認識されるかを確認できる。
+  - リクエストは `FaceIdentifyRequest`（128次元 `descriptor`）。レスポンス `FaceVerifyResponse` は `result`（`recognized` / `recognized_with_confirmation` / `not_recognized`）、`reason`（`ok` / `too_far` / `other_user_closer` / `ambiguous`）、`distance`（本人の登録データとの最小距離）、`threshold`、`threshold_no_shift`、`has_shift`。
+  - 判定は打刻時の照合と同一（有効かつ非管理者の全登録者でランキングし、本人が最上位・あいまいでない・距離がしきい値以下で認識。シフト無しの場合は `recognized_with_confirmation`）。他ユーザーのID・名前・距離は返さない。トークン発行・打刻は行わず、`face_punch_enabled` が無効でも利用可。未登録は 404 `FACE_NOT_REGISTERED`、管理者エンドポイントに非管理者でアクセスすると 403。
 - **端末制限**: `GET /api/v1/face-punch/config` および `POST /api/v1/face-punch/identify` は、打刻端末制限機能と同じ `X-Punch-Device-Token` ヘッダーによる検証が必須。
 - **アバター・音声案内**: 認識時にイラストアバター（状態に応じて待機・首かしげ・あいさつ・成功のジャンプ・エラーの首振りをアニメーション表示し、音声読み上げ中のみ口を開ける）と `speechSynthesis` による日本語音声のあいさつ・打刻結果案内を行う。
 
@@ -334,11 +337,13 @@
 - GET /api/v1/users/{user_id}/face
 - PUT /api/v1/users/{user_id}/face
 - DELETE /api/v1/users/{user_id}/face
+- POST /api/v1/users/{user_id}/face/verify
 - GET /api/v1/me
 - PATCH /api/v1/me/profile
 - GET /api/v1/me/face
 - PUT /api/v1/me/face
 - DELETE /api/v1/me/face
+- POST /api/v1/me/face/verify
 - GET /api/v1/me/notifications
 - PATCH /api/v1/me/notifications/{id}/read
 - PATCH /api/v1/me/notifications/read-all

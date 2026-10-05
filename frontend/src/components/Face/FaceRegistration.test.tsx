@@ -105,4 +105,109 @@ describe('FaceRegistration', () => {
     },
     15000,
   );
+
+  describe('顔認証テスト', () => {
+    const registered = { registered: true, count: 5, updated_at: '2026-05-15T00:00:00Z' };
+    const baseResult = {
+      result: 'recognized' as const,
+      reason: 'ok' as const,
+      distance: 0.123,
+      threshold: 0.45,
+      threshold_no_shift: 0.38,
+      has_shift: true,
+    };
+
+    function mockEngine() {
+      vi.spyOn(faceEngine, 'detectSingleDescriptor').mockResolvedValue({
+        ok: true,
+        descriptor: new Array(128).fill(0.3),
+        box: { x: 0, y: 0, width: 100, height: 100 },
+        score: 0.9,
+      });
+      vi.spyOn(faceEngine, 'preloadFaceModels').mockResolvedValue(undefined);
+    }
+
+    async function startTest(verifyFace: ReturnType<typeof vi.fn>) {
+      mockEngine();
+      render(
+        <FaceRegistration
+          mode="self"
+          fetchStatus={vi.fn().mockResolvedValue(registered)}
+          saveDescriptors={vi.fn()}
+          deleteFace={vi.fn()}
+          verifyFace={verifyFace}
+        />,
+      );
+      fireEvent.click(await screen.findByRole('button', { name: '顔認証をテスト' }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      patchMountedVideo();
+      const run = await screen.findByRole('button', { name: '🔍 テストする' });
+      await waitFor(() => expect(run).toBeEnabled());
+      return run;
+    }
+
+    it('登録済みのときだけテストボタンが表示される', async () => {
+      const fetchStatus = vi.fn().mockResolvedValue({ registered: false, count: 0, updated_at: null });
+      render(
+        <FaceRegistration
+          mode="self"
+          fetchStatus={fetchStatus}
+          saveDescriptors={vi.fn()}
+          deleteFace={vi.fn()}
+          verifyFace={vi.fn()}
+        />,
+      );
+      await screen.findByText('未登録です。');
+      expect(screen.queryByRole('button', { name: '顔認証をテスト' })).not.toBeInTheDocument();
+    });
+
+    it('verifyFace 未指定ならテストボタンは表示されない', async () => {
+      render(
+        <FaceRegistration
+          mode="self"
+          fetchStatus={vi.fn().mockResolvedValue(registered)}
+          saveDescriptors={vi.fn()}
+          deleteFace={vi.fn()}
+        />,
+      );
+      await screen.findByText('登録済み 5 件');
+      expect(screen.queryByRole('button', { name: '顔認証をテスト' })).not.toBeInTheDocument();
+    });
+
+    it('テストするで verifyFace を呼び、認識結果を表示する', async () => {
+      const verifyFace = vi.fn().mockResolvedValue(baseResult);
+      const run = await startTest(verifyFace);
+      fireEvent.click(run);
+      expect(await screen.findByText(/本人として認識されます（自動打刻）/)).toBeInTheDocument();
+      expect(verifyFace).toHaveBeenCalledWith(new Array(128).fill(0.3));
+      expect(screen.getByText(/一致度の距離: 0.123/)).toBeInTheDocument();
+    });
+
+    it('シフト外では確認ボタンの案内を表示する', async () => {
+      const verifyFace = vi
+        .fn()
+        .mockResolvedValue({ ...baseResult, result: 'recognized_with_confirmation', has_shift: false });
+      fireEvent.click(await startTest(verifyFace));
+      expect(await screen.findByText(/シフト外のため打刻時に確認ボタンが表示されます/)).toBeInTheDocument();
+    });
+
+    it('認識されない場合は理由を表示する', async () => {
+      const verifyFace = vi
+        .fn()
+        .mockResolvedValue({ ...baseResult, result: 'not_recognized', reason: 'too_far' });
+      fireEvent.click(await startTest(verifyFace));
+      expect(await screen.findByText('⚠️ 認識されませんでした')).toBeInTheDocument();
+      expect(screen.getByText(/登録データとの差が大きいです/)).toBeInTheDocument();
+    });
+
+    it('API エラー時は失敗メッセージを表示し、終了で idle に戻る', async () => {
+      const verifyFace = vi.fn().mockRejectedValue(new Error('x'));
+      fireEvent.click(await startTest(verifyFace));
+      expect(await screen.findByText('テストに失敗しました。もう一度お試しください。')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '終了' }));
+      expect(await screen.findByRole('button', { name: '顔認証をテスト' })).toBeInTheDocument();
+    });
+  });
 });

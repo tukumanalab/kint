@@ -17,6 +17,16 @@ export interface FacePunchConfig {
   cooldown_seconds: number;
 }
 
+/** 顔認証テスト結果 (他ユーザーの情報は含まれない) */
+export interface FaceVerifyResult {
+  result: 'recognized' | 'recognized_with_confirmation' | 'not_recognized';
+  reason: 'ok' | 'too_far' | 'other_user_closer' | 'ambiguous';
+  distance: number;
+  threshold: number;
+  threshold_no_shift: number;
+  has_shift: boolean;
+}
+
 /** 顔照合リクエスト */
 export interface FaceIdentifyRequest {
   descriptor: number[];
