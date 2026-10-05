@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import avatarImage from '../../assets/punch-avatar.webp';
 import './FaceAvatar.css';
 
 export type FaceAvatarState = 'idle' | 'looking' | 'greeting' | 'success' | 'error';
@@ -5,39 +7,38 @@ export type FaceAvatarState = 'idle' | 'looking' | 'greeting' | 'success' | 'err
 export interface FaceAvatarProps {
   state: FaceAvatarState;
   speechText?: string | null;
+  /** 音声読み上げ中なら true（口を開ける） */
+  speaking?: boolean;
+  /** 顔の横に表示する要素（打刻ページではカメラプレビュー） */
+  faceSide?: ReactNode;
 }
 
 /**
- * 打刻ページ用のイラストキャラクター (SVG + CSS アニメーション)。
- * 写真は使用せず、シンプルな図形のみで構成する。
+ * 打刻ページ用のイラストアバター。
+ * 状態に応じて CSS アニメーション（待機の揺れ・覗き込み・弾むあいさつ・成功のジャンプ・エラーの首振り）を切り替える。
+ * 口は音声読み上げ中（speaking）のみ開け、それ以外は閉じる。
  */
-export function FaceAvatar({ state, speechText }: FaceAvatarProps) {
+export function FaceAvatar({ state, speechText, speaking = false, faceSide }: FaceAvatarProps) {
   return (
-    <div className={`face-avatar face-avatar--${state}`}>
+    <div className={`face-avatar face-avatar--${state}`} data-state={state}>
       {speechText && (
         <div className="face-avatar__bubble" role="status" aria-live="polite">
           {speechText}
         </div>
       )}
-      <svg
-        className="face-avatar__svg"
-        viewBox="0 0 200 200"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        {/* 顔 */}
-        <circle className="face-avatar__face" cx="100" cy="100" r="80" />
-        {/* ほほ (success時のみ強調表示) */}
-        <circle className="face-avatar__cheek" cx="55" cy="120" r="12" />
-        <circle className="face-avatar__cheek" cx="145" cy="120" r="12" />
-        {/* 目 */}
-        <g className="face-avatar__eyes">
-          <ellipse className="face-avatar__eye face-avatar__eye--left" cx="70" cy="90" rx="9" ry="12" />
-          <ellipse className="face-avatar__eye face-avatar__eye--right" cx="130" cy="90" rx="9" ry="12" />
-        </g>
-        {/* 口 */}
-        <path className="face-avatar__mouth" d="M 70 130 Q 100 150 130 130" />
-      </svg>
+      <div className="face-avatar__figure">
+        <div className="face-avatar__body">
+          <img className="face-avatar__image" src={avatarImage} alt="" aria-hidden="true" draggable={false} />
+          {/* 発言中は元画像の開いた口をそのまま見せ、それ以外は閉じた口を重ねる */}
+          {!speaking && (
+            <span className="face-avatar__mouth-area" aria-hidden="true">
+              <span className="face-avatar__mouth" />
+            </span>
+          )}
+        </div>
+        {faceSide && <div className="face-avatar__face-side">{faceSide}</div>}
+      </div>
+      <div className="face-avatar__shadow" aria-hidden="true" />
     </div>
   );
 }

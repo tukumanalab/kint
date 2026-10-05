@@ -23,16 +23,53 @@ export function unlockSpeech(): void {
   }
 }
 
-/** テキストを日本語音声で読み上げる。非対応環境では何もしない。 */
-export function speak(text: string): void {
+export interface SpeakCallbacks {
+  /** 読み上げ開始時 */
+  onStart?: () => void;
+  /** 読み上げ終了時（エラー・キャンセル時も呼ばれる） */
+  onEnd?: () => void;
+}
+
+/** 音声合成が使えない環境で「話している時間」を見積もる (1文字あたり約150ms) */
+function estimateSpeechMs(text: string): number {
+  return Math.min(6000, Math.max(800, text.length * 150));
+}
+
+/**
+ * テキストを日本語音声で読み上げる。
+ * 非対応環境・失敗時も、文字数から見積もった時間で onStart/onEnd を呼び、アバターの口の開閉に使えるようにする。
+ */
+export function speak(text: string, callbacks: SpeakCallbacks = {}): void {
+  const { onStart, onEnd } = callbacks;
+  if (!text) return;
+  const fallback = () => {
+    onStart?.();
+    window.setTimeout(() => onEnd?.(), estimateSpeechMs(text));
+  };
   const synth = getSynth();
-  if (!synth || !text) return;
+  if (!synth) {
+    fallback();
+    return;
+  }
   try {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ja-JP';
+    let ended = false;
+    const finish = () => {
+      if (ended) return;
+      ended = true;
+      onEnd?.();
+    };
+    utterance.onstart = () => onStart?.();
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    // 音声が再生されない環境（自動再生ブロック等）でも口が開きっぱなしにならないよう保険で閉じる
+    onStart?.();
+    window.setTimeout(finish, estimateSpeechMs(text) + 4000);
     synth.speak(utterance);
   } catch (e) {
     console.warn('[speech] speak failed:', e);
+    fallback();
   }
 }
 

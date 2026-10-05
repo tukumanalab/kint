@@ -288,7 +288,8 @@ cp .env.example .env
   - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し、いずれのしきい値を満たしていても不一致として扱います（誤認識防止）。
   - 照合に成功すると、60秒間のみ有効な短命トークン `face_match_token`（JWT）を発行し、打刻 API (`POST /api/v1/punches`) にはこのトークンのみを送信します（打刻方式 `method: "face"`、打刻元 `source: 'webcam_face'`）。
 - **アバターと音声案内**:
-  - 打刻画面にはイラストアバター（`FaceAvatar`）が表示され、認識時には `speechSynthesis`（Web Speech API）で「おはようございます、〇〇さん」等のあいさつを日本語音声で読み上げます。
+  - 打刻画面にはイラストアバター（`FaceAvatar`、画像 `frontend/src/assets/punch-avatar.webp`）が表示されます。状態に応じて CSS アニメーションで動きます（待機: 呼吸 / 探索中: 首かしげ / あいさつ: 弾み / 打刻成功: ジャンプ / エラー: 首振り）。口は音声読み上げ中（`speechSynthesis` の onstart〜onend。非対応環境では文字数から見積もった時間）だけ開き、それ以外は閉じます。閉じた口は元画像の開いた口の位置に肌色パッチと口の線を重ねて表現しています（画像を差し替える場合は `FaceAvatar.css` の `.face-avatar__mouth-area` の位置を調整）。`prefers-reduced-motion` 設定時はアニメーションを停止します。
+  - 認識時には `speechSynthesis`（Web Speech API）で「おはようございます、〇〇さん」等のあいさつを日本語音声で読み上げます。
   - カメラ開始のクリック操作を契機に音声合成の自動再生制限を事前に解除します。
 
 ## ログイン継続時間の設定機能

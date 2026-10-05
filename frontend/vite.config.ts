@@ -56,7 +56,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // ポート 8000 が使えないローカル環境では KINT_API_PROXY_TARGET で変更可能
+        target: process.env.KINT_API_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
       },
     },

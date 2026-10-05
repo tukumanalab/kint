@@ -34,6 +34,8 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
   const [countdown, setCountdown] = useState<number | null>(null);
   const [avatarState, setAvatarState] = useState<FaceAvatarState>('idle');
   const [speechText, setSpeechText] = useState<string>('');
+  const [speaking, setSpeaking] = useState(false);
+  const speechIdRef = useRef(0);
   const [unmatchedCount, setUnmatchedCount] = useState(0);
 
   const busyRef = useRef(false);
@@ -131,13 +133,26 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     }
   }
 
+  /** 吹き出しを表示して読み上げる。読み上げ中のみアバターの口を開ける */
+  function say(text: string) {
+    setSpeechText(text);
+    const id = ++speechIdRef.current;
+    speak(text, {
+      onStart: () => {
+        if (speechIdRef.current === id) setSpeaking(true);
+      },
+      onEnd: () => {
+        if (speechIdRef.current === id) setSpeaking(false);
+      },
+    });
+  }
+
   function handleRecognized(resp: FaceIdentifyResponse) {
     setRecognized(resp);
     setPanelState('recognized');
     setAvatarState('greeting');
     const greeting = buildGreeting(resp.greeting_kind ?? 'check_in', resp.user_name ?? '');
-    setSpeechText(greeting);
-    speak(greeting);
+    say(greeting);
 
     if (!resp.requires_confirmation) {
       let remaining = config.countdown_seconds;
@@ -175,8 +190,7 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     if (result?.action) {
       setAvatarState('success');
       const text = buildResultSpeech(result.action);
-      setSpeechText(text);
-      speak(text);
+      say(text);
     } else if (result) {
       // action が null (連続打刻無視など) の場合はエラー扱いせず淡々と戻る
       setAvatarState('idle');
@@ -184,7 +198,7 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     } else {
       // エラー、確認キャンセル、超過勤務申請待ちのいずれか
       setAvatarState('error');
-      setSpeechText('打刻できませんでした');
+      say('打刻できませんでした');
     }
 
     setPanelState('result');
@@ -236,16 +250,22 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
 
       {panelState !== 'stopped' && (
         <div className="face-punch-panel__stage">
-          <FaceAvatar state={avatarState} speechText={speechText} />
-
-          <video
-            ref={camera.videoRef}
-            className="face-punch-panel__preview"
-            autoPlay
-            muted
-            playsInline
-            aria-label="カメラプレビュー"
+          <FaceAvatar
+            state={avatarState}
+            speechText={speechText}
+            speaking={speaking}
+            faceSide={
+              <video
+                ref={camera.videoRef}
+                className="face-punch-panel__preview"
+                autoPlay
+                muted
+                playsInline
+                aria-label="カメラプレビュー"
+              />
+            }
           />
+
 
           {panelState === 'scanning' && (
             <p className="face-punch-panel__status">顔を認識しています...</p>

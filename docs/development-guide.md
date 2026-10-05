@@ -38,6 +38,8 @@ npm run copy-face-models
 
 > **Note (顔認証打刻機能):**
 > 顔認証打刻（`@vladmandic/face-api`）はブラウザが `public/face-models/` 配下のモデルファイルを取得して動作します。`npm run copy-face-models`（`node_modules/@vladmandic/face-api/model/` から必要なモデルファイルをコピーするスクリプト）を実行し忘れると、顔検出が動作しません。`npm run build` の前段階としても実行してください。
+
+> Vite 開発サーバーは `/api` を `http://localhost:8000` のバックエンドへプロキシします。ポート 8000 が他のプロセスで使用中の場合は、バックエンドを別ポート（例: `--port 8001`）で起動し、`KINT_API_PROXY_TARGET=http://localhost:8001 npm run dev` のようにプロキシ先を指定してください。
 > また、カメラ (`getUserMedia`) は HTTPS 環境でのみ動作するため、ローカル開発では `http://localhost` からのアクセス（`localhost` は例外的に許可される）で確認してください。
 
 ### 打刻・シフト連携の環境変数
