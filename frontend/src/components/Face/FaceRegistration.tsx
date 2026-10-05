@@ -20,6 +20,89 @@ const VERIFY_REASON_TEXT: Record<FaceVerifyResult['reason'], string> = {
   ambiguous: '他の登録者と区別しにくい状態です。顔データの再登録をおすすめします。',
 };
 
+/**
+ * 照合距離をメーターで表示する。距離は小さいほど一致。
+ * 0〜シフト外しきい値: 常に認識 / 〜シフト時しきい値: シフト時のみ認識 / それ以上: 認識されない
+ */
+function FaceDistanceMeter({ result }: { result: FaceVerifyResult }) {
+  const { distance, threshold, threshold_no_shift: thresholdNoShift, has_shift: hasShift } = result;
+  const low = Math.min(threshold, thresholdNoShift);
+  const high = Math.max(threshold, thresholdNoShift);
+  const max = Math.max(0.8, Math.ceil((distance + 0.05) * 10) / 10);
+  const pct = (v: number) => `${Math.min(100, Math.max(0, (v / max) * 100))}%`;
+  const limit = hasShift ? threshold : thresholdNoShift;
+  const zone = distance <= low ? 'good' : distance <= high ? 'fair' : 'bad';
+  const margin = limit - distance;
+
+  return (
+    <div className="face-meter">
+      <div className="face-meter__headline">
+        <span className="face-meter__label">一致度の距離</span>
+        <span className={`face-meter__value face-meter__value--${zone}`}>{distance.toFixed(3)}</span>
+        <span className="face-meter__note">小さいほど一致</span>
+      </div>
+
+      <div
+        className="face-meter__track"
+        role="meter"
+        aria-label="一致度の距離"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={distance}
+      >
+        <div className="face-meter__zone face-meter__zone--good" style={{ left: 0, width: pct(low) }} />
+        <div
+          className="face-meter__zone face-meter__zone--fair"
+          style={{ left: pct(low), width: `calc(${pct(high)} - ${pct(low)})` }}
+        />
+        <div
+          className="face-meter__zone face-meter__zone--bad"
+          style={{ left: pct(high), right: 0 }}
+        />
+        <div className="face-meter__tick" style={{ left: pct(thresholdNoShift) }} />
+        <div className="face-meter__tick" style={{ left: pct(threshold) }} />
+        <div className="face-meter__marker" style={{ left: pct(distance) }} aria-hidden="true">
+          ▼
+        </div>
+      </div>
+
+      <div className="face-meter__scale" aria-hidden="true">
+        <span style={{ left: 0 }}>0</span>
+        <span className="face-meter__scale-low" style={{ left: pct(low) }}>
+          {low}
+        </span>
+        <span className="face-meter__scale-high" style={{ left: pct(high) }}>
+          {high}
+        </span>
+        <span style={{ left: '100%' }}>{max}</span>
+      </div>
+
+      <ul className="face-meter__legend">
+        <li>
+          <span className="face-meter__swatch face-meter__swatch--good" />
+          {thresholdNoShift} 以下: シフト外でも認識
+        </li>
+        <li>
+          <span className="face-meter__swatch face-meter__swatch--fair" />
+          {threshold} 以下: シフト中なら認識
+        </li>
+        <li>
+          <span className="face-meter__swatch face-meter__swatch--bad" />
+          それ以上: 認識されない
+        </li>
+      </ul>
+
+      <p className="face-meter__summary">
+        現在は{hasShift ? 'シフト中' : 'シフト外'}のため、しきい値 {limit} で判定しています
+        {margin >= 0
+          ? `（あと ${margin.toFixed(3)} の余裕）`
+          : `（${(-margin).toFixed(3)} 超過）`}
+        。
+      </p>
+    </div>
+  );
+}
+
 function FaceVerifyResultPanel({ result }: { result: FaceVerifyResult }) {
   const recognized = result.result !== 'not_recognized';
   return (
@@ -41,10 +124,7 @@ function FaceVerifyResultPanel({ result }: { result: FaceVerifyResult }) {
           <p>{VERIFY_REASON_TEXT[result.reason]}</p>
         </>
       )}
-      <p className="face-registration__hint">
-        一致度の距離: {result.distance.toFixed(3)}（しきい値 シフト時 {result.threshold} / シフト外{' '}
-        {result.threshold_no_shift}、小さいほど一致）
-      </p>
+      <FaceDistanceMeter result={result} />
     </div>
   );
 }

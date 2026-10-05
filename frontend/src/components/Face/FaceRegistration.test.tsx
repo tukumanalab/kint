@@ -182,7 +182,8 @@ describe('FaceRegistration', () => {
       fireEvent.click(run);
       expect(await screen.findByText(/本人として認識されます（自動打刻）/)).toBeInTheDocument();
       expect(verifyFace).toHaveBeenCalledWith(new Array(128).fill(0.3));
-      expect(screen.getByText(/一致度の距離: 0.123/)).toBeInTheDocument();
+      expect(screen.getByRole('meter', { name: '一致度の距離' })).toHaveAttribute('aria-valuenow', '0.123');
+      expect(screen.getByText('0.123')).toBeInTheDocument();
     });
 
     it('シフト外では確認ボタンの案内を表示する', async () => {

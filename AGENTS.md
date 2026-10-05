@@ -284,7 +284,7 @@ cp .env.example .env
   - **管理者ユーザーへの登録は不可**: 管理者 (`role == 'admin'`) は打刻対象外のため、本人・代理登録のいずれも `ADMIN_FACE_NOT_ALLOWED` エラーとなり登録できません。
 - **顔認証テスト**:
   - 顔データ登録ダイアログ（マイページ・ユーザー管理の「顔データ」）で、登録済みの場合に「顔認証をテスト」ボタンが表示されます。カメラを起動し「🔍 テストする」を押すと、実際の打刻と同じ照合ロジックで「現在の顔が本人として認識されるか」を確認できます（`POST /api/v1/me/face/verify`、管理者は `POST /api/v1/users/{user_id}/face/verify`）。
-  - 結果は `recognized`（自動打刻）/ `recognized_with_confirmation`（シフト外のため確認ボタン表示）/ `not_recognized`（理由: `too_far` / `other_user_closer` / `ambiguous`）と一致度の距離・しきい値のみを返し、他ユーザーの情報は含みません。トークン発行・打刻は行わず、顔認証打刻設定が無効でも利用できます。顔データ未登録の場合は 404 `FACE_NOT_REGISTERED`。
+  - 結果は `recognized`（自動打刻）/ `recognized_with_confirmation`（シフト外のため確認ボタン表示）/ `not_recognized`（理由: `too_far` / `other_user_closer` / `ambiguous`）と一致度の距離・しきい値のみを返し、他ユーザーの情報は含みません。トークン発行・打刻は行わず、顔認証打刻設定が無効でも利用できます。顔データ未登録の場合は 404 `FACE_NOT_REGISTERED`。画面では距離を色分けメーター（`FaceDistanceMeter`）で表示します。
 - **照合ロジック**:
   - 取得したディスクリプタと、登録済み全ユーザー（有効かつ非管理者）の顔ディスクリプタとのユークリッド距離を計算し、最も距離が近いユーザーを候補とします。
   - 当日シフトがある、または24時間以内の未退勤（オープン）勤怠があるユーザーは「シフトあり」として扱われ、しきい値 `face_match_threshold`（デフォルト 0.45）で判定し、一致すればカウントダウン（`face_punch_countdown_seconds`）後に自動打刻します（カウントダウン中は「取消」ボタンでキャンセル可能）。

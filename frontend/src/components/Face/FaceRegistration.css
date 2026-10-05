@@ -196,3 +196,171 @@
   margin: 0 0 4px;
   font-weight: 600;
 }
+
+/* ===== 照合距離メーター ===== */
+.face-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.face-meter__headline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.face-meter__label {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.face-meter__value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.face-meter__value--good {
+  color: #2e7d32;
+}
+
+.face-meter__value--fair {
+  color: #b26a00;
+}
+
+.face-meter__value--bad {
+  color: #c62828;
+}
+
+.face-meter__note {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.face-meter__track {
+  position: relative;
+  height: 14px;
+  margin-top: 1.1rem;
+  border-radius: 7px;
+  overflow: visible;
+  background: #eee;
+}
+
+.face-meter__zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.face-meter__zone--good {
+  background: #81c784;
+  border-radius: 7px 0 0 7px;
+}
+
+.face-meter__zone--fair {
+  background: #ffd54f;
+}
+
+.face-meter__zone--bad {
+  background: #e57373;
+  border-radius: 0 7px 7px 0;
+}
+
+.face-meter__tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: #37474f;
+}
+
+.face-meter__marker {
+  position: absolute;
+  top: -1.25rem;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  line-height: 1;
+  color: #1a1a2e;
+}
+
+.face-meter__scale {
+  position: relative;
+  height: 1rem;
+  font-size: 0.75rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.face-meter__scale span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.face-meter__scale span:first-child {
+  transform: none;
+}
+
+.face-meter__scale span:last-child {
+  transform: translateX(-100%);
+}
+
+/* 近接する2つのしきい値ラベルが重ならないよう、目盛りの左右に振り分ける */
+.face-meter__scale .face-meter__scale-low {
+  transform: translateX(calc(-100% - 3px));
+}
+
+.face-meter__scale .face-meter__scale-high {
+  transform: translateX(3px);
+}
+
+.face-meter__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.face-meter__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.face-meter__swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.face-meter__swatch--good {
+  background: #81c784;
+}
+
+.face-meter__swatch--fair {
+  background: #ffd54f;
+}
+
+.face-meter__swatch--bad {
+  background: #e57373;
+}
+
+.face-meter__summary {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #333;
+}
