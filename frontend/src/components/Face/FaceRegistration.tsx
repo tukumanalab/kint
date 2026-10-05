@@ -349,58 +349,64 @@ export function FaceRegistration({
   }
 
   const progress = Math.min(captureIndex, REQUIRED_SAMPLES);
+  // 撮影・テスト中はカメラとボタンを画面内に収めるため、上部の説明と登録状況を隠す
+  const cameraActive = phase === 'capturing' || phase === 'testing';
 
   return (
     <div className="face-registration">
-      <div className="face-registration__consent-box">
-        <p className="face-registration__consent-text">
-          <strong>利用目的:</strong> 打刻時の本人確認のみに利用します。写真そのものは保存せず、
-          数値化された特徴データのみをサーバーに保存します。登録は
-          {mode === 'self' ? 'いつでもご自身で' : '管理者操作で'}削除できます。
-        </p>
-      </div>
+      {!cameraActive && (
+        <>
+          <div className="face-registration__consent-box">
+            <p className="face-registration__consent-text">
+              <strong>利用目的:</strong> 打刻時の本人確認のみに利用します。写真そのものは保存せず、
+              数値化された特徴データのみをサーバーに保存します。登録は
+              {mode === 'self' ? 'いつでもご自身で' : '管理者操作で'}削除できます。
+            </p>
+          </div>
 
-      {loadingStatus ? (
-        <p className="face-registration__hint">読み込み中...</p>
-      ) : statusError ? (
-        <p className="form-error" role="alert">{statusError}</p>
-      ) : (
-        <div className="face-registration__status" role="status">
-          {status?.registered ? (
-            <>
-              <p className="face-registration__status-line">
-                登録済み {status.count} 件
-              </p>
-              {status.updated_at && (
+          {loadingStatus ? (
+            <p className="face-registration__hint">読み込み中...</p>
+          ) : statusError ? (
+            <p className="form-error" role="alert">{statusError}</p>
+          ) : (
+            <div className="face-registration__status" role="status">
+              {status?.registered ? (
+                <>
+                  <p className="face-registration__status-line">
+                    登録済み {status.count} 件
+                  </p>
+                  {status.updated_at && (
+                    <p className="face-registration__status-line face-registration__status-line--muted">
+                      更新日時: {new Date(status.updated_at).toLocaleString('ja-JP')}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    onClick={() => void handleDelete()}
+                    disabled={deleting}
+                  >
+                    {deleting ? '削除中...' : '削除する'}
+                  </button>
+                  {verifyFace && phase === 'idle' && (
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      onClick={() => void handleStartTest()}
+                      disabled={deleting}
+                    >
+                      顔認証をテスト
+                    </button>
+                  )}
+                </>
+              ) : (
                 <p className="face-registration__status-line face-registration__status-line--muted">
-                  更新日時: {new Date(status.updated_at).toLocaleString('ja-JP')}
+                  未登録です。
                 </p>
               )}
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => void handleDelete()}
-                disabled={deleting}
-              >
-                {deleting ? '削除中...' : '削除する'}
-              </button>
-              {verifyFace && phase === 'idle' && (
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  onClick={() => void handleStartTest()}
-                  disabled={deleting}
-                >
-                  顔認証をテスト
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="face-registration__status-line face-registration__status-line--muted">
-              未登録です。
-            </p>
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {submitError && <p className="form-error" role="alert">{submitError}</p>}
@@ -443,6 +449,19 @@ export function FaceRegistration({
             />
             <div className="face-registration__guide-oval" aria-hidden="true" />
           </div>
+          <div className="face-registration__capture-actions">
+            <button
+              type="button"
+              className="btn btn--primary face-registration__shutter"
+              onClick={() => void handleShutter()}
+              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
+            >
+              {shooting ? '撮影中...' : `📸 撮影 (${progress + 1}/${REQUIRED_SAMPLES})`}
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={handleCancelCapture}>
+              中止
+            </button>
+          </div>
           <p className="face-registration__prompt">
             {CAPTURE_PROMPTS[Math.min(captureIndex, CAPTURE_PROMPTS.length - 1)]}
           </p>
@@ -465,19 +484,6 @@ export function FaceRegistration({
             <p className="form-error" role="alert">{camera.errorMessage}</p>
           )}
           {captureMessage && <p className="face-registration__capture-message" role="alert">{captureMessage}</p>}
-          <div className="face-registration__capture-actions">
-            <button
-              type="button"
-              className="btn btn--primary face-registration__shutter"
-              onClick={() => void handleShutter()}
-              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
-            >
-              {shooting ? '撮影中...' : `📸 撮影 (${progress + 1}/${REQUIRED_SAMPLES})`}
-            </button>
-            <button type="button" className="btn btn--secondary" onClick={handleCancelCapture}>
-              中止
-            </button>
-          </div>
         </div>
       )}
 
@@ -493,6 +499,19 @@ export function FaceRegistration({
               aria-label="カメラプレビュー"
             />
             <div className="face-registration__guide-oval" aria-hidden="true" />
+          </div>
+          <div className="face-registration__capture-actions">
+            <button
+              type="button"
+              className="btn btn--primary face-registration__shutter"
+              onClick={() => void handleRunTest()}
+              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
+            >
+              {shooting ? 'テスト中...' : '🔍 テストする'}
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={handleEndTest}>
+              終了
+            </button>
           </div>
           <p className="face-registration__hint">
             楕円の枠に顔を合わせて「テストする」を押すと、実際の打刻と同じ照合で認識されるか確認できます。
@@ -510,19 +529,6 @@ export function FaceRegistration({
           )}
           {testMessage && <p className="face-registration__capture-message" role="alert">{testMessage}</p>}
           {testResult && <FaceVerifyResultPanel result={testResult} />}
-          <div className="face-registration__capture-actions">
-            <button
-              type="button"
-              className="btn btn--primary face-registration__shutter"
-              onClick={() => void handleRunTest()}
-              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
-            >
-              {shooting ? 'テスト中...' : '🔍 テストする'}
-            </button>
-            <button type="button" className="btn btn--secondary" onClick={handleEndTest}>
-              終了
-            </button>
-          </div>
         </div>
       )}
 
