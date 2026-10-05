@@ -308,6 +308,13 @@ class PunchService:
             user = await self._get_user_by_card_idm(request.card_idm)
             source = "webusb_nfc"
             method = "card_idm"
+        elif request.face_match_token is not None:
+            from kint.services.face import FaceService
+
+            face_user_id = FaceService.verify_face_match_token(request.face_match_token)
+            user = await self._get_user_by_user_id(face_user_id)
+            source = "webcam_face"
+            method = "face"
         else:
             # user_id は model_validator で None でないことが保証される
             user = await self._get_user_by_user_id(request.user_id)  # type: ignore[arg-type]

@@ -10,6 +10,7 @@ export interface UserResponse {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  has_face_data?: boolean;
 }
 
 export interface UsersListResponse {

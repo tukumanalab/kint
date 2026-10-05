@@ -1,0 +1,163 @@
+.face-registration {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.face-registration__consent-box {
+  background: #f7fbff;
+  border: 1px solid #d6e4f5;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.face-registration__consent-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #37474f;
+  line-height: 1.5;
+}
+
+.face-registration__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.face-registration__status-line {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+}
+
+.face-registration__status-line--muted {
+  color: #718096;
+  font-size: 0.85rem;
+}
+
+.face-registration__hint {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.face-registration__start {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.face-registration__consent-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.face-registration__capture {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.face-registration__video {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 10px;
+  background: #000;
+  transform: scaleX(-1);
+}
+
+.face-registration__guide-oval {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  width: 45%;
+  height: 60%;
+  transform: translateX(-50%);
+  border: 3px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.face-registration__prompt {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1976d2;
+  margin: 0;
+}
+
+.face-registration__progress {
+  width: 100%;
+  max-width: 360px;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.face-registration__progress-bar {
+  height: 100%;
+  background: #1976d2;
+  transition: width 0.2s ease;
+}
+
+.face-registration__progress-label {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0;
+}
+
+.face-registration__capture-message {
+  font-size: 0.85rem;
+  color: #e65100;
+  margin: 0;
+}
+
+.face-registration__submit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.face-registration__submit-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.form-success {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #2e7d32;
+}
+
+.face-registration__capture-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.face-registration__shutter {
+  min-width: 10rem;
+  font-size: 1rem;
+}
+
+@media (max-width: 480px) {
+  .face-registration__video {
+    max-width: 100%;
+  }
+
+  .face-registration__capture-actions {
+    width: 100%;
+  }
+
+  .face-registration__shutter {
+    flex: 1;
+    min-height: 3rem;
+  }
+}

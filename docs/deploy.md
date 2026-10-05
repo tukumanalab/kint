@@ -201,9 +201,11 @@ pm2 logs kint-backend
    ```bash
    cd /srv/kint/frontend
    npm ci
+   npm run copy-face-models
    VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com VITE_BASE_PATH=/kintai/ npm run build
    ```
    ※ ビルド成果物 `dist` が `/srv/kint/frontend/dist` に配置され、Nginx から直接静的配信されます。
+   ※ `npm run copy-face-models` は、顔認証打刻機能で使用する `@vladmandic/face-api` のモデルファイルを `public/face-models/` にコピーする処理です。`npm run build` より前に実行しないと、顔認証打刻タブでモデルの読み込みに失敗します。
 
 4. **プロセスの再起動**
    ```bash

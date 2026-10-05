@@ -7,8 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
 
-# source の許容値。Web アプリ対応で webusb_nfc / web_user_id に変更
-_SOURCE_CHECK = "source IN ('webusb_nfc', 'web_user_id', 'admin_manual', 'self_service')"
+# source の許容値。Web アプリ対応で webusb_nfc / web_user_id に変更、顔認証打刻で webcam_face を追加
+_SOURCE_CHECK = (
+    "source IN ('webusb_nfc', 'web_user_id', 'admin_manual', 'self_service', 'webcam_face')"
+)
 
 
 class Attendance(Base):

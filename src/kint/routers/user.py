@@ -7,6 +7,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.exceptions import KintForbiddenError
 from kint.models.user import User
+from kint.schemas.face import FaceDescriptorIn, FaceStatus
 from kint.schemas.user import (
     MeCardListItem,
     MeCardPatchRequest,
@@ -18,6 +19,7 @@ from kint.schemas.user import (
     UsersListResponse,
 )
 from kint.schemas.user_backup import ImportResultSchema, UserBackupSchema
+from kint.services.face import FaceService
 from kint.services.user import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -159,4 +161,42 @@ async def delete_user_card(
     _require_admin(current_user)
     service = UserService(session)
     await service.delete_user_card(user_id, card_id)
+    return Response(status_code=204)
+
+
+@router.get("/{user_id}/face", response_model=FaceStatus)
+async def get_user_face(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceStatus:
+    """対象ユーザーの顔データ登録状況を返す。管理者専用。"""
+    _require_admin(current_user)
+    service = FaceService(session)
+    return await service.get_status(user_id)
+
+
+@router.put("/{user_id}/face", response_model=FaceStatus)
+async def put_user_face(
+    user_id: str,
+    body: FaceDescriptorIn,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceStatus:
+    """対象ユーザーの顔データを登録（既存を置換）する。管理者専用。対象が管理者ユーザーの場合は不可。"""
+    _require_admin(current_user)
+    service = FaceService(session)
+    return await service.register_descriptors(user_id, body.descriptors)
+
+
+@router.delete("/{user_id}/face", status_code=204)
+async def delete_user_face(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """対象ユーザーの顔データを削除する。管理者専用。"""
+    _require_admin(current_user)
+    service = FaceService(session)
+    await service.delete_descriptors(user_id)
     return Response(status_code=204)

@@ -7,6 +7,7 @@ from kint.db import get_db
 from kint.dependencies import get_current_user
 from kint.models.user import User
 from kint.schemas.auth import UserProfile
+from kint.schemas.face import FaceDescriptorIn, FaceStatus
 from kint.schemas.notification import NotificationListResponse, NotificationResponse
 from kint.schemas.user import (
     EmailChangeAcceptedResponse,
@@ -17,6 +18,7 @@ from kint.schemas.user import (
     MeCardRegistrationResponse,
     MeProfileUpdateRequest,
 )
+from kint.services.face import FaceService
 from kint.services.gmail import GmailAdapter
 from kint.services.notification import NotificationService
 from kint.services.user import UserService
@@ -97,6 +99,38 @@ async def register_my_card(
     """本人の NFC カード (card_idm) を登録する。"""
     service = UserService(session)
     return await service.register_my_card(current_user, body)
+
+
+@router.get("/face", response_model=FaceStatus)
+async def get_my_face(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceStatus:
+    """本人の顔データ登録状況を返す。"""
+    service = FaceService(session)
+    return await service.get_status(current_user.id)
+
+
+@router.put("/face", response_model=FaceStatus)
+async def put_my_face(
+    body: FaceDescriptorIn,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FaceStatus:
+    """本人の顔データを登録（既存を置換）する。管理者は登録不可。"""
+    service = FaceService(session)
+    return await service.register_descriptors(current_user.id, body.descriptors)
+
+
+@router.delete("/face", status_code=204)
+async def delete_my_face(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """本人の顔データを削除する。"""
+    service = FaceService(session)
+    await service.delete_descriptors(current_user.id)
+    return Response(status_code=204)
 
 
 @router.get("/notifications", response_model=NotificationListResponse)

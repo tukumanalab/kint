@@ -30,11 +30,14 @@ flowchart LR
     LogUI[ログビューア UI]
     USB[WebUSB-FeliCa アダプター]
     Reader[PaSoRi USB 接続]
+    FaceEngine[顔ディスクリプタ抽出\n(@vladmandic/face-api)]
+    Camera[Web カメラ (getUserMedia)]
     LS[(LocalStorage: デバイストークン)]
   end
 
   PunchUI --> LS
   PunchUI --> USB --> Reader
+  PunchUI --> FaceEngine --> Camera
   PunchUI -->|HTTPS (SPAリクエスト / API)| Nginx
   AdminUI -->|HTTPS (SPAリクエスト / API)| Nginx
   LogUI -->|HTTPS (SPAリクエスト / API / ログ取得)| Nginx
@@ -69,6 +72,11 @@ flowchart LR
 - Frontend(WebUSB)
   - WebUSB 経由で PaSoRi から IDm を取得し、API に打刻要求を送信する。
   - WebUSB 非対応環境では user_id 入力による代替打刻導線を提供する。
+- Frontend(顔認証)
+  - `getUserMedia` でカメラ映像を取得し、`@vladmandic/face-api`（TinyFaceDetector + 128次元特徴量抽出）でブラウザ内において顔ディスクリプタを算出する。
+  - 算出したディスクリプタのみを API (`POST /api/v1/face-punch/identify`) に送信し、写真自体はブラウザ外に送信しない。
+- Face Service
+  - 顔ディスクリプタの登録・削除、ユークリッド距離による照合、短命の `face_match_token`（JWT）発行を担う。
 
 ## 4. 打刻シーケンス
 
@@ -144,6 +152,7 @@ erDiagram
   SHIFT ||--o{ ATTENDANCE : 照合
   ATTENDANCE ||--o{ ATTENDANCE_CHANGE_LOG : 変更履歴
   USER ||--o{ ATTENDANCE_MONTHLY_COMMENT : "updated_by"
+  USER ||--o{ FACE_DESCRIPTOR : 登録
 ```
 
 ## 6. 勤怠修正ポリシー
@@ -341,6 +350,7 @@ sequenceDiagram
 - `navigator.usb` が利用可能であること。
 - 打刻ページは HTTPS で配信されること（開発時は `localhost` を許容）。
 - USB デバイス選択はユーザー操作（クリック）起点で実行すること。
+- 顔認証打刻タブを利用する場合は `navigator.mediaDevices.getUserMedia`（Web カメラ）が利用可能であること。この API も HTTPS 環境が前提（開発時は `localhost` を許容）。
 
 ## 12. 運用要件（確定）
 

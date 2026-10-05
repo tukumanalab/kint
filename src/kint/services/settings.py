@@ -33,6 +33,10 @@ ALLOWED_SETTING_KEYS = {
     "overtime_allowance_minutes",
     "attendance_alert_rules",
     "working_report_default_content",
+    "face_punch_enabled",
+    "face_match_threshold",
+    "face_match_threshold_no_shift",
+    "face_punch_countdown_seconds",
 }
 
 _KNOWN_VERSION = "1"
@@ -67,6 +71,10 @@ class SettingsService:
         overtime_allowance_minutes_raw = db_map.get("overtime_allowance_minutes")
         attendance_alert_rules_raw = db_map.get("attendance_alert_rules")
         working_report_default_content_raw = db_map.get("working_report_default_content")
+        face_punch_enabled_raw = db_map.get("face_punch_enabled")
+        face_match_threshold_raw = db_map.get("face_match_threshold")
+        face_match_threshold_no_shift_raw = db_map.get("face_match_threshold_no_shift")
+        face_punch_countdown_seconds_raw = db_map.get("face_punch_countdown_seconds")
 
         cooldown = (
             int(cooldown_raw) if cooldown_raw is not None else env_settings.punch_cooldown_seconds
@@ -144,6 +152,27 @@ class SettingsService:
             else env_settings.working_report_default_content
         )
 
+        face_punch_enabled = (
+            face_punch_enabled_raw == "1"
+            if face_punch_enabled_raw is not None
+            else env_settings.face_punch_enabled
+        )
+        face_match_threshold = (
+            float(face_match_threshold_raw)
+            if face_match_threshold_raw is not None
+            else env_settings.face_match_threshold
+        )
+        face_match_threshold_no_shift = (
+            float(face_match_threshold_no_shift_raw)
+            if face_match_threshold_no_shift_raw is not None
+            else env_settings.face_match_threshold_no_shift
+        )
+        face_punch_countdown_seconds = (
+            int(face_punch_countdown_seconds_raw)
+            if face_punch_countdown_seconds_raw is not None
+            else env_settings.face_punch_countdown_seconds
+        )
+
         return SettingsResponse(
             punch_cooldown_seconds=cooldown,
             shift_checkin_early_minutes=early,
@@ -160,6 +189,10 @@ class SettingsService:
             overtime_allowance_minutes=overtime_allowance_minutes,
             attendance_alert_rules=attendance_alert_rules,
             working_report_default_content=working_report_default_content,
+            face_punch_enabled=face_punch_enabled,
+            face_match_threshold=face_match_threshold,
+            face_match_threshold_no_shift=face_match_threshold_no_shift,
+            face_punch_countdown_seconds=face_punch_countdown_seconds,
         )
 
     async def get_all(self) -> SettingsResponse:
@@ -184,6 +217,22 @@ class SettingsService:
             v = row.value
             return v if v != "" else None
         return getattr(env_settings, key, None)
+
+    async def get_float(self, key: str) -> float:
+        """指定キーの設定値を float で返す。"""
+        result = await self.session.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        if row is not None:
+            return float(row.value)
+        return float(getattr(env_settings, key))
+
+    async def get_bool(self, key: str) -> bool:
+        """指定キーの設定値を bool で返す（DB は '1'/'0' 文字列で保持）。"""
+        result = await self.session.execute(select(SystemSetting).where(SystemSetting.key == key))
+        row = result.scalar_one_or_none()
+        if row is not None:
+            return row.value == "1"
+        return bool(getattr(env_settings, key))
 
     async def upsert(self, updates: SettingsPatchRequest, actor_id: str) -> SettingsResponse:
         """指定フィールドを upsert し、更新後の全設定値を返す。"""
@@ -230,6 +279,14 @@ class SettingsService:
             fields["attendance_alert_rules"] = json.dumps(rules_dicts)
         if updates.working_report_default_content is not None:
             fields["working_report_default_content"] = updates.working_report_default_content
+        if updates.face_punch_enabled is not None:
+            fields["face_punch_enabled"] = "1" if updates.face_punch_enabled else "0"
+        if updates.face_match_threshold is not None:
+            fields["face_match_threshold"] = str(updates.face_match_threshold)
+        if updates.face_match_threshold_no_shift is not None:
+            fields["face_match_threshold_no_shift"] = str(updates.face_match_threshold_no_shift)
+        if updates.face_punch_countdown_seconds is not None:
+            fields["face_punch_countdown_seconds"] = str(updates.face_punch_countdown_seconds)
 
         for key, value in fields.items():
             result = await self.session.execute(
@@ -311,6 +368,10 @@ class SettingsService:
             "overtime_allowance_minutes": current.overtime_allowance_minutes,
             "attendance_alert_rules": current.attendance_alert_rules,
             "working_report_default_content": current.working_report_default_content,
+            "face_punch_enabled": current.face_punch_enabled,
+            "face_match_threshold": current.face_match_threshold,
+            "face_match_threshold_no_shift": current.face_match_threshold_no_shift,
+            "face_punch_countdown_seconds": current.face_punch_countdown_seconds,
         }
 
         changes: list[SettingsImportChange] = []
@@ -334,11 +395,13 @@ class SettingsService:
                 "working_report_default_content",
             }:
                 new_value: int | str | bool | None = raw_value if raw_value else None
-            elif key == "enable_google_signup":
+            elif key in {"enable_google_signup", "face_punch_enabled"}:
                 if isinstance(raw_value, bool):
                     new_value = raw_value
                 else:
                     new_value = str(raw_value) == "1" or str(raw_value).lower() == "true"
+            elif key in {"face_match_threshold", "face_match_threshold_no_shift"}:
+                new_value = float(raw_value)
             elif key == "attendance_alert_rules":
                 if isinstance(raw_value, list):
                     new_value = [AlertRule(**rule) for rule in raw_value]

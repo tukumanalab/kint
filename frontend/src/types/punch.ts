@@ -19,7 +19,17 @@ export interface PunchRequestByUserId {
   confirm_no_overtime?: boolean;
 }
 
-export type PunchRequest = PunchRequestByCard | PunchRequestByUserId;
+/** 顔認証 (face_match_token) による打刻リクエスト */
+export interface PunchRequestByFace {
+  face_match_token: string;
+  device_id: string;
+  occurred_at: string;
+  confirm?: boolean;
+  overtime_reason?: string;
+  confirm_no_overtime?: boolean;
+}
+
+export type PunchRequest = PunchRequestByCard | PunchRequestByUserId | PunchRequestByFace;
 
 export interface PunchResponse {
   status: 'completed' | 'requires_confirmation' | 'requires_overtime_reason';
@@ -28,7 +38,7 @@ export interface PunchResponse {
   user_name: string;
   action: 'check_in' | 'check_out' | 'cancelled' | null;
   occurred_at: string;
-  method: 'card_idm' | 'user_id';
+  method: 'card_idm' | 'user_id' | 'face';
   message: string;
   calculated_time?: string | null;
   current_working_hours?: number | null;

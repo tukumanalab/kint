@@ -302,6 +302,23 @@
 - **並行編集**:
   - 明示的な「保存」ボタン方式とし、last-write-wins（後勝ち）で上書きされる。編集開始時に最新のメモを再取得することで競合を緩和する。
 
+### 5-16. 顔認証打刻機能
+- **概要**:
+  - 打刻ページの「顔認証」タブで、ブラウザのカメラ映像から顔を検出・照合し、自動的に出退勤を打刻する機能。デフォルトは無効で、システム設定画面で管理者が有効化する。
+  - 顔ディスクリプタ（128次元特徴量）はブラウザ内（`@vladmandic/face-api`）で算出し、サーバーには数値化されたディスクリプタのみを保存する。写真そのものは保存・送信しない。
+- **顔データの登録・削除**:
+  - 従業員本人はマイページから、同意の上で5枚撮影して自身の顔データを登録・削除できる。
+  - 管理者はユーザー管理画面から対象ユーザーの顔データを Web カメラで代理登録・削除できる。
+  - 管理者ユーザー (`role == 'admin'`) への登録は不可（打刻対象外のため）。
+- **照合と打刻方式**:
+  - 登録済みディスクリプタとのユークリッド距離が最も近いユーザーを候補とする。
+  - 当日シフトがある、または24時間以内の未退勤勤怠があるユーザーは `face_match_threshold`（既定 0.45）で判定し、一致すればカウントダウン後に自動打刻する（カウントダウン中はキャンセル可能）。
+  - シフト外のユーザーはより厳しい `face_match_threshold_no_shift`（既定 0.38）で判定し、一致してもボタン押下による確認を求める。
+  - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し不一致として扱う。
+  - 照合成功時は 60 秒間のみ有効な `face_match_token`（JWT）を発行し、打刻 API にはこのトークンのみを送信する（打刻方式 `method: "face"`、打刻元 `source: "webcam_face"`）。
+- **端末制限**: `GET /api/v1/face-punch/config` および `POST /api/v1/face-punch/identify` は、打刻端末制限機能と同じ `X-Punch-Device-Token` ヘッダーによる検証が必須。
+- **アバター・音声案内**: 認識時にイラストアバター（状態に応じて待機・首かしげ・あいさつ・成功のジャンプ・エラーの首振りをアニメーション表示し、音声読み上げ中のみ口を開ける）と `speechSynthesis` による日本語音声のあいさつ・打刻結果案内を行う。
+
 ## 6. API 仕様要点
 
 ### 6-1. 主要エンドポイント
@@ -314,8 +331,14 @@
 - POST /api/v1/users/{user_id}/cards
 - PATCH /api/v1/users/{user_id}/cards/{card_id}
 - DELETE /api/v1/users/{user_id}/cards/{card_id}
+- GET /api/v1/users/{user_id}/face
+- PUT /api/v1/users/{user_id}/face
+- DELETE /api/v1/users/{user_id}/face
 - GET /api/v1/me
 - PATCH /api/v1/me/profile
+- GET /api/v1/me/face
+- PUT /api/v1/me/face
+- DELETE /api/v1/me/face
 - GET /api/v1/me/notifications
 - PATCH /api/v1/me/notifications/{id}/read
 - PATCH /api/v1/me/notifications/read-all
@@ -333,6 +356,8 @@
 - DELETE /api/v1/attendance/{attendance_id}
 - GET /api/v1/attendance/{attendance_id}/history
 - POST /api/v1/shifts/sync
+- GET /api/v1/face-punch/config
+- POST /api/v1/face-punch/identify
 - GET /api/v1/settings
 - PATCH /api/v1/settings
 - GET /api/v1/settings/database/backup
@@ -342,6 +367,7 @@
 - oneOf 条件:
   - card_idm + device_id + occurred_at
   - user_id + reason + device_id + occurred_at
+  - face_match_token + device_id + occurred_at（顔認証打刻で発行された60秒有効のトークン）
 - カード忘れ打刻の候補検索:
   - GET /api/v1/punches/users?q=<表示名/氏名/ユーザーIDの一部>
   - 返却対象はアクティブユーザーのみとし、候補から選択した user_id を打刻に利用する。
@@ -406,6 +432,9 @@
   - `punch_result_display_seconds` は 1 以上 300 以下の整数（422 で拒否）。
   - `login_token_expire_hours` は 1 以上 8760 以下の整数（422 で拒否）。
   - `enable_google_signup` は真偽値 (bool)（形式不正時は 422）。
+  - `face_punch_enabled` は真偽値 (bool)（形式不正時は 422）。
+  - `face_match_threshold` / `face_match_threshold_no_shift` は 0.2 以上 0.8 以下の数値（422 で拒否）。
+  - `face_punch_countdown_seconds` は 0 以上 30 以下の整数（422 で拒否）。
 
 詳細は docs/api-contract.openapi.yaml を正とする。
 
@@ -417,6 +446,7 @@ attendances.source は以下のみ許容:
 - web_user_id
 - admin_manual
 - self_service
+- webcam_face（顔認証打刻での自動打刻・確認打刻）
 
 ### 7-2. カード制約
 - cards.card_idm は UNIQUE
@@ -444,6 +474,7 @@ attendances.source は以下のみ許容:
 ### 8-2. 通信要件
 - 本番は HTTPS 必須
 - WebUSB はユーザー操作起点でデバイス接続する
+- 顔認証打刻のカメラ (`getUserMedia`) も HTTPS 環境が必須（開発時は `localhost` を許容）
 
 ### 8-3. セキュリティ要件
 - 打刻 URL は社内配布 URL のみ

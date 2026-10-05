@@ -85,3 +85,6 @@ service-account*.json
 
 # ===== reference =====
 ref/
+
+# 顔認証モデル (npm run copy-face-models で node_modules から配置)
+frontend/public/face-models/

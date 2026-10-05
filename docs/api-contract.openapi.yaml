@@ -10,6 +10,7 @@ tags:
   - name: Auth
   - name: User
   - name: Punch
+  - name: FacePunch
   - name: Card
   - name: Attendance
   - name: Shift
@@ -156,6 +157,75 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: 入力バリデーションエラー（同一パスワードを含む）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /me/face:
+    get:
+      tags: [User]
+      summary: 本人の顔データ登録状況を取得
+      description: 認証済みユーザー本人の顔データ登録状況（登録有無・件数・最終更新日時）を返します。
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceStatus'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [User]
+      summary: 本人の顔データを登録（既存を置換）
+      description: >-
+        ブラウザ側で算出した顔ディスクリプタ（1〜5件、各128次元）を登録します。
+        既存のディスクリプタはすべて置き換えられます。管理者ロールのユーザーは登録できません。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceDescriptorIn'
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceStatus'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 管理者ユーザーは顔データを登録できない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（件数・次元数不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [User]
+      summary: 本人の顔データを削除
+      description: 認証済みユーザー本人の顔データをすべて削除します。
+      responses:
+        '204':
+          description: 削除成功
+        '401':
+          description: 未認証
           content:
             application/json:
               schema:
@@ -379,6 +449,105 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /users/{user_id}/face:
+    get:
+      tags: [User]
+      summary: 対象ユーザーの顔データ登録状況を取得（管理者）
+      description: 管理者が対象ユーザーの顔データ登録状況（登録有無・件数・最終更新日時）を取得します。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceStatus'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [User]
+      summary: 対象ユーザーの顔データを登録（管理者、既存を置換）
+      description: >-
+        管理者が対象ユーザーの顔ディスクリプタ（1〜5件、各128次元）を代理登録します。
+        既存のディスクリプタはすべて置き換えられます。対象が管理者ロールのユーザーの場合は登録できません。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceDescriptorIn'
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceStatus'
+        '403':
+          description: 権限不足、または対象が管理者ユーザー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（件数・次元数不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [User]
+      summary: 対象ユーザーの顔データを削除（管理者）
+      description: 管理者が対象ユーザーの顔データをすべて削除します。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 削除成功
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 対象ユーザーなし
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /punches/users:
     get:
       tags: [Punch]
@@ -519,6 +688,83 @@ paths:
                   name:
                     type: string
                     nullable: true
+
+  /face-punch/config:
+    get:
+      tags: [FacePunch]
+      summary: 顔認証打刻の設定を取得（打刻端末向け、認証不要）
+      description: >-
+        顔認証打刻の有効状態、自動打刻までのカウントダウン秒数、連続打刻クールダウン秒数を返します。
+        打刻ページ（未ログイン）から呼び出されるため認証は不要ですが、打刻端末トークンの検証が必須です。
+      security: []
+      parameters:
+        - in: header
+          name: X-Punch-Device-Token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacePunchConfig'
+        '401':
+          description: 打刻端末トークンが未指定または無効
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /face-punch/identify:
+    post:
+      tags: [FacePunch]
+      summary: 顔ディスクリプタから打刻対象ユーザーを照合（打刻端末向け、認証不要）
+      description: >-
+        ブラウザ側で算出した顔ディスクリプタから最も一致するユーザーを照合します。
+        一致した場合は、60秒間のみ有効な `face_match_token`（JWT）を発行します。
+        写真自体は送信されず、128次元の数値ディスクリプタのみを受け取ります。
+        このエンドポイントは認証不要ですが、打刻端末トークンの検証が必須です。
+        顔認証打刻機能が無効化されている場合は 403 を返します。
+      security: []
+      parameters:
+        - in: header
+          name: X-Punch-Device-Token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceIdentifyRequest'
+      responses:
+        '200':
+          description: 照合結果（一致・不一致いずれの場合も 200 を返す）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceIdentifyResponse'
+        '401':
+          description: 打刻端末トークンが未指定または無効
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 顔認証打刻機能が無効化されている
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 入力バリデーションエラー（次元数・有限数値不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /cards/registrations:
     post:
@@ -1534,6 +1780,10 @@ components:
         email_verification_status:
           type: string
           enum: [pending, verified]
+        has_face_data:
+          type: boolean
+          default: false
+          description: 顔認証データが1件以上登録されているか
 
     PunchRequest:
       type: object
@@ -1541,6 +1791,7 @@ components:
       oneOf:
         - required: [card_idm]
         - required: [user_id, reason]
+        - required: [face_match_token]
       properties:
         card_idm:
           type: string
@@ -1552,6 +1803,10 @@ components:
           type: string
           description: user_id 打刻時の理由
           minLength: 1
+        face_match_token:
+          type: string
+          description: >-
+            顔認証打刻 (POST /api/v1/face-punch/identify) で発行された、60秒間のみ有効な短命トークン (JWT)。
         device_id:
           type: string
         occurred_at:
@@ -1586,7 +1841,7 @@ components:
           format: date-time
         method:
           type: string
-          enum: [card_idm, user_id]
+          enum: [card_idm, user_id, face]
           description: 打刻に使用した識別方法
         message:
           type: string
@@ -1613,6 +1868,97 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PunchUserCandidate'
+
+    FaceStatus:
+      type: object
+      required: [registered, count]
+      properties:
+        registered:
+          type: boolean
+          description: 顔データが1件以上登録されているか
+        count:
+          type: integer
+          description: 登録済みディスクリプタ件数
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最終登録日時（未登録の場合は null）
+
+    FaceDescriptorIn:
+      type: object
+      required: [descriptors]
+      properties:
+        descriptors:
+          type: array
+          minItems: 1
+          maxItems: 5
+          description: 顔ディスクリプタの配列（1〜5件、各要素は128次元の有限数値配列）
+          items:
+            type: array
+            minItems: 128
+            maxItems: 128
+            items:
+              type: number
+
+    FaceIdentifyRequest:
+      type: object
+      required: [descriptor]
+      properties:
+        descriptor:
+          type: array
+          minItems: 128
+          maxItems: 128
+          description: ブラウザ側で算出した128次元の顔ディスクリプタ（有限数値のみ）
+          items:
+            type: number
+
+    FaceIdentifyResponse:
+      type: object
+      required: [matched, has_shift, requires_confirmation]
+      properties:
+        matched:
+          type: boolean
+          description: 一致するユーザーが見つかったか
+        user_id:
+          type: string
+          nullable: true
+        user_name:
+          type: string
+          nullable: true
+        distance:
+          type: number
+          nullable: true
+          description: 最も近いユーザーとのユークリッド距離
+        has_shift:
+          type: boolean
+          description: 当日シフトあり、または24時間以内の未退勤勤怠がある（＝シフトあり相当）か
+        requires_confirmation:
+          type: boolean
+          description: true の場合、自動打刻は行わずボタン押下による確認が必要
+        face_match_token:
+          type: string
+          nullable: true
+          description: 一致時に発行される60秒間のみ有効な短命トークン (JWT)
+        greeting_kind:
+          type: string
+          enum: [check_in, check_out]
+          nullable: true
+          description: あいさつ・打刻の種別（未退勤の勤怠があれば check_out）
+
+    FacePunchConfig:
+      type: object
+      required: [enabled, countdown_seconds, cooldown_seconds]
+      properties:
+        enabled:
+          type: boolean
+          description: 顔認証打刻が有効化されているか
+        countdown_seconds:
+          type: integer
+          description: 自動打刻までのカウントダウン秒数
+        cooldown_seconds:
+          type: integer
+          description: 連続打刻防止クールダウン秒数（punch_cooldown_seconds と共通）
 
     CardRegistrationRequest:
       type: object
@@ -1856,6 +2202,22 @@ components:
           type: integer
           description: ログイン継続時間（時間）
           example: 168
+        face_punch_enabled:
+          type: boolean
+          description: 顔認証打刻の有効化フラグ
+          example: false
+        face_match_threshold:
+          type: number
+          description: 顔認証一致判定しきい値（シフトあり、0.2〜0.8、小さいほど厳しい）
+          example: 0.45
+        face_match_threshold_no_shift:
+          type: number
+          description: 顔認証一致判定しきい値（シフト外、0.2〜0.8、小さいほど厳しい）
+          example: 0.38
+        face_punch_countdown_seconds:
+          type: integer
+          description: 顔認証打刻の自動打刻までのカウントダウン秒数
+          example: 3
 
 
     SettingsPatchRequest:
@@ -1913,6 +2275,24 @@ components:
           maximum: 8760
           description: ログイン継続時間（時間）
           example: 168
+        face_punch_enabled:
+          type: boolean
+          description: 顔認証打刻の有効化フラグ
+        face_match_threshold:
+          type: number
+          minimum: 0.2
+          maximum: 0.8
+          description: 顔認証一致判定しきい値（シフトあり）
+        face_match_threshold_no_shift:
+          type: number
+          minimum: 0.2
+          maximum: 0.8
+          description: 顔認証一致判定しきい値（シフト外）
+        face_punch_countdown_seconds:
+          type: integer
+          minimum: 0
+          maximum: 30
+          description: 顔認証打刻の自動打刻までのカウントダウン秒数
 
 
     SettingsExportFile:

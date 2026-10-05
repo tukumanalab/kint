@@ -1,0 +1,254 @@
+.face-avatar {
+  --avatar-width: 240px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+/* ===== 吹き出し ===== */
+.face-avatar__bubble {
+  position: relative;
+  margin-bottom: 14px;
+  background: #fff;
+  border: 2px solid #1976d2;
+  border-radius: 14px;
+  padding: 0.6rem 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: face-avatar-bubble-in 0.25s ease-out;
+}
+
+.face-avatar__bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 10px 8px 0 8px;
+  border-style: solid;
+  border-color: #1976d2 transparent transparent transparent;
+}
+
+.face-avatar--error .face-avatar__bubble {
+  border-color: #c62828;
+}
+
+.face-avatar--error .face-avatar__bubble::after {
+  border-top-color: #c62828;
+}
+
+/* ===== 本体（画像 + 口） ===== */
+.face-avatar__figure {
+  position: relative;
+  z-index: 1; /* 足元の影より手前に描画する */
+}
+
+/* 顔の右横（頭の高さ）に配置する。本体のアニメーションとは独立させて揺らさない */
+.face-avatar__face-side {
+  position: absolute;
+  left: 84%;
+  top: 14%;
+  z-index: 1;
+}
+
+.face-avatar__body {
+  position: relative;
+  width: var(--avatar-width);
+  aspect-ratio: 1024 / 1536;
+  /* 足裏 (y:1392 / 1536) を基点に伸縮させる */
+  transform-origin: 50% 90.6%;
+}
+
+.face-avatar__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 元画像の開いた口（x:519-600, y:580-636 / 1024x1536）を肌色で覆い、閉じた口（にっこり線）を描く */
+.face-avatar__mouth-area {
+  /* 元画像の口の外接矩形 x:515-601, y:580-636 に余白を足して覆う (x:507-609, y:573-643) */
+  position: absolute;
+  left: 49.5%;
+  top: 37.3%;
+  width: 10%;
+  height: 4.6%;
+  background: #ffeed9;
+  border-radius: 28%;
+  box-shadow: 0 0 3px 2px #ffeed9;
+  display: flex;
+  justify-content: center;
+}
+
+.face-avatar__mouth {
+  display: block;
+  width: 48%;
+  height: 40%;
+  margin-top: 6%;
+  border-bottom: 3px solid #2b1d18;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+
+/* 足元の影。画像下端には足裏から 144px (高さの 9.4%) の透明余白があるため、
+   その分だけ引き上げて影の中心を足裏に合わせる */
+.face-avatar__shadow {
+  width: calc(var(--avatar-width) * 0.42);
+  height: 12px;
+  margin-top: calc(var(--avatar-width) * -0.141 - 7px);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ===== 状態ごとのアニメーション ===== */
+
+/* idle: ゆったり呼吸 */
+.face-avatar--idle .face-avatar__body {
+  animation: face-avatar-breathe 3.2s ease-in-out infinite;
+}
+
+/* looking: 首をかしげて探す */
+.face-avatar--looking .face-avatar__body {
+  animation: face-avatar-look 2.4s ease-in-out infinite;
+}
+
+/* greeting: 弾んであいさつ */
+.face-avatar--greeting .face-avatar__body {
+  animation: face-avatar-greet 0.9s ease-in-out infinite;
+}
+
+/* success: ジャンプして喜ぶ */
+.face-avatar--success .face-avatar__body {
+  animation: face-avatar-jump 0.7s cubic-bezier(0.3, 0.7, 0.4, 1) 2;
+}
+
+.face-avatar--success .face-avatar__shadow {
+  animation: face-avatar-shadow 0.7s cubic-bezier(0.3, 0.7, 0.4, 1) 2;
+}
+
+/* error: 首を振る + 少し色あせ */
+.face-avatar--error .face-avatar__body {
+  animation: face-avatar-shake 0.5s ease-in-out 2;
+  filter: saturate(0.6);
+}
+
+@keyframes face-avatar-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.01, 0.99);
+  }
+}
+
+@keyframes face-avatar-look {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-4deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes face-avatar-greet {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+  75% {
+    transform: translateY(-8px) rotate(3deg);
+  }
+}
+
+@keyframes face-avatar-jump {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  20% {
+    transform: translateY(0) scale(1.06, 0.92);
+  }
+  50% {
+    transform: translateY(-28px) scale(0.97, 1.04);
+  }
+  80% {
+    transform: translateY(0) scale(1.04, 0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+@keyframes face-avatar-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+}
+
+@keyframes face-avatar-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes face-avatar-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face-avatar__body,
+  .face-avatar__shadow,
+  .face-avatar__bubble {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .face-avatar {
+    --avatar-width: 170px;
+  }
+
+  .face-avatar__bubble {
+    font-size: 0.9rem;
+    max-width: 240px;
+  }
+}

@@ -145,6 +145,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [overtimeAllowanceMinutes, setOvertimeAllowanceMinutes] = useState('');
   const [attendanceAlertRules, setAttendanceAlertRules] = useState<AlertRule[]>([]);
   const [workingReportDefaultContent, setWorkingReportDefaultContent] = useState('青学つくまなラボ 利用者対応');
+  const [facePunchEnabled, setFacePunchEnabled] = useState(false);
+  const [faceMatchThreshold, setFaceMatchThreshold] = useState('0.45');
+  const [faceMatchThresholdNoShift, setFaceMatchThresholdNoShift] = useState('0.38');
+  const [facePunchCountdownSeconds, setFacePunchCountdownSeconds] = useState('3');
 
   const [syncHour, syncMinute] = syncTime && syncTime.includes(':') ? syncTime.split(':') : ['', ''];
   const [monthlyReportHour, monthlyReportMinute] = monthlyReportTime && monthlyReportTime.includes(':') ? monthlyReportTime.split(':') : ['', ''];
@@ -279,6 +283,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
       setAttendanceAlertRules(s.attendance_alert_rules || []);
       setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
+      setFacePunchEnabled(s.face_punch_enabled ?? false);
+      setFaceMatchThreshold(String(s.face_match_threshold ?? 0.45));
+      setFaceMatchThresholdNoShift(String(s.face_match_threshold_no_shift ?? 0.38));
+      setFacePunchCountdownSeconds(String(s.face_punch_countdown_seconds ?? 3));
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? apiErrorMessage(err) : '復元に失敗しました';
       setDbError(msg);
@@ -308,6 +316,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setOvertimeAllowanceMinutes(String(s.overtime_allowance_minutes ?? 30));
         setAttendanceAlertRules(s.attendance_alert_rules || []);
         setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
+        setFacePunchEnabled(s.face_punch_enabled ?? false);
+        setFaceMatchThreshold(String(s.face_match_threshold ?? 0.45));
+        setFaceMatchThresholdNoShift(String(s.face_match_threshold_no_shift ?? 0.38));
+        setFacePunchCountdownSeconds(String(s.face_punch_countdown_seconds ?? 3));
       })
       .catch((err: unknown) => {
         const msg =
@@ -359,6 +371,20 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     if (!Number.isInteger(oa) || oa < 0 || oa > 120) {
       return 'シフト超過許容時間は 0〜120 の整数で入力してください';
     }
+    if (facePunchEnabled) {
+      const t1 = Number(faceMatchThreshold);
+      if (Number.isNaN(t1) || t1 < 0.2 || t1 > 0.8) {
+        return '顔認証の一致判定しきい値は 0.2〜0.8 で入力してください';
+      }
+      const t2 = Number(faceMatchThresholdNoShift);
+      if (Number.isNaN(t2) || t2 < 0.2 || t2 > 0.8) {
+        return '顔認証の一致判定しきい値（シフト外）は 0.2〜0.8 で入力してください';
+      }
+      const cd = Number(facePunchCountdownSeconds);
+      if (!Number.isInteger(cd) || cd < 0 || cd > 30) {
+        return '顔認証打刻のカウントダウン秒数は 0〜30 の整数で入力してください';
+      }
+    }
     return null;
   }
 
@@ -390,6 +416,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         overtime_allowance_minutes: Number(overtimeAllowanceMinutes),
         attendance_alert_rules: attendanceAlertRules,
         working_report_default_content: workingReportDefaultContent.trim() || '青学つくまなラボ 利用者対応',
+        face_punch_enabled: facePunchEnabled,
+        face_match_threshold: Number(faceMatchThreshold),
+        face_match_threshold_no_shift: Number(faceMatchThresholdNoShift),
+        face_punch_countdown_seconds: Number(facePunchCountdownSeconds),
       });
       setCurrent(updated);
       onSiteNameChange(updated.site_name);
@@ -472,6 +502,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEnableGoogleSignup(result.applied.enable_google_signup);
         setOvertimeAllowanceMinutes(String(result.applied.overtime_allowance_minutes ?? 30));
         setAttendanceAlertRules(result.applied.attendance_alert_rules || []);
+        setFacePunchEnabled(result.applied.face_punch_enabled ?? false);
+        setFaceMatchThreshold(String(result.applied.face_match_threshold ?? 0.45));
+        setFaceMatchThresholdNoShift(String(result.applied.face_match_threshold_no_shift ?? 0.38));
+        setFacePunchCountdownSeconds(String(result.applied.face_punch_countdown_seconds ?? 3));
       }
       setImportFile(null);
       setImportPreview(null);
@@ -922,6 +956,94 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
             onClose={() => setShowManualReportModal(false)}
           />
         )}
+
+        <section className="settings-section">
+          <h2 className="settings-section__title">顔認証打刻</h2>
+
+          <div className="settings-field">
+            <div className="settings-field__switch-row">
+              <label htmlFor="facePunchEnabled" className="settings-field__label">
+                顔認証打刻を有効にする
+              </label>
+              <label className="settings-switch">
+                <input
+                  id="facePunchEnabled"
+                  type="checkbox"
+                  checked={facePunchEnabled}
+                  onChange={(e) => setFacePunchEnabled(e.target.checked)}
+                />
+                <span className="settings-switch__slider"></span>
+              </label>
+            </div>
+            <p className="settings-field__hint">
+              有効にすると、打刻ページに「顔認証」タブが表示され、カメラで撮影した顔を照合して自動打刻します。
+            </p>
+          </div>
+
+          <div className={`settings-field ${!facePunchEnabled ? 'settings-field--disabled' : ''}`}>
+            <label htmlFor="faceMatchThreshold" className="settings-field__label">
+              一致判定しきい値（シフトあり）
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="faceMatchThreshold"
+                type="number"
+                className="settings-field__input"
+                min={0.2}
+                max={0.8}
+                step={0.01}
+                value={faceMatchThreshold}
+                onChange={(e) => setFaceMatchThreshold(e.target.value)}
+                disabled={!facePunchEnabled}
+              />
+              <span className="settings-field__unit">（0.2〜0.8、小さいほど厳しい）</span>
+            </div>
+            <p className="settings-field__hint">当日シフトがあるユーザーとの照合に使う距離のしきい値です。</p>
+          </div>
+
+          <div className={`settings-field ${!facePunchEnabled ? 'settings-field--disabled' : ''}`}>
+            <label htmlFor="faceMatchThresholdNoShift" className="settings-field__label">
+              一致判定しきい値（シフト外）
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="faceMatchThresholdNoShift"
+                type="number"
+                className="settings-field__input"
+                min={0.2}
+                max={0.8}
+                step={0.01}
+                value={faceMatchThresholdNoShift}
+                onChange={(e) => setFaceMatchThresholdNoShift(e.target.value)}
+                disabled={!facePunchEnabled}
+              />
+              <span className="settings-field__unit">（0.2〜0.8、小さいほど厳しい）</span>
+            </div>
+            <p className="settings-field__hint">
+              当日シフトのないユーザーはより高い一致度が必要で、打刻前にボタンでの確認を求めます。
+            </p>
+          </div>
+
+          <div className={`settings-field ${!facePunchEnabled ? 'settings-field--disabled' : ''}`}>
+            <label htmlFor="facePunchCountdownSeconds" className="settings-field__label">
+              自動打刻までのカウントダウン秒数
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="facePunchCountdownSeconds"
+                type="number"
+                className="settings-field__input"
+                min={0}
+                max={30}
+                value={facePunchCountdownSeconds}
+                onChange={(e) => setFacePunchCountdownSeconds(e.target.value)}
+                disabled={!facePunchEnabled}
+              />
+              <span className="settings-field__unit">秒（0〜30）</span>
+            </div>
+            <p className="settings-field__hint">顔認識後、自動で打刻されるまでの猶予時間です。この間は「取消」で打刻を止められます。</p>
+          </div>
+        </section>
 
         <AttendanceAlertRulesManager
           rules={attendanceAlertRules}

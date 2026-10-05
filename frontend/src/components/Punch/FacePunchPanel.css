@@ -1,0 +1,75 @@
+.face-punch-panel {
+  padding: 1rem 0;
+  text-align: center;
+}
+
+.face-punch-panel__start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 0;
+}
+
+.face-punch-panel__hint {
+  font-size: 0.9rem;
+  color: #555;
+  max-width: 320px;
+}
+
+.face-punch-panel__hint--warn {
+  color: #b26a00;
+}
+
+.face-punch-panel__stage {
+  --preview-width: 96px;
+  --preview-height: 72px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 280px;
+  padding-top: 1.5rem;
+}
+
+/* カメラプレビューはアバターの顔の横に小さく表示 */
+.face-punch-panel__preview {
+  display: block;
+  width: var(--preview-width);
+  height: var(--preview-height);
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #cfd8dc;
+  background: #000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transform: scaleX(-1); /* 鏡像表示 */
+}
+
+.face-punch-panel__status {
+  font-size: 0.95rem;
+  color: #555;
+  margin: 0;
+}
+
+.face-punch-panel__countdown {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1976d2;
+  margin: 0;
+}
+
+.face-punch-panel__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .face-punch-panel__stage {
+    --preview-width: 72px;
+    --preview-height: 54px;
+  }
+}

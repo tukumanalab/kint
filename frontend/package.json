@@ -10,10 +10,12 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "copy-face-models": "mkdir -p public/face-models && cp node_modules/@vladmandic/face-api/model/tiny_face_detector_model-weights_manifest.json node_modules/@vladmandic/face-api/model/tiny_face_detector_model.bin node_modules/@vladmandic/face-api/model/face_landmark_68_model-weights_manifest.json node_modules/@vladmandic/face-api/model/face_landmark_68_model.bin node_modules/@vladmandic/face-api/model/face_recognition_model-weights_manifest.json node_modules/@vladmandic/face-api/model/face_recognition_model.bin public/face-models/"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",
+    "@vladmandic/face-api": "^1.7.15",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

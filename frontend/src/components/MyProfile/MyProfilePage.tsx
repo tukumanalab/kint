@@ -7,6 +7,8 @@ import type { UseAuth } from '../../hooks/useAuth';
 import type { MeCardListItem } from '../../types/user';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
+import { getMyFace, putMyFace, deleteMyFace } from '../../api/face';
+import { FaceRegistration } from '../Face/FaceRegistration';
 import './MyProfilePage.css';
 
 interface Props {
@@ -792,6 +794,18 @@ export function MyProfilePage({ auth }: Props) {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* 顔認証データ */}
+      <section className="myprofile-section">
+        <h2 className="myprofile-section__title">顔認証データ</h2>
+        <FaceRegistration
+          mode="self"
+          facingMode="user"
+          fetchStatus={() => getMyFace(token)}
+          saveDescriptors={(descriptors) => putMyFace(token, { descriptors })}
+          deleteFace={() => deleteMyFace(token)}
+        />
       </section>
 
       <EmailChangeForm token={token} />
