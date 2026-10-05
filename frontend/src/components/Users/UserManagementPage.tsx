@@ -18,7 +18,7 @@ import type { UseAuth } from '../../hooks/useAuth';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
 import { getUserFace, putUserFace, deleteUserFace } from '../../api/face';
-import { FaceRegistration } from '../Face/FaceRegistration';
+import { FaceRegistrationDialog } from '../Face/FaceRegistrationDialog';
 import { UserManagementGuideModal } from './UserManagementGuideModal';
 import './UserManagementPage.css';
 import '../MyProfile/MyProfilePage.css';
@@ -1146,60 +1146,28 @@ interface UserFaceModalProps {
 }
 
 function UserFaceModal({ user, token, onClose }: UserFaceModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const [hasFaceData, setHasFaceData] = useState<boolean | undefined>(user.has_face_data);
 
-  useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
-
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    if (e.target === dialogRef.current) onClose(hasFaceData);
-  }
-
   return (
-    <dialog
-      ref={dialogRef}
-      className="myprofile-dialog"
-      onCancel={() => onClose(hasFaceData)}
-      onClick={handleBackdropClick}
-    >
-      <div className="myprofile-dialog__inner">
-        <div className="myprofile-dialog__header">
-          <h2 className="myprofile-dialog__title">{user.full_name} の顔認証データ</h2>
-          <button
-            type="button"
-            className="myprofile-dialog__close"
-            aria-label="閉じる"
-            onClick={() => onClose(hasFaceData)}
-          >
-            ✕
-          </button>
-        </div>
-        <FaceRegistration
-          mode="admin"
-          facingMode="user"
-          fetchStatus={async () => {
-            const s = await getUserFace(token, user.id);
-            setHasFaceData(s.registered);
-            return s;
-          }}
-          saveDescriptors={async (descriptors) => {
-            const s = await putUserFace(token, user.id, { descriptors });
-            setHasFaceData(s.registered);
-            return s;
-          }}
-          deleteFace={async () => {
-            await deleteUserFace(token, user.id);
-            setHasFaceData(false);
-          }}
-        />
-        <div className="myprofile-dialog__actions myprofile-dialog__actions--right">
-          <button type="button" className="btn btn--secondary" onClick={() => onClose(hasFaceData)}>
-            閉じる
-          </button>
-        </div>
-      </div>
-    </dialog>
+    <FaceRegistrationDialog
+      title={`${user.full_name} の顔認証データ`}
+      mode="admin"
+      facingMode="user"
+      fetchStatus={async () => {
+        const s = await getUserFace(token, user.id);
+        setHasFaceData(s.registered);
+        return s;
+      }}
+      saveDescriptors={async (descriptors) => {
+        const s = await putUserFace(token, user.id, { descriptors });
+        setHasFaceData(s.registered);
+        return s;
+      }}
+      deleteFace={async () => {
+        await deleteUserFace(token, user.id);
+        setHasFaceData(false);
+      }}
+      onClose={() => onClose(hasFaceData)}
+    />
   );
 }

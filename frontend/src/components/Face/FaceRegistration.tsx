@@ -247,15 +247,17 @@ export function FaceRegistration({
 
       {phase === 'capturing' && (
         <div className="face-registration__capture">
-          <video
-            ref={camera.videoRef}
-            className="face-registration__video"
-            autoPlay
-            muted
-            playsInline
-            aria-label="カメラプレビュー"
-          />
-          <div className="face-registration__guide-oval" aria-hidden="true" />
+          <div className="face-registration__viewport">
+            <video
+              ref={camera.videoRef}
+              className="face-registration__video"
+              autoPlay
+              muted
+              playsInline
+              aria-label="カメラプレビュー"
+            />
+            <div className="face-registration__guide-oval" aria-hidden="true" />
+          </div>
           <p className="face-registration__prompt">
             {CAPTURE_PROMPTS[Math.min(captureIndex, CAPTURE_PROMPTS.length - 1)]}
           </p>

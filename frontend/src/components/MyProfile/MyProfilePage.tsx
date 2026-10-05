@@ -8,7 +8,8 @@ import type { MeCardListItem } from '../../types/user';
 import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { isWebUSBSupported } from '../../utils/browser';
 import { getMyFace, putMyFace, deleteMyFace } from '../../api/face';
-import { FaceRegistration } from '../Face/FaceRegistration';
+import { FaceRegistrationDialog } from '../Face/FaceRegistrationDialog';
+import type { FaceStatus } from '../../types/face';
 import './MyProfilePage.css';
 
 interface Props {
@@ -585,13 +586,24 @@ export function MyProfilePage({ auth }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState<'profile' | 'nfc' | null>(null);
+  const [openDialog, setOpenDialog] = useState<'profile' | 'nfc' | 'face' | null>(null);
+  const [faceStatus, setFaceStatus] = useState<FaceStatus | null>(null);
   const [deletingCardId, setDeletingCardId] = useState<string | null>(null);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [editingCardName, setEditingCardName] = useState('');
   const [renamingCardId, setRenamingCardId] = useState<string | null>(null);
 
   const token = auth.token!;
+
+  const loadFaceStatus = useCallback(() => {
+    getMyFace(token)
+      .then(setFaceStatus)
+      .catch(() => setFaceStatus(null));
+  }, [token]);
+
+  useEffect(() => {
+    loadFaceStatus();
+  }, [loadFaceStatus]);
 
   useEffect(() => {
     Promise.all([fetchMyProfile(token), fetchMyCards(token)])
@@ -798,19 +810,44 @@ export function MyProfilePage({ auth }: Props) {
 
       {/* 顔認証データ */}
       <section className="myprofile-section">
-        <h2 className="myprofile-section__title">顔認証データ</h2>
-        <FaceRegistration
-          mode="self"
-          facingMode="user"
-          fetchStatus={() => getMyFace(token)}
-          saveDescriptors={(descriptors) => putMyFace(token, { descriptors })}
-          deleteFace={() => deleteMyFace(token)}
-        />
+        <div className="myprofile-section__header">
+          <h2 className="myprofile-section__title">顔認証データ</h2>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setOpenDialog('face')}
+          >
+            {faceStatus?.registered ? '登録・削除' : '顔を登録'}
+          </button>
+        </div>
+        <p className="myprofile-section__desc">
+          {faceStatus?.registered
+            ? `登録済み（${faceStatus.count} 件${
+                faceStatus.updated_at
+                  ? `、${new Date(faceStatus.updated_at).toLocaleString('ja-JP')} 更新`
+                  : ''
+              }）`
+            : '未登録です。登録すると打刻端末で顔認証による打刻ができます。'}
+        </p>
       </section>
 
       <EmailChangeForm token={token} />
 
       {/* ダイアログ */}
+      {openDialog === 'face' && (
+        <FaceRegistrationDialog
+          title="顔認証データの登録"
+          mode="self"
+          facingMode="user"
+          fetchStatus={() => getMyFace(token)}
+          saveDescriptors={(descriptors) => putMyFace(token, { descriptors })}
+          deleteFace={() => deleteMyFace(token)}
+          onClose={() => {
+            setOpenDialog(null);
+            loadFaceStatus();
+          }}
+        />
+      )}
       {openDialog === 'profile' && (
         <ProfileEditDialog
           profile={profile}
