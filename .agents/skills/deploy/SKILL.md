@@ -35,9 +35,9 @@ ssh ky@tukumana.si.aoyama.ac.jp "cd /srv/kint && /home/ky/.local/bin/uv run alem
 ```
 
 ### 3. フロントエンドのビルド
-Node.js 依存関係をインストールし、環境変数 `VITE_GOOGLE_CLIENT_ID` およびデプロイパス（例: `VITE_BASE_PATH=/kintai/`）を指定してフロントエンドを本番ビルドします。非インタラクティブセッション用に `nvm` の環境設定をロードして実行します。
+Node.js 依存関係をインストールし、顔認証打刻用のモデルファイルを `public/face-models/` に配置（`npm run copy-face-models`。モデルはリポジトリに含めていないため毎回実行）したうえで、環境変数 `VITE_GOOGLE_CLIENT_ID` およびデプロイパス（例: `VITE_BASE_PATH=/kintai/`）を指定してフロントエンドを本番ビルドします。非インタラクティブセッション用に `nvm` の環境設定をロードして実行します。
 ```bash
-ssh ky@tukumana.si.aoyama.ac.jp "export NVM_DIR=\"\$HOME/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && cd /srv/kint/frontend && npm install && VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com VITE_BASE_PATH=/kintai/ npm run build"
+ssh ky@tukumana.si.aoyama.ac.jp "export NVM_DIR=\"\$HOME/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && cd /srv/kint/frontend && npm install && npm run copy-face-models && VITE_GOOGLE_CLIENT_ID=138259612704-gtcg1asac7k62r6agdunn6e6kmpoqal0.apps.googleusercontent.com VITE_BASE_PATH=/kintai/ npm run build"
 ```
 
 ### 4. PM2 プロセスの再起動
