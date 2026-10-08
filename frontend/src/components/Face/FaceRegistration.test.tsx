@@ -48,7 +48,7 @@ describe('FaceRegistration', () => {
   });
 
   it(
-    '同意後に撮影ボタンで5枚撮影して登録する',
+    '同意後に自動撮影で5枚撮影して登録する',
     async () => {
       const fetchStatus = vi.fn().mockResolvedValue({ registered: false, count: 0, updated_at: null });
       const saveDescriptors = vi.fn().mockResolvedValue({
@@ -70,6 +70,7 @@ describe('FaceRegistration', () => {
           fetchStatus={fetchStatus}
           saveDescriptors={saveDescriptors}
           deleteFace={vi.fn()}
+          poseWaitSeconds={{ first: 0, next: 0 }}
         />,
       );
 
@@ -85,13 +86,11 @@ describe('FaceRegistration', () => {
       });
       patchMountedVideo();
 
-      // 「撮影」ボタンを 5 回押して 5 枚撮影する
-      for (let i = 1; i <= 5; i++) {
-        const shutter = await screen.findByRole('button', { name: `📸 撮影 (${i}/5)` });
-        await waitFor(() => expect(shutter).toBeEnabled());
-        fireEvent.click(shutter);
-        await waitFor(() => expect(faceEngine.detectSingleDescriptor).toHaveBeenCalledTimes(i));
-      }
+      // 自動撮影で 5 枚撮影される（待ち秒数 0 で即撮影）
+      await waitFor(() => expect(faceEngine.detectSingleDescriptor).toHaveBeenCalledTimes(5));
+      // 登録前に 5 枚の撮影結果と品質の目印を確認できる
+      expect(await screen.findByRole('list', { name: '撮影した顔' })).toBeInTheDocument();
+      expect(screen.getAllByText('良好')).toHaveLength(5);
 
       expect(await screen.findByRole('button', { name: '登録する' })).toBeInTheDocument();
 
@@ -210,5 +209,43 @@ describe('FaceRegistration', () => {
       fireEvent.click(screen.getByRole('button', { name: '終了' }));
       expect(await screen.findByRole('button', { name: '顔認証をテスト' })).toBeInTheDocument();
     });
+  });
+
+  it('顔が検出できない間は理由を表示して自動で再試行する', async () => {
+    const fetchStatus = vi.fn().mockResolvedValue({ registered: false, count: 0, updated_at: null });
+    vi.spyOn(faceEngine, 'preloadFaceModels').mockResolvedValue(undefined);
+    const ok = {
+      ok: true as const,
+      descriptor: new Array(128).fill(0.3),
+      box: { x: 0, y: 0, width: 100, height: 100 },
+      score: 0.9,
+    };
+    vi.spyOn(faceEngine, 'detectSingleDescriptor')
+      .mockResolvedValueOnce({ ok: false, reason: 'no_face' })
+      .mockResolvedValue(ok);
+
+    render(
+      <FaceRegistration
+        mode="self"
+        fetchStatus={fetchStatus}
+        saveDescriptors={vi.fn()}
+        deleteFace={vi.fn()}
+        poseWaitSeconds={{ first: 0, next: 0 }}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'カメラを起動して撮影開始' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    patchMountedVideo();
+
+    expect(await screen.findByText(/顔が見つかりません/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '登録する' }, { timeout: 5000 })).toBeInTheDocument();
+    // 失敗 1 回 + 成功 5 回
+    expect(faceEngine.detectSingleDescriptor).toHaveBeenCalledTimes(6);
   });
 });

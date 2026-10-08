@@ -364,3 +364,125 @@
   font-size: 0.85rem;
   color: #333;
 }
+
+/* ===== 自動撮影のカウントダウン・フラッシュ ===== */
+.face-registration__countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 4rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.face-registration__countdown--small {
+  top: auto;
+  bottom: 0.75rem;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.face-registration__flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0.8;
+  pointer-events: none;
+  animation: face-registration-flash 0.25s ease-out forwards;
+}
+
+@keyframes face-registration-flash {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ===== 撮影中の指示（映像上） ===== */
+.face-registration__overlay-prompt {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 1rem);
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(25, 118, 210, 0.85);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.face-registration__overlay-done {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.85);
+  color: #fff;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ===== 撮影結果の確認 ===== */
+.face-registration__shots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.face-registration__shot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.face-registration__shot-img {
+  display: block;
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #eceff1;
+}
+
+.face-registration__shot-badge {
+  font-size: 0.7rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+}
+
+.face-registration__shot-badge--good {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.face-registration__shot-badge--low {
+  background: #fff3e0;
+  color: #b26a00;
+}
+
+.face-registration__hint--small {
+  font-size: 0.8rem;
+  margin: 0;
+}

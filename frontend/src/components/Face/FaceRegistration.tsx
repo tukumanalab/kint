@@ -6,6 +6,44 @@ import './FaceRegistration.css';
 
 const CAPTURE_PROMPTS = ['正面を向いてください', '少し左を向いてください', '少し右を向いてください', '少し上を向いてください', '少し下を向いてください'];
 const REQUIRED_SAMPLES = CAPTURE_PROMPTS.length;
+/** 自動撮影: 最初のポーズまでの待ち秒数（2枚目以降は NEXT） */
+const FIRST_POSE_WAIT_SEC = 4;
+const NEXT_POSE_WAIT_SEC = 4;
+/** 検出スコアがこれ未満の撮影は「やや不鮮明」として目印を付ける */
+const LOW_QUALITY_SCORE = 0.7;
+/** 撮影確認用サムネイル（端末内でのみ表示し、サーバーには送らない） */
+const THUMB_WIDTH = 96;
+const THUMB_HEIGHT = 72;
+
+interface CapturedShot {
+  /** data URL。canvas 非対応環境では null */
+  thumbnail: string | null;
+  score: number;
+}
+
+/** 映像フレームを鏡像で縮小しサムネイル化する（失敗時は null） */
+function captureThumbnail(video: HTMLVideoElement): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMB_WIDTH;
+    canvas.height = THUMB_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const vw = video.videoWidth || THUMB_WIDTH;
+    const vh = video.videoHeight || THUMB_HEIGHT;
+    // 4:3 に中央トリミング
+    const srcW = Math.min(vw, (vh * 4) / 3);
+    const srcH = Math.min(vh, (vw * 3) / 4);
+    ctx.translate(THUMB_WIDTH, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, (vw - srcW) / 2, (vh - srcH) / 2, srcW, srcH, 0, 0, THUMB_WIDTH, THUMB_HEIGHT);
+    return canvas.toDataURL('image/jpeg', 0.7);
+  } catch {
+    return null;
+  }
+}
+/** 顔が検出できなかった場合の再試行間隔 */
+const DETECT_RETRY_MS = 400;
 
 function detectFailureMessage(reason: 'no_face' | 'multiple_faces' | 'too_small'): string {
   if (reason === 'no_face') return '顔が見つかりません。カメラに顔を映してください。';
@@ -138,6 +176,8 @@ export interface FaceRegistrationProps {
   deleteFace: () => Promise<void>;
   /** 顔認証テスト API。指定すると登録済みのとき「顔認証をテスト」ボタンを表示する */
   verifyFace?: (descriptor: number[]) => Promise<FaceVerifyResult>;
+  /** 自動撮影の各ポーズ前の待ち秒数（テスト用。未指定時は 3 秒 / 2 秒） */
+  poseWaitSeconds?: { first: number; next: number };
 }
 
 type Phase = 'idle' | 'capturing' | 'ready_to_submit' | 'submitting' | 'testing';
@@ -153,6 +193,7 @@ export function FaceRegistration({
   saveDescriptors,
   deleteFace,
   verifyFace,
+  poseWaitSeconds = { first: FIRST_POSE_WAIT_SEC, next: NEXT_POSE_WAIT_SEC },
 }: FaceRegistrationProps) {
   const camera = useCamera({ facingMode });
   const [status, setStatus] = useState<FaceStatus | null>(null);
@@ -168,11 +209,24 @@ export function FaceRegistration({
   const [deleting, setDeleting] = useState(false);
   const [modelState, setModelState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [shooting, setShooting] = useState(false);
+  const [poseCountdown, setPoseCountdown] = useState<number | null>(null);
+  const [capturePaused, setCapturePaused] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [shots, setShots] = useState<CapturedShot[]>([]);
+  const [lastCaptured, setLastCaptured] = useState<number | null>(null);
 
   const [testResult, setTestResult] = useState<FaceVerifyResult | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
 
   const busyRef = useRef(false);
+  const descriptorsRef = useRef<number[][]>([]);
+
+  function resetDescriptors() {
+    descriptorsRef.current = [];
+    setDescriptors([]);
+    setShots([]);
+    setLastCaptured(null);
+  }
 
   function loadStatus() {
     setLoadingStatus(true);
@@ -199,9 +253,10 @@ export function FaceRegistration({
     if (!consentChecked) return;
     setSubmitError(null);
     setSubmitSuccess(null);
-    setDescriptors([]);
+    resetDescriptors();
     setCaptureIndex(0);
     setCaptureMessage(null);
+    setCapturePaused(false);
     setModelState('loading');
     setPhase('capturing');
     // カメラ起動と並行して顔認識モデルを読み込む
@@ -267,43 +322,90 @@ export function FaceRegistration({
     setPhase('idle');
   }
 
-  /** 「撮影」ボタン押下時に現在のフレームから顔特徴量を 1 件取得する */
-  async function handleShutter() {
-    if (busyRef.current) return;
+  /** 現在のフレームから顔特徴量を 1 件取得する。成功したら次のポーズへ進み true を返す */
+  async function captureOnce(): Promise<boolean> {
+    if (busyRef.current) return false;
     const video = camera.videoRef.current;
-    if (!video || video.readyState < 2) {
-      setCaptureMessage('カメラの準備中です。少し待ってからもう一度押してください。');
-      return;
-    }
+    if (!video || video.readyState < 2) return false;
     busyRef.current = true;
     setShooting(true);
     try {
+      // 確認用サムネイルは検出に使うのと同じタイミングのフレームから先に作る
+      // （後で作ると 5 枚目はカメラ停止後になり真っ黒になるため）
+      const thumbnail = captureThumbnail(video);
       const result = await detectSingleDescriptor(video);
       if (!result.ok) {
         setCaptureMessage(detectFailureMessage(result.reason));
-        return;
+        return false;
       }
       setCaptureMessage(null);
-      const next = [...descriptors, result.descriptor];
+      const next = [...descriptorsRef.current, result.descriptor];
+      descriptorsRef.current = next;
       setDescriptors(next);
+      setShots((prev) => [...prev, { thumbnail, score: result.score }]);
+      setLastCaptured(next.length);
+      setFlash(true);
+      window.setTimeout(() => setFlash(false), 250);
       if (next.length >= REQUIRED_SAMPLES) {
         camera.stop();
         setPhase('ready_to_submit');
       } else {
         setCaptureIndex(next.length);
       }
+      return true;
     } catch (e) {
       console.warn('[FaceRegistration] capture failed:', e);
-      setCaptureMessage('撮影に失敗しました。もう一度お試しください。');
+      setCaptureMessage('撮影に失敗しました。顔を枠に合わせてください。');
+      return false;
     } finally {
       busyRef.current = false;
       setShooting(false);
     }
   }
 
+  // 自動撮影: ポーズごとにカウントダウン → 顔が検出できるまで再試行 → 撮影して次のポーズへ
+  useEffect(() => {
+    if (
+      phase !== 'capturing' ||
+      modelState !== 'ready' ||
+      camera.status !== 'streaming' ||
+      capturePaused
+    ) {
+      setPoseCountdown(null);
+      return;
+    }
+    let cancelled = false;
+    let timer: number | undefined;
+    let remaining = captureIndex === 0 ? poseWaitSeconds.first : poseWaitSeconds.next;
+
+    const attempt = async () => {
+      if (cancelled) return;
+      const ok = await captureOnce();
+      if (!cancelled && !ok) timer = window.setTimeout(() => void attempt(), DETECT_RETRY_MS);
+    };
+    const tick = () => {
+      if (cancelled) return;
+      if (remaining <= 0) {
+        setPoseCountdown(0);
+        void attempt();
+        return;
+      }
+      setPoseCountdown(remaining);
+      remaining -= 1;
+      timer = window.setTimeout(tick, 1000);
+    };
+    tick();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, modelState, camera.status, captureIndex, capturePaused]);
+
   function handleCancelCapture() {
     camera.stop();
-    setDescriptors([]);
+    resetDescriptors();
     setCaptureIndex(0);
     setCaptureMessage(null);
     setPhase('idle');
@@ -316,8 +418,12 @@ export function FaceRegistration({
     try {
       const s = await saveDescriptors(descriptors);
       setStatus(s);
-      setSubmitSuccess('顔認証データを登録しました。');
-      setDescriptors([]);
+      setSubmitSuccess(
+        verifyFace
+          ? '顔認証データを登録しました。「顔認証をテスト」で本人として認識されるか確認できます。'
+          : '顔認証データを登録しました。',
+      );
+      resetDescriptors();
       setPhase('idle');
       setConsentChecked(false);
     } catch {
@@ -327,7 +433,7 @@ export function FaceRegistration({
   }
 
   function handleRetry() {
-    setDescriptors([]);
+    resetDescriptors();
     setCaptureIndex(0);
     setCaptureMessage(null);
     void handleStartCapture();
@@ -448,15 +554,38 @@ export function FaceRegistration({
               aria-label="カメラプレビュー"
             />
             <div className="face-registration__guide-oval" aria-hidden="true" />
+            <div className="face-registration__overlay-prompt">
+              {progress + 1}/{REQUIRED_SAMPLES}:{' '}
+              {CAPTURE_PROMPTS[Math.min(captureIndex, CAPTURE_PROMPTS.length - 1)]}
+            </div>
+            {lastCaptured !== null && poseCountdown !== null && poseCountdown > 0 && (
+              <div className="face-registration__overlay-done">✓ {lastCaptured} 枚目 OK</div>
+            )}
+            {poseCountdown !== null && poseCountdown > 0 && (
+              <div className="face-registration__countdown" aria-live="polite">
+                {poseCountdown}
+              </div>
+            )}
+            {poseCountdown === 0 && shooting && (
+              <div className="face-registration__countdown face-registration__countdown--small">
+                撮影中…
+              </div>
+            )}
+            {capturePaused && (
+              <div className="face-registration__countdown face-registration__countdown--small">
+                一時停止中
+              </div>
+            )}
+            {flash && <div className="face-registration__flash" aria-hidden="true" />}
           </div>
           <div className="face-registration__capture-actions">
             <button
               type="button"
               className="btn btn--primary face-registration__shutter"
-              onClick={() => void handleShutter()}
-              disabled={shooting || modelState !== 'ready' || camera.status !== 'streaming'}
+              onClick={() => setCapturePaused((p) => !p)}
+              disabled={modelState !== 'ready' || camera.status !== 'streaming'}
             >
-              {shooting ? '撮影中...' : `📸 撮影 (${progress + 1}/${REQUIRED_SAMPLES})`}
+              {capturePaused ? '▶ 再開' : '⏸ 一時停止'}
             </button>
             <button type="button" className="btn btn--secondary" onClick={handleCancelCapture}>
               中止
@@ -470,7 +599,7 @@ export function FaceRegistration({
           </div>
           <p className="face-registration__progress-label">{progress} / {REQUIRED_SAMPLES} 枚 撮影済み</p>
           <p className="face-registration__hint">
-            楕円の枠に顔を合わせ、指示の向きにしてから「撮影」ボタンを押してください（全 {REQUIRED_SAMPLES} 枚）。
+            楕円の枠に顔を合わせ、指示の向きにしてください。数字のカウントダウンが終わると自動で撮影します（全 {REQUIRED_SAMPLES} 枚、1 枚ごとに {NEXT_POSE_WAIT_SEC} 秒の準備時間）。間に合わないときは「一時停止」を押してください。
           </p>
           {modelState === 'loading' && (
             <p className="face-registration__hint" role="status">顔認識モデルを準備中です...</p>
@@ -534,7 +663,35 @@ export function FaceRegistration({
 
       {phase === 'ready_to_submit' && (
         <div className="face-registration__submit">
-          <p className="face-registration__hint">{REQUIRED_SAMPLES} 枚の撮影が完了しました。登録しますか？</p>
+          <p className="face-registration__hint">
+            {REQUIRED_SAMPLES} 枚の撮影が完了しました。顔が写っているか確認して登録してください。
+          </p>
+          {shots.length > 0 && (
+            <ul className="face-registration__shots" aria-label="撮影した顔">
+              {shots.map((shot, i) => (
+                <li key={i} className="face-registration__shot">
+                  {shot.thumbnail ? (
+                    <img src={shot.thumbnail} alt={`${i + 1}枚目`} className="face-registration__shot-img" />
+                  ) : (
+                    <span className="face-registration__shot-img face-registration__shot-img--empty" />
+                  )}
+                  <span
+                    className={`face-registration__shot-badge face-registration__shot-badge--${
+                      shot.score >= LOW_QUALITY_SCORE ? 'good' : 'low'
+                    }`}
+                  >
+                    {shot.score >= LOW_QUALITY_SCORE ? '良好' : 'やや不鮮明'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="face-registration__hint face-registration__hint--small">
+            顔の向きがあまり変わっていなくても認識には使えます（正面の顔が最も重要です）。
+            撮影画像はこの画面での確認用で、サーバーには送信・保存されません。
+            {shots.some((shot) => shot.score < LOW_QUALITY_SCORE) &&
+              ' 「やや不鮮明」が多い場合は、明るい場所で撮り直すと認識精度が上がります。'}
+          </p>
           <div className="face-registration__submit-actions">
             <button type="button" className="btn btn--primary" onClick={() => void handleSubmit()}>
               登録する
