@@ -247,22 +247,26 @@ describe('PunchPage', () => {
     expect(screen.getByText('出勤しました')).toBeInTheDocument();
   });
 
-  it('顔認証打刻が無効設定の場合は「顔認証」タブが表示されない', async () => {
-    vi.spyOn(faceApi, 'getFacePunchConfig').mockResolvedValue({
-      enabled: false,
-      countdown_seconds: 3,
-      cooldown_seconds: 5,
-    });
-
+  it('顔認証打刻が無効設定の場合は顔認証打刻のパネルが表示されない', async () => {
     render(<PunchPage />);
 
     await waitFor(() => {
       expect(faceApi.getFacePunchConfig).toHaveBeenCalled();
     });
-    expect(screen.queryByRole('tab', { name: '顔認証' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '顔認証打刻' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'NFC カード打刻' })).toBeInTheDocument();
   });
 
-  it('顔認証打刻が有効設定の場合は「顔認証」タブが表示される', async () => {
+  it('顔認証打刻が無効でもアバターが表示される', async () => {
+    const { container } = render(<PunchPage />);
+
+    await waitFor(() => {
+      expect(faceApi.getFacePunchConfig).toHaveBeenCalled();
+    });
+    expect(container.querySelector('.face-avatar')).not.toBeNull();
+  });
+
+  it('顔認証打刻が有効な場合はタブを切り替えずに NFC と顔認証が同時に表示される', async () => {
     vi.spyOn(faceApi, 'getFacePunchConfig').mockResolvedValue({
       enabled: true,
       countdown_seconds: 3,
@@ -272,7 +276,45 @@ describe('PunchPage', () => {
     render(<PunchPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: '顔認証' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'NFC カード / 顔認証' })).toBeInTheDocument();
     });
+    expect(screen.getByRole('region', { name: 'NFC カード打刻' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '顔認証打刻' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '顔認証' })).not.toBeInTheDocument();
+  });
+
+  it('NFC 打刻成功時にアバターの吹き出しへ結果が表示される', async () => {
+    vi.spyOn(punchApi, 'postPunch').mockResolvedValueOnce({
+      status: 'completed',
+      attendance_id: 'att-1',
+      user_id: 'user-001',
+      user_name: '山田 太郎',
+      action: 'check_in',
+      occurred_at: '2026-05-15T09:00:00Z',
+      method: 'card_idm',
+      message: '出勤を記録しました',
+    });
+    vi.mocked(useWebUSBFeliCa).mockReturnValue({
+      status: 'connected',
+      idm: null,
+      errorMessage: null,
+      connect: vi.fn(),
+      readIdm: vi.fn().mockResolvedValueOnce('0123456789ABCDEF'),
+      disconnect: vi.fn(),
+      reset: vi.fn(),
+    });
+
+    const { container } = render(<PunchPage displaySeconds={30} />);
+
+    await waitFor(() => {
+      const bubble = container.querySelector('.face-avatar__bubble');
+      expect(bubble).not.toBeNull();
+      expect(bubble?.textContent).toContain('出勤を記録しました');
+      expect(bubble?.textContent).toContain('山田 太郎さん');
+    });
+
+    // 打刻結果カードはアバターの右側（操作欄）に表示される
+    const controls = container.querySelector('.face-punch-panel__controls');
+    expect(controls?.querySelector('.punch-result')?.textContent).toContain('出勤しました');
   });
 });

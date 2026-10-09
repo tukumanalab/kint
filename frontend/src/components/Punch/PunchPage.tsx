@@ -4,16 +4,20 @@ import { useWebUSBFeliCa } from '../../hooks/useWebUSBFeliCa';
 import { searchPunchUsers } from '../../api/punch';
 import { getFacePunchConfig } from '../../api/face';
 import { initAudio } from '../../utils/audio';
+import { unlockSpeech, buildGreeting, buildResultSpeech } from '../../utils/speech';
 import { usePunchSubmission } from '../../hooks/usePunchSubmission';
+import { usePunchAvatar } from '../../hooks/usePunchAvatar';
 import type { PunchUserCandidate } from '../../types/punch';
 import type { FacePunchConfig } from '../../types/face';
 import { FacePunchPanel } from './FacePunchPanel';
+import { FaceAvatar } from './FaceAvatar';
 import './PunchPage.css';
 import { formatHours } from '../../utils/time';
 
 const DEVICE_ID = 'web-browser';
 
-type PunchMode = 'nfc' | 'fallback' | 'face';
+/** main: NFC カード + 顔認証を同時に待ち受ける画面 / fallback: カード忘れ打刻（手入力） */
+type PunchMode = 'main' | 'fallback';
 
 interface FallbackFormState {
   userQuery: string;
@@ -54,7 +58,7 @@ function actionLabel(action: 'check_in' | 'check_out' | 'cancelled'): string {
 
 export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const webUSBSupported = isWebUSBSupported();
-  const [mode, setMode] = useState<PunchMode>(webUSBSupported ? 'nfc' : 'fallback');
+  const [mode, setMode] = useState<PunchMode>(webUSBSupported ? 'main' : 'fallback');
   const [fallback, setFallback] = useState<FallbackFormState>({
     userQuery: '',
     selectedUser: null,
@@ -69,8 +73,11 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
   const pollingRef = useRef(false);
   const searchRequestRef = useRef(0);
   const lastPunchRef = useRef<{ idm: string; timestamp: number } | null>(null);
+  // ユーザーがタブを操作済みか（顔認証設定の取得後に自動でメインタブへ切り替えるかの判定用）
+  const tabTouchedRef = useRef(false);
 
   const punchSubmission = usePunchSubmission({ displaySeconds });
+  const avatar = usePunchAvatar();
   const {
     punchResult,
     punchError,
@@ -84,9 +91,41 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
     submitOvertimeReason,
     cancelOvertimeRequest,
     executePunch,
+    lastOutcomeRef,
   } = punchSubmission;
 
   const statusInfo = statusLabel(nfc.status);
+  const faceEnabled = !!faceConfig?.enabled;
+  const mainAvailable = webUSBSupported || faceEnabled;
+  const mainTabLabel =
+    webUSBSupported && faceEnabled
+      ? 'NFC カード / 顔認証'
+      : webUSBSupported
+        ? 'NFC カード打刻'
+        : '顔認証';
+
+  function selectMode(next: PunchMode) {
+    tabTouchedRef.current = true;
+    setMode(next);
+  }
+
+  /** NFC 打刻の結果をアバターの表情・読み上げに反映する */
+  function reactToNfcPunch(resp: Awaited<ReturnType<typeof executePunch>>) {
+    if (resp) {
+      if (resp.action === 'cancelled') {
+        avatar.react('success', buildResultSpeech('cancelled'), 3000);
+      } else if (resp.action) {
+        const text = `${buildGreeting(resp.action, resp.user_name)}。${buildResultSpeech(resp.action)}`;
+        avatar.react('success', text, 3000);
+      }
+      // action が null (連続打刻無視など) の場合は何も喋らない
+      return;
+    }
+    // 超過勤務の確認待ち・確認キャンセルは喋らず、エラーのときだけ案内する
+    if (lastOutcomeRef.current === 'error') {
+      avatar.react('error', '打刻できませんでした', 3000);
+    }
+  }
 
   // 顔認証打刻設定を取得（有効な場合のみタブを表示）
   useEffect(() => {
@@ -96,9 +135,16 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
       .catch(() => setFaceConfig(null));
   }, []);
 
+  // WebUSB 非対応端末で顔認証が有効と分かったら、タブ未操作の場合に限りメインタブへ切り替える
+  useEffect(() => {
+    if (!webUSBSupported && faceEnabled && !tabTouchedRef.current) {
+      setMode('main');
+    }
+  }, [webUSBSupported, faceEnabled]);
+
   // 接続済みになったら自動でカード読み取り → 打刻 → リセット を繰り返す
   useEffect(() => {
-    if (mode !== 'nfc' || !webUSBSupported) return;
+    if (mode !== 'main' || !webUSBSupported) return;
     if (nfc.status !== 'connected') return;
     if (pollingRef.current) return;
 
@@ -121,11 +167,12 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
           }
           lastPunchRef.current = { idm, timestamp: now };
 
-          await executePunch({
+          const resp = await executePunch({
             card_idm: idm,
             device_id: DEVICE_ID,
             occurred_at: new Date().toISOString(),
           });
+          reactToNfcPunch(resp);
         }
       } finally {
         pollingRef.current = false;
@@ -212,9 +259,90 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
     }
   }
 
+  // 打刻結果・エラー表示。メインタブではアバターの右側（操作欄）に表示する
+  const messagesInMain = mode === 'main' && mainAvailable && !overtimeRequest;
+  const punchMessages = (
+    <>
+        {/* ===== 打刻結果 ===== */}
+        {punchResult?.status === 'completed' && punchResult.action && (
+          <div className={`punch-result ${punchResult.action === 'cancelled' ? 'punch-result--cancelled' : ''}`} role="status" aria-live="polite">
+            <p className="punch-result__action">
+              {punchResult.action === 'cancelled' ? '打刻を取り消しました' : `${actionLabel(punchResult.action)}しました`}
+            </p>
+            <p className="punch-result__name">{punchResult.user_name}</p>
+            <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
+            <p className="punch-result__message">{punchResult.message}</p>
+
+            {punchResult.action === 'check_in' && punchResult.calculated_time && (
+              <div className="punch-result__extra">
+                <span className="punch-result__extra-label">勤務出勤時刻 (丸め後): </span>
+                <strong className="punch-result__extra-value">{formatTimeOnly(punchResult.calculated_time)}</strong>
+              </div>
+            )}
+            {punchResult.action === 'check_out' && (
+              <div className="punch-result__extra">
+                {punchResult.current_working_hours !== undefined && punchResult.current_working_hours !== null && (
+                  <div className="punch-result__extra-row">
+                    <span className="punch-result__extra-label">今回の勤務時間: </span>
+                    <strong className="punch-result__extra-value">{formatHours(punchResult.current_working_hours)}</strong>
+                  </div>
+                )}
+                {punchResult.daily_working_hours_total !== undefined && punchResult.daily_working_hours_total !== null && (
+                  <div className="punch-result__extra-row" style={{ marginTop: '4px' }}>
+                    <span className="punch-result__extra-label">本日の合計勤務時間: </span>
+                    <strong className="punch-result__extra-value">{formatHours(punchResult.daily_working_hours_total)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+            {punchResult.has_unread_notifications && (
+              <div className="punch-result__notification-alert" style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fffaf0', border: '1px solid #feebc8', borderRadius: '6px', color: '#dd6b20', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '18px', height: '18px', flexShrink: 0 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <span>あなた宛ての未読のお知らせがあります。ログインして確認してください。</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== 打刻エラー ===== */}
+        {punchError && (
+          <div className="punch-error" role="alert" aria-live="assertive">
+            <p>{punchError}</p>
+          </div>
+        )}
+    </>
+  );
+
   return (
     <main className="punch-page">
-      <h1 className="punch-title">打刻</h1>
+      {/* 画面の小さいノートPCでもアバターの全身が収まるよう、タイトルとタブを 1 行にまとめる */}
+      <div className="punch-header">
+        <h1 className="punch-title">打刻</h1>
+
+        {/* モード切り替えタブ */}
+        {mainAvailable && (
+          <div className="punch-tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={mode === 'main'}
+              className={`punch-tab ${mode === 'main' ? 'punch-tab--active' : ''}`}
+              onClick={() => selectMode('main')}
+            >
+              {mainTabLabel}
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === 'fallback'}
+              className={`punch-tab ${mode === 'fallback' ? 'punch-tab--active' : ''}`}
+              onClick={() => selectMode('fallback')}
+            >
+              カード忘れ打刻
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* サポート外ブラウザ表示 */}
       {!webUSBSupported && (
@@ -228,42 +356,8 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
         </div>
       )}
 
-      {/* モード切り替えタブ */}
-      {(webUSBSupported || faceConfig?.enabled) && (
-        <div className="punch-tabs" role="tablist">
-          {webUSBSupported && (
-            <button
-              role="tab"
-              aria-selected={mode === 'nfc'}
-              className={`punch-tab ${mode === 'nfc' ? 'punch-tab--active' : ''}`}
-              onClick={() => setMode('nfc')}
-            >
-              NFC カード打刻
-            </button>
-          )}
-          <button
-            role="tab"
-            aria-selected={mode === 'fallback'}
-            className={`punch-tab ${mode === 'fallback' ? 'punch-tab--active' : ''}`}
-            onClick={() => setMode('fallback')}
-          >
-            カード忘れ打刻
-          </button>
-          {faceConfig?.enabled && (
-            <button
-              role="tab"
-              aria-selected={mode === 'face'}
-              className={`punch-tab ${mode === 'face' ? 'punch-tab--active' : ''}`}
-              onClick={() => setMode('face')}
-            >
-              顔認証
-            </button>
-          )}
-        </div>
-      )}
-
       {/* ===== 超過勤務申請モード ===== */}
-      {overtimeRequest ? (
+      {overtimeRequest && (
         <section className="punch-section" aria-label="超過勤務理由の入力">
           <div className="punch-error" role="alert" style={{ background: '#fff3cd', color: '#856404', borderColor: '#ffeeba' }}>
             <p>{overtimeRequest.message}</p>
@@ -345,11 +439,14 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
             </div>
           )}
         </section>
-      ) : (
-        <>
-          {/* ===== NFC モード ===== */}
-          {mode === 'nfc' && webUSBSupported && (
-            <section className="punch-section" aria-label="NFC カード打刻">
+      )}
+
+      {/* ===== メイン (NFC カード + 顔認証) =====
+          超過勤務確認中も顔認証のカメラを止めないよう、アンマウントせず hidden で隠す */}
+      {mode === 'main' && mainAvailable && (
+        <div hidden={!!overtimeRequest}>
+          {webUSBSupported && (
+            <section className="punch-section punch-section--nfc" aria-label="NFC カード打刻">
               {/* 接続状態インジケータ */}
               <div className="nfc-status">
                 <span className={`nfc-status__dot ${statusInfo.className}`} aria-hidden="true" />
@@ -371,6 +468,7 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
                     className="btn btn--primary"
                     onClick={() => {
                       void initAudio();
+                      unlockSpeech();
                       nfc.connect();
                     }}
                   >
@@ -397,8 +495,30 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
             </section>
           )}
 
-          {/* ===== フォールバックモード ===== */}
-          {(mode === 'fallback' || !webUSBSupported) && (
+          {faceEnabled && faceConfig ? (
+            <FacePunchPanel
+              config={faceConfig}
+              punchSubmission={punchSubmission}
+              avatar={avatar}
+              paused={!!overtimeRequest}
+              messages={messagesInMain ? punchMessages : null}
+            />
+          ) : (
+            // 顔認証が無効でも顔認証パネルと同じ 2 列レイアウトでアバターの右側にメッセージを表示する
+            <div className="face-punch-panel__stage">
+              <FaceAvatar
+                state={avatar.avatarState}
+                speechText={avatar.speechText}
+                speaking={avatar.speaking}
+              />
+              <div className="face-punch-panel__controls">{messagesInMain && punchMessages}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== フォールバックモード ===== */}
+      {!overtimeRequest && mode === 'fallback' && (
             <section className="punch-section" aria-label="カード忘れ打刻">
               {webUSBSupported && (
                 <p className="fallback-description">
@@ -487,62 +607,9 @@ export function PunchPage({ displaySeconds = 30 }: PunchPageProps) {
             </section>
           )}
 
-          {/* ===== 顔認証モード ===== */}
-          {mode === 'face' && faceConfig?.enabled && (
-            <FacePunchPanel config={faceConfig} punchSubmission={punchSubmission} />
-          )}
-        </>
-      )}
 
-      {/* ===== 打刻結果 ===== */}
-      {punchResult?.status === 'completed' && punchResult.action && (
-        <div className={`punch-result ${punchResult.action === 'cancelled' ? 'punch-result--cancelled' : ''}`} role="status" aria-live="polite">
-          <p className="punch-result__action">
-            {punchResult.action === 'cancelled' ? '打刻を取り消しました' : `${actionLabel(punchResult.action)}しました`}
-          </p>
-          <p className="punch-result__name">{punchResult.user_name}</p>
-          <p className="punch-result__time">{formatDateTime(punchResult.occurred_at)}</p>
-          <p className="punch-result__message">{punchResult.message}</p>
-
-          {punchResult.action === 'check_in' && punchResult.calculated_time && (
-            <div className="punch-result__extra">
-              <span className="punch-result__extra-label">勤務出勤時刻 (丸め後): </span>
-              <strong className="punch-result__extra-value">{formatTimeOnly(punchResult.calculated_time)}</strong>
-            </div>
-          )}
-          {punchResult.action === 'check_out' && (
-            <div className="punch-result__extra">
-              {punchResult.current_working_hours !== undefined && punchResult.current_working_hours !== null && (
-                <div className="punch-result__extra-row">
-                  <span className="punch-result__extra-label">今回の勤務時間: </span>
-                  <strong className="punch-result__extra-value">{formatHours(punchResult.current_working_hours)}</strong>
-                </div>
-              )}
-              {punchResult.daily_working_hours_total !== undefined && punchResult.daily_working_hours_total !== null && (
-                <div className="punch-result__extra-row" style={{ marginTop: '4px' }}>
-                  <span className="punch-result__extra-label">本日の合計勤務時間: </span>
-                  <strong className="punch-result__extra-value">{formatHours(punchResult.daily_working_hours_total)}</strong>
-                </div>
-              )}
-            </div>
-          )}
-          {punchResult.has_unread_notifications && (
-            <div className="punch-result__notification-alert" style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#fffaf0', border: '1px solid #feebc8', borderRadius: '6px', color: '#dd6b20', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '18px', height: '18px', flexShrink: 0 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-              </svg>
-              <span>あなた宛ての未読のお知らせがあります。ログインして確認してください。</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ===== 打刻エラー ===== */}
-      {punchError && (
-        <div className="punch-error" role="alert" aria-live="assertive">
-          <p>{punchError}</p>
-        </div>
-      )}
+      {/* メインタブ以外（カード忘れ打刻・超過勤務確認中）では従来どおりページ下部に表示 */}
+      {!messagesInMain && punchMessages}
     </main>
   );
 }

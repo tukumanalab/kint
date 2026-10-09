@@ -1,15 +1,26 @@
 .punch-page {
   max-width: 480px;
-  margin: 2rem auto;
+  margin: 1rem auto;
   padding: 0 1rem;
   font-family: system-ui, sans-serif;
 }
 
+/* タイトルとタブを 1 行にまとめて縦方向の余白を節約する（小さいノートPC向け） */
+.punch-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
 .punch-title {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
+  margin: 0;
+  padding-bottom: 0.4rem;
   color: #1a1a2e;
+  white-space: nowrap;
 }
 
 /* ---- サポート外ブラウザ ---- */
@@ -33,8 +44,7 @@
 /* ---- タブ ---- */
 .punch-tabs {
   display: flex;
-  border-bottom: 2px solid #e0e0e0;
-  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 .punch-tab {
   padding: 0.5rem 1rem;
@@ -318,4 +328,60 @@
 }
 .punch-result--cancelled .punch-result__message {
   color: #1976d2;
+}
+
+/* ---- メインタブ: NFC セクションをコンパクトにし、アバター・顔認証パネルを下に縦並びで配置 ---- */
+.punch-page [hidden] {
+  display: none;
+}
+/* NFC セクションは状態・ボタン・案内を 1 行に並べる */
+.punch-section--nfc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  padding: 0.25rem 0;
+}
+.punch-section--nfc .nfc-status,
+.punch-section--nfc .nfc-actions,
+.punch-section--nfc .nfc-hint {
+  margin: 0;
+}
+.punch-section--nfc .punch-error {
+  order: 1;
+  flex-basis: 100%;
+  margin-top: 0.25rem;
+}
+
+/* 横幅に余裕がある画面ではアバターと顔認証の操作を左右に並べ、縦の高さを抑える */
+@media (min-width: 720px) {
+  .punch-page:has(.face-punch-panel) {
+    max-width: 680px;
+  }
+}
+
+/* メインタブではアバターの右側（操作欄）に打刻結果・エラーを表示する */
+.face-punch-panel__controls .punch-result,
+.face-punch-panel__controls .punch-error {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0;
+  text-align: left;
+}
+
+/* スマホ幅ではタイトルとタブを縦に並べる */
+@media (max-width: 480px) {
+  .punch-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+  }
+  .punch-tabs {
+    flex-wrap: nowrap;
+  }
+  .punch-tab {
+    flex: 1;
+    padding: 0.5rem 0.5rem;
+  }
 }

@@ -1,5 +1,5 @@
 .face-punch-panel {
-  padding: 1rem 0;
+  padding: 0.25rem 0 0;
   text-align: center;
 }
 
@@ -7,8 +7,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 2rem 0;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
 }
 
 .face-punch-panel__hint {
@@ -30,7 +30,12 @@
   align-items: center;
   gap: 0.75rem;
   min-height: 280px;
-  padding-top: 1.5rem;
+  padding-top: 0;
+}
+
+/* カメラ停止中は開始ボタンをアバター直下に置くため余白を詰める */
+.face-punch-panel__stage--stopped {
+  min-height: 0;
 }
 
 /* カメラプレビューはアバターの顔の横に小さく表示 */
@@ -65,6 +70,42 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.face-punch-panel__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.face-punch-panel__controls:empty {
+  display: none;
+}
+
+/* 横幅に余裕がある画面ではアバターを左、開始ボタン・状態表示・操作ボタンを右に並べて縦の高さを抑える。
+   列幅を固定し、右側の表示内容（ボタンの有無・文言の長さ）が変わってもアバターの水平位置が動かないようにする */
+@media (min-width: 720px) {
+  .face-punch-panel__stage {
+    display: grid;
+    grid-template-columns: 300px 320px;
+    justify-content: center;
+    align-items: center;
+    column-gap: 1.5rem;
+    min-height: 0;
+  }
+
+  .face-punch-panel__stage > .face-avatar {
+    /* アバター右横のカメラプレビューがはみ出す分を考慮して列内で左寄せ。
+       上端揃えにして、右側に打刻結果などが増えてもアバターが上下に動かないようにする */
+    justify-self: start;
+    align-self: start;
+    margin: 0;
+  }
+
+  .face-punch-panel__controls {
+    min-width: 0;
+  }
 }
 
 @media (max-width: 480px) {

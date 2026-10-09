@@ -350,7 +350,7 @@ sequenceDiagram
 - `navigator.usb` が利用可能であること。
 - 打刻ページは HTTPS で配信されること（開発時は `localhost` を許容）。
 - USB デバイス選択はユーザー操作（クリック）起点で実行すること。
-- 顔認証打刻タブを利用する場合は `navigator.mediaDevices.getUserMedia`（Web カメラ）が利用可能であること。この API も HTTPS 環境が前提（開発時は `localhost` を許容）。
+- 顔認証打刻（打刻ページのメインタブで NFC と同時に待ち受け）を利用する場合は `navigator.mediaDevices.getUserMedia`（Web カメラ）が利用可能であること。この API も HTTPS 環境が前提（開発時は `localhost` を許容）。
 
 ## 12. 運用要件（確定）
 

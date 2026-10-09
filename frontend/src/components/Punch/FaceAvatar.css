@@ -7,12 +7,25 @@
   margin: 0 auto;
   width: max-content;
   max-width: 100%;
+  /* 吹き出しの表示領域を常に確保し、吹き出しの有無でアバターの足元が上下しないようにする */
+  padding-top: var(--bubble-space, 4.5rem);
 }
 
 /* ===== 吹き出し ===== */
+/* 本体の頭上に絶対配置する（文書フローに影響させない） */
+.face-avatar__bubble-anchor {
+  position: absolute;
+  left: 50%;
+  /* 画像上端には頭上の透明余白（高さの約 8%）があるため、その分だけ吹き出しを下げて重ねる */
+  bottom: calc(100% - var(--avatar-width) * 0.1 + 20px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(320px, 90vw);
+  z-index: 2;
+}
+
 .face-avatar__bubble {
   position: relative;
-  margin-bottom: 14px;
   background: #fff;
   border: 2px solid #1976d2;
   border-radius: 14px;
@@ -20,7 +33,6 @@
   font-size: 1.05rem;
   font-weight: 600;
   color: #1a1a2e;
-  max-width: 320px;
   text-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: face-avatar-bubble-in 0.25s ease-out;
@@ -247,8 +259,28 @@
     --avatar-width: 170px;
   }
 
+  .face-avatar {
+    --bubble-space: 5.5rem;
+  }
+
+  .face-avatar__bubble-anchor {
+    max-width: min(240px, 90vw);
+  }
+
   .face-avatar__bubble {
     font-size: 0.9rem;
-    max-width: 240px;
+  }
+}
+
+/* 縦の表示領域が狭い画面（小さいノートPC等）では全身が収まるようアバターを縮小する */
+@media (max-height: 640px) {
+  .face-avatar {
+    --avatar-width: 200px;
+  }
+}
+
+@media (max-height: 540px) {
+  .face-avatar {
+    --avatar-width: 160px;
   }
 }

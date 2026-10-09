@@ -4,6 +4,12 @@ import { playPunchSuccess, playPunchError } from '../utils/audio';
 import { ApiError } from '../types/error';
 import type { PunchRequest, PunchResponse } from '../types/punch';
 
+/**
+ * 直近の executePunch の結果区分。
+ * 戻り値 null の理由 (エラー / 確認キャンセル / 超過勤務申請待ち) を呼び出し側で区別するために使う。
+ */
+export type PunchOutcome = 'completed' | 'declined' | 'overtime' | 'error';
+
 export interface OvertimeRequestState {
   payload: PunchRequest;
   message: string;
@@ -60,6 +66,8 @@ export interface UsePunchSubmission {
    */
   executePunch: (payload: PunchRequest) => Promise<PunchResponse | null>;
   clearPunchResult: () => void;
+  /** 直近の executePunch の結果区分 (未実行なら null) */
+  lastOutcomeRef: { current: PunchOutcome | null };
 }
 
 /**
@@ -80,6 +88,7 @@ export function usePunchSubmission({
 
   const resultTimerRef = useRef<number | null>(null);
   const errorTimerRef = useRef<number | null>(null);
+  const lastOutcomeRef = useRef<PunchOutcome | null>(null);
 
   function resolveDeviceToken(): string | null | undefined {
     if (deviceToken !== undefined) return deviceToken;
@@ -171,11 +180,14 @@ export function usePunchSubmission({
     try {
       const resp = await submitPunchWithConfirmation(payload);
       if (resp && resp !== 'requires_overtime_reason') {
+        lastOutcomeRef.current = 'completed';
         showPunchResultWithTimeout(resp, displaySeconds);
         return resp;
       }
+      lastOutcomeRef.current = resp === 'requires_overtime_reason' ? 'overtime' : 'declined';
       return null;
     } catch (err) {
+      lastOutcomeRef.current = 'error';
       const isCooldown =
         err instanceof ApiError && err.status === 409 && err.body.code === 'PUNCH_COOLDOWN_ACTIVE';
       let duration = displaySeconds;
@@ -267,5 +279,6 @@ export function usePunchSubmission({
     submitPunchWithConfirmation,
     executePunch,
     clearPunchResult,
+    lastOutcomeRef,
   };
 }

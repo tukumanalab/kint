@@ -21,12 +21,15 @@ export interface FaceAvatarProps {
 export function FaceAvatar({ state, speechText, speaking = false, faceSide }: FaceAvatarProps) {
   return (
     <div className={`face-avatar face-avatar--${state}`} data-state={state}>
-      {speechText && (
-        <div className="face-avatar__bubble" role="status" aria-live="polite">
-          {speechText}
-        </div>
-      )}
       <div className="face-avatar__figure">
+        {/* 吹き出しは本体の上に重ねて配置し、表示・非表示で足元の位置が動かないようにする */}
+        {speechText && (
+          <div className="face-avatar__bubble-anchor">
+            <div className="face-avatar__bubble" role="status" aria-live="polite">
+              {speechText}
+            </div>
+          </div>
+        )}
         <div className="face-avatar__body">
           <img className="face-avatar__image" src={avatarImage} alt="" aria-hidden="true" draggable={false} />
           {/* 発言中は元画像の開いた口をそのまま見せ、それ以外は閉じた口を重ねる */}

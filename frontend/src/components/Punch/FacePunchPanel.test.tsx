@@ -7,6 +7,7 @@ import * as speech from '../../utils/speech';
 import { useCamera } from '../../hooks/useCamera';
 import type { UsePunchSubmission } from '../../hooks/usePunchSubmission';
 import type { PunchResponse } from '../../types/punch';
+import { usePunchAvatar } from '../../hooks/usePunchAvatar';
 
 vi.mock('../../hooks/useCamera', () => ({ useCamera: vi.fn() }));
 vi.mock('../../utils/audio', () => ({ initAudio: vi.fn().mockResolvedValue(undefined) }));
@@ -35,7 +36,27 @@ function makePunchSubmission(executePunch: UsePunchSubmission['executePunch']): 
     submitPunchWithConfirmation: vi.fn(),
     executePunch,
     clearPunchResult: vi.fn(),
+    lastOutcomeRef: { current: null },
   };
+}
+
+/** usePunchAvatar を実際に使って FacePunchPanel を描画するラッパー */
+function PanelHarness({
+  punchSubmission,
+  paused,
+}: {
+  punchSubmission: UsePunchSubmission;
+  paused?: boolean;
+}) {
+  const avatar = usePunchAvatar();
+  return (
+    <FacePunchPanel
+      config={CONFIG}
+      punchSubmission={punchSubmission}
+      avatar={avatar}
+      paused={paused}
+    />
+  );
 }
 
 const CONFIG = { enabled: true, countdown_seconds: 1, cooldown_seconds: 5 };
@@ -84,7 +105,7 @@ describe('FacePunchPanel', () => {
         message: '出勤を記録しました',
       } satisfies PunchResponse);
 
-      render(<FacePunchPanel config={CONFIG} punchSubmission={makePunchSubmission(executePunch)} />);
+      render(<PanelHarness punchSubmission={makePunchSubmission(executePunch)} />);
 
       fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -130,7 +151,7 @@ describe('FacePunchPanel', () => {
       });
       const executePunch = vi.fn();
 
-      render(<FacePunchPanel config={CONFIG} punchSubmission={makePunchSubmission(executePunch)} />);
+      render(<PanelHarness punchSubmission={makePunchSubmission(executePunch)} />);
 
       fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -172,7 +193,7 @@ describe('FacePunchPanel', () => {
       });
       const executePunch = vi.fn().mockResolvedValue(null);
 
-      render(<FacePunchPanel config={CONFIG} punchSubmission={makePunchSubmission(executePunch)} />);
+      render(<PanelHarness punchSubmission={makePunchSubmission(executePunch)} />);
 
       fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -193,6 +214,49 @@ describe('FacePunchPanel', () => {
           expect.objectContaining({ face_match_token: 'token-xyz' }),
         );
       });
+    },
+    15000,
+  );
+
+  it('カメラ停止中でもアバターが表示される', () => {
+    const { container } = render(
+      <PanelHarness punchSubmission={makePunchSubmission(vi.fn())} />,
+    );
+    expect(container.querySelector('.face-avatar')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'カメラを開始' })).toBeInTheDocument();
+  });
+
+  it(
+    'paused のときは照合 API が呼ばれない',
+    async () => {
+      const detect = vi.spyOn(faceEngine, 'detectSingleDescriptor').mockResolvedValue({
+        ok: true,
+        descriptor: new Array(128).fill(0.1),
+        box: { x: 0, y: 0, width: 100, height: 100 },
+        score: 0.9,
+      });
+      const identify = vi.spyOn(faceApi, 'identifyFace').mockResolvedValue({
+        matched: false,
+        user_id: null,
+        user_name: null,
+        distance: null,
+        has_shift: false,
+        requires_confirmation: false,
+        face_match_token: null,
+        greeting_kind: null,
+      } as never);
+
+      render(
+        <PanelHarness punchSubmission={makePunchSubmission(vi.fn())} paused />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      patchMountedVideo();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      expect(detect).not.toHaveBeenCalled();
+      expect(identify).not.toHaveBeenCalled();
     },
     15000,
   );

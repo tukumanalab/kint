@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { detectSingleDescriptor } from '../../face/faceEngine';
 import { identifyFace } from '../../api/face';
 import { initAudio } from '../../utils/audio';
-import { speak, unlockSpeech, buildGreeting, buildResultSpeech } from '../../utils/speech';
+import { unlockSpeech, buildGreeting, buildResultSpeech } from '../../utils/speech';
 import type { UsePunchSubmission } from '../../hooks/usePunchSubmission';
+import type { UsePunchAvatar } from '../../hooks/usePunchAvatar';
 import type { FacePunchConfig, FaceIdentifyResponse } from '../../types/face';
 import { FaceAvatar } from './FaceAvatar';
-import type { FaceAvatarState } from './FaceAvatar';
 import './FacePunchPanel.css';
 
 const DEVICE_ID = 'web-browser';
@@ -21,21 +21,29 @@ type PanelState = 'stopped' | 'scanning' | 'recognized' | 'punching' | 'result';
 export interface FacePunchPanelProps {
   config: FacePunchConfig;
   punchSubmission: UsePunchSubmission;
+  /** PunchPage と共有するアバター状態 (NFC 打刻の結果表示にも使う) */
+  avatar: UsePunchAvatar;
+  /** true の間は検出ループを止め、照合 API を呼ばない (超過勤務確認中など) */
+  paused?: boolean;
+  /** 打刻結果・エラーなど、操作欄（アバターの右側）の末尾に表示する要素 */
+  messages?: ReactNode;
 }
 
 function deviceToken(): string | null {
   return localStorage.getItem('kint_punch_device_token');
 }
 
-export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps) {
+export function FacePunchPanel({
+  config,
+  punchSubmission,
+  avatar,
+  paused = false,
+  messages,
+}: FacePunchPanelProps) {
   const camera = useCamera({ facingMode: 'user' });
   const [panelState, setPanelState] = useState<PanelState>('stopped');
   const [recognized, setRecognized] = useState<FaceIdentifyResponse | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [avatarState, setAvatarState] = useState<FaceAvatarState>('idle');
-  const [speechText, setSpeechText] = useState<string>('');
-  const [speaking, setSpeaking] = useState(false);
-  const speechIdRef = useRef(0);
   const [unmatchedCount, setUnmatchedCount] = useState(0);
 
   const busyRef = useRef(false);
@@ -44,6 +52,10 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
   const suppressRef = useRef<{ userId: string; until: number } | null>(null);
   const panelStateRef = useRef<PanelState>('stopped');
   panelStateRef.current = panelState;
+  // setInterval 内の tick から最新値を参照するための ref
+  const isPunchingRef = useRef(false);
+  isPunchingRef.current = punchSubmission.isPunching;
+  const { avatarState, speechText, speaking, say, setAvatarState, clearSpeech, setBaseState } = avatar;
 
   const cooldownSeconds = config.cooldown_seconds ?? DEFAULT_COOLDOWN_SECONDS;
 
@@ -66,6 +78,7 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
       clearCountdownTimer();
       clearResultTimer();
       camera.stop();
+      setBaseState('idle');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -75,8 +88,9 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     unlockSpeech();
     await camera.start();
     setPanelState('scanning');
+    setBaseState('looking');
     setAvatarState('looking');
-    setSpeechText('');
+    clearSpeech();
   }
 
   function backToScanning() {
@@ -86,7 +100,7 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     setCountdown(null);
     setPanelState('scanning');
     setAvatarState('looking');
-    setSpeechText('');
+    clearSpeech();
   }
 
   function suppressUser(userId: string) {
@@ -95,15 +109,17 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
 
   // ===== 検出ループ =====
   useEffect(() => {
-    if (panelState !== 'scanning' || camera.status !== 'streaming') return;
+    if (paused || panelState !== 'scanning' || camera.status !== 'streaming') return;
     const id = window.setInterval(() => {
       void tick();
     }, DETECT_INTERVAL_MS);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panelState, camera.status]);
+  }, [panelState, camera.status, paused]);
 
   async function tick() {
+    // NFC など他方式の打刻送信中は照合しない（二重送信防止）
+    if (isPunchingRef.current) return;
     if (busyRef.current) return;
     const video = camera.videoRef.current;
     if (!video || video.readyState < 2) return;
@@ -131,20 +147,6 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     } finally {
       busyRef.current = false;
     }
-  }
-
-  /** 吹き出しを表示して読み上げる。読み上げ中のみアバターの口を開ける */
-  function say(text: string) {
-    setSpeechText(text);
-    const id = ++speechIdRef.current;
-    speak(text, {
-      onStart: () => {
-        if (speechIdRef.current === id) setSpeaking(true);
-      },
-      onEnd: () => {
-        if (speechIdRef.current === id) setSpeaking(false);
-      },
-    });
   }
 
   function handleRecognized(resp: FaceIdentifyResponse) {
@@ -194,7 +196,7 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
     } else if (result) {
       // action が null (連続打刻無視など) の場合はエラー扱いせず淡々と戻る
       setAvatarState('idle');
-      setSpeechText('');
+      clearSpeech();
     } else {
       // エラー、確認キャンセル、超過勤務申請待ちのいずれか
       setAvatarState('error');
@@ -230,42 +232,45 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
 
   const showUnmatchedHint = unmatchedCount >= UNMATCHED_HINT_THRESHOLD && panelState === 'scanning';
 
-  return (
-    <section className="face-punch-panel" aria-label="顔認証打刻">
-      {panelState === 'stopped' && (
-        <div className="face-punch-panel__start">
-          <p className="face-punch-panel__hint">
-            カメラを起動して顔を映すと、自動的に本人を認識して出退勤を打刻します。
-          </p>
-          <button type="button" className="btn btn--primary" onClick={() => void handleStart()}>
-            カメラを開始
-          </button>
-          {camera.errorMessage && (
-            <div className="punch-error" role="alert">
-              <p>{camera.errorMessage}</p>
-            </div>
-          )}
+  const cameraStopped = panelState === 'stopped';
+
+  // カメラ停止中はアバターの横ではなく直下に開始ボタンと説明を出す (横の領域はプレビュー用の小スペースのため)
+  const cameraStartBlock = (
+    <div className="face-punch-panel__start">
+      <p className="face-punch-panel__hint">
+        カメラを起動して顔を映すと、自動的に本人を認識して出退勤を打刻します。
+      </p>
+      <button type="button" className="btn btn--primary" onClick={() => void handleStart()}>
+        カメラを開始
+      </button>
+      {camera.errorMessage && (
+        <div className="punch-error" role="alert">
+          <p>{camera.errorMessage}</p>
         </div>
       )}
+    </div>
+  );
 
-      {panelState !== 'stopped' && (
-        <div className="face-punch-panel__stage">
-          <FaceAvatar
-            state={avatarState}
-            speechText={speechText}
-            speaking={speaking}
-            faceSide={
-              <video
-                ref={camera.videoRef}
-                className="face-punch-panel__preview"
-                autoPlay
-                muted
-                playsInline
-                aria-label="カメラプレビュー"
-              />
-            }
-          />
+  const faceSide = cameraStopped ? undefined : (
+    <video
+      ref={camera.videoRef}
+      className="face-punch-panel__preview"
+      autoPlay
+      muted
+      playsInline
+      aria-label="カメラプレビュー"
+    />
+  );
 
+  return (
+    <section className="face-punch-panel" aria-label="顔認証打刻">
+      <div className={`face-punch-panel__stage ${cameraStopped ? 'face-punch-panel__stage--stopped' : ''}`}>
+        {/* アバターはカメラ停止中も表示する (NFC 打刻の結果案内にも使うため) */}
+        <FaceAvatar state={avatarState} speechText={speechText} speaking={speaking} faceSide={faceSide} />
+
+        {/* 開始ボタン・状態表示・操作ボタン（広い画面ではアバターの右側に並べる） */}
+        <div className="face-punch-panel__controls">
+          {cameraStopped && cameraStartBlock}
 
           {panelState === 'scanning' && (
             <p className="face-punch-panel__status">顔を認識しています...</p>
@@ -302,8 +307,10 @@ export function FacePunchPanel({ config, punchSubmission }: FacePunchPanelProps)
           {panelState === 'punching' && (
             <p className="face-punch-panel__status">打刻中...</p>
           )}
+
+          {messages}
         </div>
-      )}
+      </div>
     </section>
   );
 }
