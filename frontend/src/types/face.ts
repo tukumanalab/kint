@@ -42,4 +42,6 @@ export interface FaceIdentifyResponse {
   requires_confirmation: boolean;
   face_match_token: string | null;
   greeting_kind: 'check_in' | 'check_out' | null;
+  /** 顔認証打刻の種別。ignored は出勤直後のため何もしない、check_out_update は退勤時刻の上書き */
+  punch_kind?: 'check_in' | 'check_out' | 'check_out_update' | 'ignored' | null;
 }

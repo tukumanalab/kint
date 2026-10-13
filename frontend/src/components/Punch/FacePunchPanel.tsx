@@ -15,6 +15,7 @@ const DETECT_INTERVAL_MS = 500;
 const UNMATCHED_HINT_THRESHOLD = 6; // 約3秒間 (500ms x 6) 不一致が続いたらヒント表示
 const RESULT_DISPLAY_MS = 3000;
 const DEFAULT_COOLDOWN_SECONDS = 5;
+const ABSENCE_RESET_MS = 5000; // 顔が検出されなくなってからこの時間が経つまでは同じ人を再認識しない
 
 type PanelState = 'stopped' | 'scanning' | 'recognized' | 'punching' | 'result';
 
@@ -49,7 +50,7 @@ export function FacePunchPanel({
   const busyRef = useRef(false);
   const countdownTimerRef = useRef<number | null>(null);
   const resultTimerRef = useRef<number | null>(null);
-  const suppressRef = useRef<{ userId: string; until: number } | null>(null);
+  const suppressRef = useRef<{ userId: string; until: number; lastSeen: number } | null>(null);
   const panelStateRef = useRef<PanelState>('stopped');
   panelStateRef.current = panelState;
   // setInterval 内の tick から最新値を参照するための ref
@@ -104,7 +105,8 @@ export function FacePunchPanel({
   }
 
   function suppressUser(userId: string) {
-    suppressRef.current = { userId, until: Date.now() + cooldownSeconds * 1000 };
+    const now = Date.now();
+    suppressRef.current = { userId, until: now + cooldownSeconds * 1000, lastSeen: now };
   }
 
   // ===== 検出ループ =====
@@ -136,10 +138,19 @@ export function FacePunchPanel({
         return;
       }
       const suppress = suppressRef.current;
-      if (suppress && suppress.userId === resp.user_id && Date.now() < suppress.until) {
-        return;
+      if (suppress && suppress.userId === resp.user_id) {
+        const now = Date.now();
+        // 写り続けている間は抑止を延長するため、検出のたびに lastSeen を更新する
+        const suppressed = now < suppress.until || now - suppress.lastSeen < ABSENCE_RESET_MS;
+        suppress.lastSeen = now;
+        if (suppressed) return;
       }
       if (panelStateRef.current !== 'scanning') return;
+      if (resp.punch_kind === 'ignored') {
+        // 出勤直後 (5分以内) は何もしない。その人を抑止してスキャンを続ける
+        suppressUser(resp.user_id);
+        return;
+      }
       setUnmatchedCount(0);
       handleRecognized(resp);
     } catch (e) {
@@ -175,7 +186,7 @@ export function FacePunchPanel({
     }
   }
 
-  async function doPunch(resp: FaceIdentifyResponse) {
+  async function doPunch(resp: FaceIdentifyResponse, options?: { forceCheckIn?: boolean }) {
     if (!resp.face_match_token) return;
     clearCountdownTimer();
     setPanelState('punching');
@@ -183,6 +194,7 @@ export function FacePunchPanel({
       face_match_token: resp.face_match_token,
       device_id: DEVICE_ID,
       occurred_at: new Date().toISOString(),
+      ...(options?.forceCheckIn ? { face_force_check_in: true } : {}),
     });
 
     if (resp.user_id) {
@@ -229,6 +241,14 @@ export function FacePunchPanel({
       void doPunch(recognized);
     }
   }
+
+  function handleForceCheckIn() {
+    if (recognized) {
+      void doPunch(recognized, { forceCheckIn: true });
+    }
+  }
+
+  const isCheckOutUpdate = recognized?.punch_kind === 'check_out_update';
 
   const showUnmatchedHint = unmatchedCount >= UNMATCHED_HINT_THRESHOLD && panelState === 'scanning';
 
@@ -285,19 +305,31 @@ export function FacePunchPanel({
           {panelState === 'recognized' && recognized && !recognized.requires_confirmation && (
             <div className="face-punch-panel__actions">
               <p className="face-punch-panel__countdown">
-                {countdown !== null ? `${countdown} 秒後に打刻します` : ''}
+                {countdown !== null
+                  ? `${countdown} 秒後に${isCheckOutUpdate ? '退勤時刻を更新します' : '打刻します'}`
+                  : ''}
               </p>
               <button type="button" className="btn btn--secondary" onClick={handleCancelCountdown}>
                 取消
               </button>
+              {isCheckOutUpdate && (
+                <button type="button" className="btn btn--primary" onClick={handleForceCheckIn}>
+                  出勤として打刻
+                </button>
+              )}
             </div>
           )}
 
           {panelState === 'recognized' && recognized && recognized.requires_confirmation && (
             <div className="face-punch-panel__actions">
               <button type="button" className="btn btn--primary" onClick={handleConfirmPunch}>
-                {recognized.user_name}さんで打刻する
+                {recognized.user_name}さんで{isCheckOutUpdate ? '退勤時刻を更新' : '打刻する'}
               </button>
+              {isCheckOutUpdate && (
+                <button type="button" className="btn btn--primary" onClick={handleForceCheckIn}>
+                  出勤として打刻
+                </button>
+              )}
               <button type="button" className="btn btn--secondary" onClick={handleConfirmDifferent}>
                 違う
               </button>

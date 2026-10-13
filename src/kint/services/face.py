@@ -243,7 +243,7 @@ class FaceService:
         best_user_id, best_dist = ranked[0]
         second_dist = ranked[1][1] if len(ranked) > 1 else None
 
-        open_attendance, on_shift_like = await self._get_shift_state(best_user_id, now)
+        _, on_shift_like = await self._get_shift_state(best_user_id, now)
 
         threshold = threshold_shift if on_shift_like else threshold_no_shift
         ambiguous = second_dist is not None and (second_dist - best_dist) < _AMBIGUOUS_MARGIN
@@ -261,7 +261,10 @@ class FaceService:
             )
 
         user = user_map[best_user_id]
-        greeting_kind = "check_out" if open_attendance is not None else "check_in"
+        from kint.services.attendance import PunchService  # 循環 import を避けるため遅延 import
+
+        punch_kind, _ = await PunchService(self.session).resolve_face_punch_kind(best_user_id, now)
+        greeting_kind = "check_in" if punch_kind == "check_in" else "check_out"
         token = self._create_face_match_token(best_user_id)
 
         return FaceIdentifyResponse(
@@ -273,4 +276,5 @@ class FaceService:
             requires_confirmation=not on_shift_like,
             face_match_token=token,
             greeting_kind=greeting_kind,
+            punch_kind=punch_kind,
         )

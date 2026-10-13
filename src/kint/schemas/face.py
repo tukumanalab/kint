@@ -64,6 +64,7 @@ class FaceIdentifyResponse(BaseModel):
     requires_confirmation: bool
     face_match_token: str | None = None
     greeting_kind: Literal["check_in", "check_out"] | None = None
+    punch_kind: Literal["check_in", "check_out", "check_out_update", "ignored"] | None = None
 
 
 class FaceVerifyResponse(BaseModel):

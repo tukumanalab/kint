@@ -55,7 +55,7 @@ from kint.schemas.attendance import (
     PunchPeriod,
     ShiftPeriod,
 )
-from kint.schemas.punch import PunchRequest, PunchResponse
+from kint.schemas.punch import FacePunchKind, PunchRequest, PunchResponse
 from kint.schemas.working_hours_report import (
     WorkingHoursReportDayItem,
     WorkingHoursReportResponse,
@@ -243,8 +243,8 @@ class PunchService:
 
         return (self._as_utc(occurred_at) - self._as_utc(latest_punched_at)).total_seconds()
 
-    async def _has_shift_for_check_in(self, user_id: str, occurred_at: datetime) -> bool:
-        """時刻がシフト範囲（開始前許容を含む）に入るかを判定する。"""
+    async def _find_check_in_shift(self, user_id: str, occurred_at: datetime) -> Shift | None:
+        """時刻がシフト範囲（開始前許容を含む）に入るシフトを返す。なければ None。"""
         occurred_date = occurred_at.date()
         result = await self.session.execute(
             select(Shift)
@@ -264,8 +264,37 @@ class PunchService:
             start = self._as_utc(shift.start_time) - early_window
             end = self._as_utc(shift.end_time)
             if start <= occurred_utc <= end:
-                return True
-        return False
+                return shift
+        return None
+
+    async def _has_shift_for_check_in(self, user_id: str, occurred_at: datetime) -> bool:
+        """時刻がシフト範囲（開始前許容を含む）に入るかを判定する。"""
+        return await self._find_check_in_shift(user_id, occurred_at) is not None
+
+    async def resolve_face_punch_kind(
+        self, user_id: str, occurred_at: datetime
+    ) -> tuple[FacePunchKind, Attendance | None]:
+        """顔認証打刻の種別と対象レコードを判定する（取消は行わない）。
+
+        未退勤あり: 出勤から5分以内は ignored、それ以外は check_out。
+        当日退勤済み: 退勤後に始まる当日シフトにかかれば check_in（再出勤）、
+        それ以外は check_out_update（退勤時刻の上書き）。該当なしは check_in。
+        """
+        open_att = await self._get_open_attendance(user_id)
+        if open_att is not None and open_att.check_in is not None:
+            elapsed = (self._as_utc(occurred_at) - self._as_utc(open_att.check_in)).total_seconds()
+            if elapsed <= 24 * 3600:
+                return ("ignored" if elapsed <= 300 else "check_out"), open_att
+
+        latest = await self._get_attendance_for_date(user_id, occurred_at.date())
+        if latest is not None and latest.check_out is not None:
+            shift = await self._find_check_in_shift(user_id, occurred_at)
+            if shift is not None and self._as_utc(shift.start_time) > self._as_utc(
+                latest.check_out
+            ):
+                return "check_in", None
+            return "check_out_update", latest
+        return "check_in", None
 
     async def _find_active_shift(self, user_id: str, occurred_at: datetime) -> Shift | None:
         """打刻時刻に対応するシフトを検索する。"""
@@ -365,18 +394,44 @@ class PunchService:
                     },
                 )
 
-        attendance = await self._get_open_attendance(user.id)
-        if attendance is not None and attendance.check_in is not None:
-            # 24時間を超えて放置された未退勤レコードには退勤打刻を紐付けず、新しい出勤打刻として扱う
-            elapsed_seconds = (
-                self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)
-            ).total_seconds()
-            if elapsed_seconds > 24 * 3600:
-                attendance = None
+        is_check_out_update = False
+        if method == "face":
+            # 顔認証は取消を行わず、専用ルールで種別を判定する
+            face_kind, attendance = await self.resolve_face_punch_kind(user.id, request.occurred_at)
+            if face_kind == "ignored":
+                from kint.services.notification import NotificationService
+
+                notif_svc = NotificationService(self.session)
+                has_unread = await notif_svc.has_unread_notifications(user.id)
+                return PunchResponse(
+                    status="completed",
+                    attendance_id=None,
+                    user_id=user.id,
+                    user_name=user.name,
+                    action=None,
+                    occurred_at=request.occurred_at,
+                    method=method,  # type: ignore[arg-type]
+                    message="出勤直後のため顔認証打刻は無視されました（5分以内）",
+                    has_unread_notifications=has_unread,
+                )
+            if face_kind == "check_out_update":
+                if request.face_force_check_in:
+                    attendance = None
+                else:
+                    is_check_out_update = True
+        else:
+            attendance = await self._get_open_attendance(user.id)
+            if attendance is not None and attendance.check_in is not None:
+                # 24時間超放置の未退勤レコードは退勤対象とせず新規出勤として扱う
+                elapsed_seconds = (
+                    self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)
+                ).total_seconds()
+                if elapsed_seconds > 24 * 3600:
+                    attendance = None
 
         # 5分以内の退勤打刻の場合、出勤記録を取り消す（削除する）
         is_cancelled = False
-        if attendance is not None and attendance.check_in is not None:
+        if method != "face" and attendance is not None and attendance.check_in is not None:
             diff_seconds = (
                 self._as_utc(request.occurred_at) - self._as_utc(attendance.check_in)
             ).total_seconds()
@@ -437,8 +492,10 @@ class PunchService:
                 occurred_utc = self._as_utc(request.occurred_at)
                 shift_end_utc = self._as_utc(shift_end)
                 if occurred_utc > (shift_end_utc + timedelta(minutes=overtime_allowance)):
-                    if not request.confirm_no_overtime and (
-                        not request.overtime_reason or not request.overtime_reason.strip()
+                    if (
+                        not request.confirm_no_overtime
+                        and not attendance.overtime_reason
+                        and (not request.overtime_reason or not request.overtime_reason.strip())
                     ):
                         from kint.services.notification import NotificationService
 
@@ -577,6 +634,10 @@ class PunchService:
         has_unread = await notif_svc.has_unread_notifications(user.id)
 
         action_label = "出勤" if action == "check_in" else "退勤"
+        if action == "check_out" and is_check_out_update:
+            message = "退勤時刻を更新しました"
+        else:
+            message = f"{action_label}を記録しました"
         return PunchResponse(
             status="completed",
             attendance_id=attendance.id,
@@ -585,7 +646,7 @@ class PunchService:
             action=action,  # type: ignore[arg-type]
             occurred_at=request.occurred_at,
             method=method,  # type: ignore[arg-type]
-            message=f"{action_label}を記録しました",
+            message=message,
             calculated_time=calculated_time,
             current_working_hours=current_working_hours,
             daily_working_hours_total=daily_working_hours_total,

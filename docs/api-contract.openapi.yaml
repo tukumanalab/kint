@@ -1895,6 +1895,12 @@ components:
           type: string
           description: >-
             顔認証打刻 (POST /api/v1/face-punch/identify) で発行された、60秒間のみ有効な短命トークン (JWT)。
+            顔認証打刻は「5分以内の退勤 = 取消」を行わない（5分以内は action=null で無視、退勤済みの当日は退勤時刻を上書き）。
+        face_force_check_in:
+          type: boolean
+          default: false
+          description: >-
+            顔認証で退勤済みの当日に再度打刻する際、退勤時刻の上書きではなく新規出勤として扱う（画面の「出勤として打刻」ボタン）。
         device_id:
           type: string
         occurred_at:
@@ -2056,7 +2062,14 @@ components:
           type: string
           enum: [check_in, check_out]
           nullable: true
-          description: あいさつ・打刻の種別（未退勤の勤怠があれば check_out）
+          description: あいさつの種別（punch_kind が check_in 以外なら check_out）
+        punch_kind:
+          type: string
+          enum: [check_in, check_out, check_out_update, ignored]
+          nullable: true
+          description: >-
+            顔認証打刻の種別。ignored は出勤から5分以内のため何もしない、check_out_update は退勤済みの当日の退勤時刻を上書きする、
+            check_in は新規出勤（途中退勤後の再出勤を含む）。
 
     FacePunchConfig:
       type: object

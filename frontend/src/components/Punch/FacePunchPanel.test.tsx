@@ -44,14 +44,16 @@ function makePunchSubmission(executePunch: UsePunchSubmission['executePunch']): 
 function PanelHarness({
   punchSubmission,
   paused,
+  config = CONFIG,
 }: {
   punchSubmission: UsePunchSubmission;
   paused?: boolean;
+  config?: { enabled: boolean; countdown_seconds: number; cooldown_seconds: number };
 }) {
   const avatar = usePunchAvatar();
   return (
     <FacePunchPanel
-      config={CONFIG}
+      config={config}
       punchSubmission={punchSubmission}
       avatar={avatar}
       paused={paused}
@@ -214,6 +216,89 @@ describe('FacePunchPanel', () => {
           expect.objectContaining({ face_match_token: 'token-xyz' }),
         );
       });
+    },
+    15000,
+  );
+
+  it(
+    'check_out_update では退勤時刻更新の表示になり、出勤として打刻で face_force_check_in が付く',
+    async () => {
+      vi.spyOn(faceEngine, 'detectSingleDescriptor').mockResolvedValue({
+        ok: true,
+        descriptor: new Array(128).fill(0.1),
+        box: { x: 0, y: 0, width: 100, height: 100 },
+        score: 0.9,
+      });
+      vi.spyOn(faceApi, 'identifyFace').mockResolvedValue({
+        matched: true,
+        user_id: 'user-001',
+        user_name: '山田 太郎',
+        distance: 0.3,
+        has_shift: true,
+        requires_confirmation: false,
+        face_match_token: 'token-abc',
+        greeting_kind: 'check_out',
+        punch_kind: 'check_out_update',
+      });
+      const executePunch = vi.fn().mockResolvedValue(null);
+      render(
+        <PanelHarness
+          punchSubmission={makePunchSubmission(executePunch)}
+          config={{ ...CONFIG, countdown_seconds: 30 }}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      patchMountedVideo();
+
+      await waitFor(
+        () => {
+          expect(screen.getByText(/秒後に退勤時刻を更新します/)).toBeInTheDocument();
+        },
+        { timeout: 5000 },
+      );
+      fireEvent.click(screen.getByRole('button', { name: '出勤として打刻' }));
+      await waitFor(() => {
+        expect(executePunch).toHaveBeenCalledWith(
+          expect.objectContaining({ face_match_token: 'token-abc', face_force_check_in: true }),
+        );
+      });
+    },
+    15000,
+  );
+
+  it(
+    'punch_kind が ignored の場合はカウントダウンを出さず打刻もしない',
+    async () => {
+      vi.spyOn(faceEngine, 'detectSingleDescriptor').mockResolvedValue({
+        ok: true,
+        descriptor: new Array(128).fill(0.1),
+        box: { x: 0, y: 0, width: 100, height: 100 },
+        score: 0.9,
+      });
+      const identify = vi.spyOn(faceApi, 'identifyFace').mockResolvedValue({
+        matched: true,
+        user_id: 'user-001',
+        user_name: '山田 太郎',
+        distance: 0.3,
+        has_shift: true,
+        requires_confirmation: false,
+        face_match_token: 'token-abc',
+        greeting_kind: 'check_out',
+        punch_kind: 'ignored',
+      });
+      const executePunch = vi.fn();
+      render(<PanelHarness punchSubmission={makePunchSubmission(executePunch)} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'カメラを開始' }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      patchMountedVideo();
+      await waitFor(() => expect(identify).toHaveBeenCalled(), { timeout: 5000 });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      expect(screen.queryByText(/秒後に/)).not.toBeInTheDocument();
+      expect(executePunch).not.toHaveBeenCalled();
     },
     15000,
   );

@@ -27,6 +27,8 @@ export interface PunchRequestByFace {
   confirm?: boolean;
   overtime_reason?: string;
   confirm_no_overtime?: boolean;
+  /** 退勤済みの当日に「出勤として打刻」(再出勤) する場合に true */
+  face_force_check_in?: boolean;
 }
 
 export type PunchRequest = PunchRequestByCard | PunchRequestByUserId | PunchRequestByFace;

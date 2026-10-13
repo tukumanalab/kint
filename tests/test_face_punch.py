@@ -4,9 +4,11 @@ from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
 from jose import jwt
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kint.config import settings as env_settings
+from kint.models.attendance import Attendance
 from kint.models.shift import Shift
 from kint.models.user import User
 
@@ -674,3 +676,215 @@ class TestFaceVerify:
             json={"descriptor": _vec(0.05)},
         )
         assert forbidden.status_code == 403
+
+
+class TestFacePunchKinds:
+    """顔認証打刻の種別判定（取消なし・退勤上書き・再出勤）のテスト。"""
+
+    _BASE = datetime(2026, 5, 16, 9, 0, tzinfo=UTC)
+
+    async def _prepare(self, client: AsyncClient, session: AsyncSession, user_id: str) -> str:
+        """ユーザーと端末トークンを用意して端末トークンを返す。"""
+        device_token = await _get_device_token(client, session)
+        await _create_user(session, id=user_id, email=f"{user_id}@example.com")
+        return device_token
+
+    @staticmethod
+    async def _face_punch(
+        client: AsyncClient,
+        session: AsyncSession,
+        device_token: str,
+        user_id: str,
+        at: datetime,
+        **extra: object,
+    ):
+        from kint.services.face import FaceService
+
+        token = FaceService(session)._create_face_match_token(user_id)
+        return await client.post(
+            "/api/v1/punches",
+            headers={"X-Punch-Device-Token": device_token},
+            json={
+                "device_id": "kiosk-1",
+                "occurred_at": at.isoformat(),
+                "face_match_token": token,
+                **extra,
+            },
+        )
+
+    @staticmethod
+    async def _records(session: AsyncSession, user_id: str) -> list[Attendance]:
+        session.expire_all()
+        result = await session.execute(
+            select(Attendance).where(Attendance.user_id == user_id).order_by(Attendance.check_in)
+        )
+        return list(result.scalars().all())
+
+    async def test_within_5_minutes_is_ignored_not_cancelled(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        device_token = await self._prepare(client, session, "kind-u1")
+        resp = await self._face_punch(
+            client, session, device_token, "kind-u1", self._BASE, confirm=True
+        )
+        assert resp.json()["action"] == "check_in"
+
+        resp = await self._face_punch(
+            client, session, device_token, "kind-u1", self._BASE + timedelta(minutes=2)
+        )
+        assert resp.status_code == 200
+        assert resp.json()["action"] is None
+        records = await self._records(session, "kind-u1")
+        assert len(records) == 1
+        assert records[0].check_out is None
+
+    async def test_check_out_then_overwritten_by_later_face_punch(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        device_token = await self._prepare(client, session, "kind-u2")
+        await self._face_punch(client, session, device_token, "kind-u2", self._BASE, confirm=True)
+        out1 = self._BASE + timedelta(hours=2)
+        resp = await self._face_punch(client, session, device_token, "kind-u2", out1)
+        assert resp.json()["action"] == "check_out"
+
+        out2 = out1 + timedelta(minutes=30)
+        resp = await self._face_punch(client, session, device_token, "kind-u2", out2)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "check_out"
+        assert resp.json()["message"] == "退勤時刻を更新しました"
+        records = await self._records(session, "kind-u2")
+        assert len(records) == 1
+        assert records[0].check_out is not None
+        assert records[0].check_out.replace(tzinfo=UTC) == out2
+
+    async def test_re_check_in_when_covered_by_later_shift(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        device_token = await self._prepare(client, session, "kind-u3")
+        for idx, (start_h, end_h) in enumerate([(9, 12), (13, 18)]):
+            session.add(
+                Shift(
+                    id=f"kind-u3-shift-{idx}",
+                    user_id="kind-u3",
+                    shift_date=self._BASE.date(),
+                    start_time=self._BASE.replace(hour=start_h),
+                    end_time=self._BASE.replace(hour=end_h),
+                    google_event_id=f"kind-u3-event-{idx}",
+                )
+            )
+        await session.commit()
+
+        await self._face_punch(client, session, device_token, "kind-u3", self._BASE)
+        resp = await self._face_punch(
+            client, session, device_token, "kind-u3", self._BASE.replace(hour=12)
+        )
+        assert resp.json()["action"] == "check_out"
+        resp = await self._face_punch(
+            client, session, device_token, "kind-u3", self._BASE.replace(hour=13, minute=5)
+        )
+        assert resp.json()["action"] == "check_in"
+        assert len(await self._records(session, "kind-u3")) == 2
+
+    async def test_force_check_in_after_check_out(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        device_token = await self._prepare(client, session, "kind-u4")
+        await self._face_punch(client, session, device_token, "kind-u4", self._BASE, confirm=True)
+        await self._face_punch(
+            client, session, device_token, "kind-u4", self._BASE + timedelta(hours=2)
+        )
+        resp = await self._face_punch(
+            client,
+            session,
+            device_token,
+            "kind-u4",
+            self._BASE + timedelta(hours=3),
+            face_force_check_in=True,
+            confirm=True,
+        )
+        assert resp.json()["action"] == "check_in"
+        assert len(await self._records(session, "kind-u4")) == 2
+
+    async def test_previous_day_record_only_is_new_check_in(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        device_token = await self._prepare(client, session, "kind-u5")
+        await self._face_punch(client, session, device_token, "kind-u5", self._BASE, confirm=True)
+        await self._face_punch(
+            client, session, device_token, "kind-u5", self._BASE + timedelta(hours=8)
+        )
+        next_day = self._BASE + timedelta(days=1)
+        resp = await self._face_punch(
+            client, session, device_token, "kind-u5", next_day, confirm=True
+        )
+        assert resp.json()["action"] == "check_in"
+        assert len(await self._records(session, "kind-u5")) == 2
+
+    async def test_nfc_cancel_still_works(self, client: AsyncClient, session: AsyncSession) -> None:
+        """NFC 打刻の 5 分以内取消は従来どおり。"""
+        from kint.models.card import Card
+
+        await _create_user(session, id="kind-u6", email="kind-u6@example.com")
+        session.add(
+            Card(
+                id="card-kind-u6",
+                user_id="kind-u6",
+                card_idm="ABCDEF0123456789",
+                name="c",
+                is_active=1,
+            )
+        )
+        await session.commit()
+        for at in (self._BASE, self._BASE + timedelta(minutes=2)):
+            resp = await client.post(
+                "/api/v1/punches",
+                json={
+                    "card_idm": "ABCDEF0123456789",
+                    "device_id": "web",
+                    "occurred_at": at.isoformat(),
+                    "confirm": True,
+                },
+            )
+        assert resp.json()["action"] == "cancelled"
+
+    async def test_identify_punch_kind_and_greeting(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        from kint.services.face import FaceService
+
+        device_token = await self._prepare(client, session, "kind-u7")
+        admin_token = await _login("device-admin")
+        await client.put(
+            "/api/v1/users/kind-u7/face",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"descriptors": [_vec(0.0)]},
+        )
+        session.add(
+            Shift(
+                id="kind-u7-shift",
+                user_id="kind-u7",
+                shift_date=self._BASE.date(),
+                start_time=self._BASE,
+                end_time=self._BASE + timedelta(hours=8),
+                google_event_id="kind-u7-event",
+            )
+        )
+        await session.commit()
+        svc = FaceService(session)
+
+        async def kinds(at: datetime) -> tuple[str | None, str | None]:
+            r = await svc.identify(_vec(0.0), at)
+            assert r.matched is True
+            return r.punch_kind, r.greeting_kind
+
+        assert await kinds(self._BASE + timedelta(minutes=1)) == ("check_in", "check_in")
+        await self._face_punch(client, session, device_token, "kind-u7", self._BASE)
+        assert await kinds(self._BASE + timedelta(minutes=2)) == ("ignored", "check_out")
+        assert await kinds(self._BASE + timedelta(minutes=10)) == ("check_out", "check_out")
+        await self._face_punch(
+            client, session, device_token, "kind-u7", self._BASE + timedelta(hours=2)
+        )
+        assert await kinds(self._BASE + timedelta(hours=3)) == (
+            "check_out_update",
+            "check_out",
+        )

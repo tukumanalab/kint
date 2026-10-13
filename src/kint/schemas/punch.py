@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
+FacePunchKind = Literal["check_in", "check_out", "check_out_update", "ignored"]
+
 
 class PunchRequest(BaseModel):
     """打刻リクエスト。card_idm、face_match_token、user_id+reason のいずれかが必須。"""
@@ -18,6 +20,7 @@ class PunchRequest(BaseModel):
     overtime_reason: str | None = None
     confirm_no_overtime: bool = False
     face_match_token: str | None = None
+    face_force_check_in: bool = False
 
     @model_validator(mode="after")
     def validate_punch_method(self) -> "PunchRequest":
