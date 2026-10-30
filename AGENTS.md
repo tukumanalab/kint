@@ -19,6 +19,7 @@ Google Calendar のシフトカレンダーと照合して勤怠管理を行う�
 - **ORM**: SQLAlchemy 2.0+ (async) + aiosqlite
 - **Migration**: Alembic
 - **Calendar**: Google Calendar API (シフト照合)
+- **Mail**: Resend HTTP API (確認メール・月次レポート。`RESEND_API_KEY` / `MAIL_FROM`。詳細は `docs/mail-settings.md`)
 - **Auth**: セッションベース認証 (JWT トークン)
 - **Deploy**: PM2 + Nginx (Linux server) / Docker Compose
 - **Test**: Backend: pytest + pytest-asyncio / Frontend: Vitest + React Testing Library
@@ -68,6 +69,7 @@ kint/
 │       ├── services/            # ビジネスロジック
 │       │   ├── attendance.py
 │       │   ├── calendar.py      # Google Calendar 連携
+│       │   ├── mailer.py        # メール送信アダプター (Resend)
 │       │   ├── user.py
 │       │   ├── punch_device.py  # 打刻端末サービス
 │       │   └── face.py          # 顔認証ディスクリプタ登録・照合サービス
@@ -260,6 +262,9 @@ cp .env.example .env
   - 管理者は「システム設定」画面から自動通知時刻（`monthly_report_time`）を `HH:MM` 形式で編集・保存できます。
   - 通知時刻が保存されると、バックエンドは APScheduler の定期実行スケジュールを月末日の指定時刻で再スケジュールします。空設定にすると自動通知は無効となります。
   - **件名および本文テンプレートのカスタマイズ**: 管理者は「システム設定」画面から月次レポートメールの件名（`monthly_report_subject`）および本文テンプレート（`monthly_report_body`）を自由に変更できます。文面内では `{user_name}`, `{site_name}`, `{year}`, `{month}`, `{last_day}`, `{working_days}`, `{total_requested_hours}`, `{total_working_hours}`, `{yearly_hours}`, `{app_base_url}` などの変数プレースホルダーを利用可能です。
+- **送信方式**:
+  - メールは Resend の HTTP API（`services/mailer.py` の `MailAdapter`）で送信します。差出人は「システム設定のサイト名 <`MAIL_FROM`>」、返信先は `MAIL_REPLY_TO`（未設定時は `MAIL_FROM`）です。
+  - `MAIL_FROM` には m-pass と同じく Resend でドメイン認証済みの `tukumana.si.aoyama.ac.jp` のアドレスを指定します。設定・トラブル対応は `docs/mail-settings.md` を参照してください。
 
 ## 打刻端末制限と登録機能
 

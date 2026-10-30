@@ -151,7 +151,7 @@ class TestEmailChangeRequests:
         await _create_user(session)
         token = await _login(client)
 
-        with patch("kint.services.user.GmailAdapter.send_email_verification") as mock_send:
+        with patch("kint.services.user.MailAdapter.send_email_verification") as mock_send:
             mock_send.return_value = None
             resp = await client.post(
                 "/api/v1/me/email-change-requests",
@@ -165,6 +165,13 @@ class TestEmailChangeRequests:
         assert data["requested_email"] == "newemail@example.com"
         assert "expires_at" in data
         assert mock_send.called
+
+        from sqlalchemy import select
+
+        from kint.models.email_verification import EmailVerificationRequest
+
+        evr = (await session.execute(select(EmailVerificationRequest))).scalar_one()
+        assert evr.sent_via == "resend"
 
     async def test_request_email_change_duplicate_returns_409(
         self, client: AsyncClient, session: object
@@ -185,18 +192,18 @@ class TestEmailChangeRequests:
         )
         assert resp.status_code == 409
 
-    async def test_request_email_change_gmail_failure_returns_502(
+    async def test_request_email_change_mail_failure_returns_502(
         self, client: AsyncClient, session: object
     ) -> None:
-        """Gmail 送信失敗時は 502 を返す。"""
+        """メール送信失敗時は 502 を返す。"""
         from kint.exceptions import KintBadGatewayError
 
         await _create_user(session)
         token = await _login(client)
 
-        with patch("kint.services.user.GmailAdapter.send_email_verification") as mock_send:
+        with patch("kint.services.user.MailAdapter.send_email_verification") as mock_send:
             mock_send.side_effect = KintBadGatewayError(
-                code="GMAIL_SEND_FAILED",
+                code="MAIL_SEND_FAILED",
                 message="送信失敗",
             )
             resp = await client.post(

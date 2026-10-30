@@ -126,6 +126,9 @@
   - API 実装は docs/api-contract.openapi.yaml の /me/profile と /me/password 仕様と整合。
 
 ### BE-10: Gmail API 確認メール送信実装
+
+> **注記**: メール送信は後に Gmail API から Resend へ移行した（[mail-settings.md](mail-settings.md)）。以下は当初の計画。
+
 - 目的:
   - メールアドレス登録・変更時に Google Gmail API で確認メールを送信する。
 - 実装範囲:

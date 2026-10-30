@@ -21,7 +21,7 @@ from kint.schemas.user import (
     MeProfileUpdateRequest,
 )
 from kint.services.face import FaceService
-from kint.services.gmail import GmailAdapter
+from kint.services.mailer import MailAdapter
 from kint.services.notification import NotificationService
 from kint.services.user import UserService
 
@@ -54,8 +54,8 @@ async def request_email_change(
 ) -> EmailChangeAcceptedResponse:
     """新メールアドレス宛に確認メールを送信する。承認前は email は変更しない。"""
     service = UserService(session)
-    gmail = GmailAdapter()
-    return await service.request_email_change(current_user, body, gmail)
+    mailer = MailAdapter()
+    return await service.request_email_change(current_user, body, mailer)
 
 
 @router.get("/cards", response_model=list[MeCardListItem])

@@ -94,7 +94,7 @@ paths:
       description: >-
         ログイン中ユーザー本人の新しいメールアドレス宛に確認メールを送信します。
         メールアドレス自体は承認リンクが開かれるまで更新しません。
-        メール送信は Gmail API（OAuth 2.0 クライアント認証）で実行します。
+        メール送信は Resend の HTTP API で実行します（差出人は「サイト名 <MAIL_FROM>」）。
       requestBody:
         required: true
         content:
@@ -127,7 +127,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '502':
-          description: Gmail API 送信失敗
+          description: メール送信 (Resend) 失敗（MAIL_NOT_CONFIGURED / MAIL_SEND_FAILED）
           content:
             application/json:
               schema:
@@ -303,7 +303,7 @@ paths:
       description: >-
         name, full_name, email, role, password を受け取りユーザーを作成します。
         password は 8〜72 文字かつ英字・数字を各1文字以上含む必要があります。
-        作成時に Gmail API（OAuth 2.0 クライアント認証）経由で確認メールを送信し、承認完了までメール未確認状態とします。
+        作成時に Resend 経由で確認メールを送信し、承認完了までメール未確認状態とします。
       requestBody:
         required: true
         content:
@@ -312,7 +312,7 @@ paths:
               $ref: '#/components/schemas/UserCreateRequest'
       responses:
         '201':
-          description: Gmail API（OAuth クライアント）送信失敗
+          description: メール送信 (Resend) 失敗（MAIL_NOT_CONFIGURED / MAIL_SEND_FAILED）
           content:
             application/json:
               schema:

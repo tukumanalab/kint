@@ -1700,7 +1700,7 @@ class AttendanceService:
         import logging
         from datetime import timedelta, timezone
 
-        from kint.services.gmail import GmailAdapter
+        from kint.services.mailer import MailAdapter
 
         logger = logging.getLogger(__name__)
 
@@ -1738,7 +1738,7 @@ class AttendanceService:
             summary.user_id: summary.total_requested_hours for _, summary, _ in yearly_data
         }
 
-        gmail = GmailAdapter()
+        mailer = MailAdapter()
 
         # システム設定からサイト名・レポートメールテンプレートを取得
         settings_service = SettingsService(self.session)
@@ -1817,7 +1817,7 @@ class AttendanceService:
                 body = body.replace(k, v)
 
             try:
-                gmail.send_email(user.email, subject, body)
+                mailer.send_email(user.email, subject, body, sender_name=site_name)
                 logger.info(
                     "ユーザー %s (%s) への月次レポート送信が完了しました。",
                     user.name,

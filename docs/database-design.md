@@ -191,7 +191,7 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 | `verification_type`  | TEXT     | NOT NULL, CHECK(verification_type IN ('signup','email_change')) | 確認種別 |
 | `token_hash`         | TEXT     | NOT NULL, UNIQUE                                             | 確認トークンのハッシュ |
 | `requested_by_user_id` | TEXT   | NULL, FK → users.id ON DELETE SET NULL                      | 要求者（admin 作成時は管理者、signup は作成者） |
-| `sent_via`           | TEXT     | NOT NULL, CHECK(sent_via IN ('gmail_api'))                   | 送信手段 |
+| `sent_via`           | TEXT     | NOT NULL, CHECK(sent_via IN ('gmail_api', 'resend'))         | 送信手段（現在は `resend`。`gmail_api` は移行前の行） |
 | `expires_at`         | DATETIME | NOT NULL                                                     | 期限日時 |
 | `consumed_at`        | DATETIME | NULL                                                         | 使用日時 |
 | `cancelled_at`       | DATETIME | NULL                                                         | 取消日時 |
@@ -509,7 +509,7 @@ sequenceDiagram
   participant Sv as User Service
   participant Rp as Repository
   participant Db as SQLite
-  participant Gm as Gmail API
+  participant Gm as Resend
   participant Au as Auth Session
 
   UI->>Rt: POST /api/v1/me/email-change-requests

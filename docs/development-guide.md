@@ -132,6 +132,8 @@ cp .env.example .env
 | `VITE_GOOGLE_CLIENT_ID` | フロントエンドビルド用 Google Client ID（同じ値）|
 | `APP_BASE_URL` | 公開 URL（例: `https://your-domain.com`）|
 | `DATABASE_URL` | SQLite のデータベースURL（例: `sqlite+aiosqlite:///kint.db`）|
+| `RESEND_API_KEY` | メール送信用の Resend API キー（[mail-settings.md](mail-settings.md) 参照）|
+| `MAIL_FROM` | 送信元アドレス（Resend で認証済みのドメイン。例: `noreply@tukumana.si.aoyama.ac.jp`）|
 
 ```bash
 # SECRET_KEY の生成例

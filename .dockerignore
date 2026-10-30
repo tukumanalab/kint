@@ -17,7 +17,6 @@ desktop/
 kint.db
 *.db-shm
 *.db-wal
-gmail_token.json
 
 # 開発用設定
 .env

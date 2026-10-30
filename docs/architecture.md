@@ -17,7 +17,7 @@ flowchart LR
     Repo[Repository 層]
     DB[(SQLite)]
     Calendar[iCal アダプター]
-    Mail[Gmail API アダプター]
+    Mail[Mail アダプター (Resend)]
     Auth[認証 Session/JWT]
     Audit[監査ログ]
     Logger[ログ出力 JSON Lines]
@@ -65,7 +65,7 @@ flowchart LR
 - Calendar Adapter
   - iCal フィードの取得・パース境界。
 - Mail Adapter
-  - Gmail API（OAuth 2.0 クライアント認証）を用いた確認メール送信および月次の勤怠実績レポートの自動配信メール送信を行う連携境界。
+  - Resend の HTTP API（`services/mailer.py`）を用いた確認メール送信および月次の勤怠実績レポートの自動配信メール送信を行う連携境界。
 - Logger
   - Python `logging` モジュール + `RotatingFileHandler` で `logs/kint.log` に JSON Lines 形式で出力する。
   - `GET /api/v1/logs` エンドポイント（管理者専用）でフロントエンドから参照可能。
@@ -168,7 +168,7 @@ erDiagram
 - ログイン済みユーザーはマイページで name, full_name, password を更新できる。
 - ログイン済みユーザーは email 変更要求を作成できるが、email 自体は承認リンク確認後に更新する。
 - Router は本人コンテキストのみを Service に渡し、他ユーザーID指定を受け付けない。
-- Service は email 重複チェック、確認トークン発行、Gmail API 送信、パスワード強度検証、current_password 検証を実施する。
+- Service は email 重複チェック、確認トークン発行、メール送信（Resend）、パスワード強度検証、current_password 検証を実施する。
 - Repository は users テーブル更新、verification request 記録、監査ログ記録をトランザクションで実行する。
 - email 変更確定時または password 更新時は認証セッションを無効化し、再ログインを強制する。
 
@@ -180,7 +180,7 @@ sequenceDiagram
   participant Sv as User Service
   participant Rp as User Repository
   participant Db as SQLite
-  participant Gm as Gmail API
+  participant Gm as Resend
   participant Au as Auth Session
 
   U->>UI: 新メールアドレスを入力
@@ -228,11 +228,12 @@ sequenceDiagram
 - ADR-009: 本人プロフィール編集は管理者向けユーザー管理 API と分離する。
   - 根拠: 権限境界を明確化し、本人編集で role/is_active が変更される事故を防ぐため。
 
-- ADR-010: メールアドレス登録・変更は即時反映せず、Gmail API で送信する確認メール承認後に確定する。
+- ADR-010: メールアドレス登録・変更は即時反映せず、Resend で送信する確認メール承認後に確定する。
   - 根拠: 実在性確認と誤入力防止を両立し、なりすましや配送不能アドレス登録を減らすため。
 
-- ADR-011: Gmail API 送信は OAuth クライアント（OAuth 2.0）を採用する。
-  - 根拠: Google の標準的な認可方式に準拠し、トークンの失効・再認可を運用しやすくするため。
+- ADR-011: メール送信は Resend の HTTP API を採用する（当初は Gmail API + OAuth 2.0 だったが移行した）。
+  - 根拠: OAuth リフレッシュトークンの失効・再認可の運用が不要で、API キーだけで送信できるため。m-pass と同じ Resend 認証済みドメイン（`tukumana.si.aoyama.ac.jp`）のアドレスから送信でき、SPF / DKIM / DMARC もそのドメインで揃う。
+  - 詳細: [mail-settings.md](mail-settings.md)
 
 - ADR-013: バックエンドログは JSON Lines 形式で `logs/kint.log` にファイル保存し、管理者向け Web UI から参照可能にする。
   - 根拠: uvicorn の stdout だけでは運用中のログを遡れないため、ファイルに永続化する。JSON Lines にすることで API 側でのパースを単純化し、ローテーションで無制限の肥大化を防ぐ。

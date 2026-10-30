@@ -34,7 +34,7 @@ from kint.schemas.user import (
     UsersListResponse,
 )
 from kint.schemas.user_backup import CardBackupSchema, ImportErrorItem, UserBackupSchema
-from kint.services.gmail import GmailAdapter
+from kint.services.mailer import MailAdapter
 
 _MIN_ACTIVE_ADMINS = 1
 
@@ -613,10 +613,10 @@ class UserService:
         self,
         current_user: User,
         data: EmailChangeRequestCreate,
-        gmail: GmailAdapter,
+        mailer: MailAdapter,
     ) -> EmailChangeAcceptedResponse:
         """new_email 宛に確認メールを送信し、EmailVerificationRequest を作成する。
-        email 重複時は KintConflictError。Gmail 送信失敗時は KintBadGatewayError。
+        email 重複時は KintConflictError。メール送信失敗時は KintBadGatewayError。
         """
         new_email = str(data.new_email)
 
@@ -646,7 +646,7 @@ class UserService:
             verification_type="email_change",
             token_hash=token_hash,
             requested_by_user_id=current_user.id,
-            sent_via="gmail_api",
+            sent_via="resend",
             expires_at=expires_at,
         )
         self.session.add(evr)
@@ -664,9 +664,9 @@ class UserService:
         )
         self.session.add(log)
 
-        # Gmail 送信（失敗時はロールバック）
+        # メール送信（失敗時はロールバック）
         try:
-            gmail.send_email_verification(new_email, raw_token, "email_change")
+            mailer.send_email_verification(new_email, raw_token, "email_change")
         except KintBadGatewayError:
             await self.session.rollback()
             raise

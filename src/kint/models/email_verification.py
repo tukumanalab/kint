@@ -18,7 +18,7 @@ class EmailVerificationRequest(Base):
             name="ck_email_verification_requests_verification_type",
         ),
         CheckConstraint(
-            "sent_via IN ('gmail_api')",
+            "sent_via IN ('gmail_api', 'resend')",
             name="ck_email_verification_requests_sent_via",
         ),
     )

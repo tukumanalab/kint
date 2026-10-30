@@ -63,7 +63,7 @@ async def _create_attendance(
     return att
 
 
-@patch("kint.services.gmail.GmailAdapter.send_email")
+@patch("kint.services.mailer.MailAdapter.send_email")
 async def test_send_monthly_attendance_reports(mock_send_email, session) -> None:
     # 1. ユーザーの準備 (管理者、従業員1, 従業員2)
     # 管理者
@@ -164,6 +164,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
         body = call[0][2]
 
         assert subject == "【つくまな勤怠】2026年6月 勤務実績レポート"
+        assert call.kwargs["sender_name"] == "つくまな勤怠"
         assert "つくまな勤怠 勤怠管理システムより、当月の勤務実績レポートをお知らせします。" in body
         assert env_settings.app_base_url in body
 
@@ -181,7 +182,7 @@ async def test_send_monthly_attendance_reports(mock_send_email, session) -> None
             assert "4月からの総勤務時間: 8:00" in body
 
 
-@patch("kint.services.gmail.GmailAdapter.send_email")
+@patch("kint.services.mailer.MailAdapter.send_email")
 async def test_send_monthly_attendance_reports_custom_template(mock_send_email, session) -> None:
     from kint.models.system_setting import SystemSetting
 
@@ -242,7 +243,7 @@ async def test_send_monthly_attendance_reports_custom_template(mock_send_email, 
     assert "勤務日数: 1日 / 申請時間: 8:00" in body
 
 
-@patch("kint.services.gmail.GmailAdapter.send_email")
+@patch("kint.services.mailer.MailAdapter.send_email")
 async def test_send_monthly_attendance_reports_with_user_ids(mock_send_email, session) -> None:
     emp1 = await _create_user(
         session,
@@ -278,7 +279,7 @@ async def test_send_monthly_attendance_reports_with_user_ids(mock_send_email, se
     assert mock_send_email.call_args[0][0] == "tanaka@example.com"
 
 
-@patch("kint.services.gmail.GmailAdapter.send_email")
+@patch("kint.services.mailer.MailAdapter.send_email")
 async def test_manual_monthly_report_send_api(mock_send_email, client, session) -> None:
     admin = await _create_user(
         session,
@@ -315,7 +316,7 @@ async def test_manual_monthly_report_send_api(mock_send_email, client, session) 
     assert "2026-07" in data["message"]
 
 
-@patch("kint.services.gmail.GmailAdapter.send_email")
+@patch("kint.services.mailer.MailAdapter.send_email")
 async def test_manual_monthly_report_send_api_with_missing_email(
     mock_send_email, client, session
 ) -> None:
