@@ -44,3 +44,24 @@ async def test_get_attendance_guide_success(client: AsyncClient, sample_user: Us
     assert data["title"] == "勤怠一覧画面 使い方ガイド"
     assert "# 勤怠一覧画面 使い方ガイド" in data["content"]
     assert "修正申請" in data["content"]
+
+
+@pytest.mark.asyncio
+async def test_get_employee_guide_unauthorized(client: AsyncClient):
+    """未認証の場合 401 が返る。"""
+    res = await client.get("/api/v1/docs/employee-guide")
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_employee_guide_success(client: AsyncClient, sample_user: User):
+    """認証済みユーザーが従業員向けガイドを取得できる。"""
+    token = _create_access_token(sample_user.id, sample_user.token_version)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = await client.get("/api/v1/docs/employee-guide", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["title"] == "従業員向け 使い方ガイド"
+    assert "# 従業員向け 使い方ガイド" in data["content"]
+    assert "修正申請" in data["content"]

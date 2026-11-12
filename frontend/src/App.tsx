@@ -10,6 +10,7 @@ import { EmailVerificationPage } from './components/EmailVerification';
 import { LogsPage } from './components/Logs';
 import { SettingsPage } from './components/Settings';
 import { AttendancePage } from './components/Attendance';
+import { EmployeeApp } from './components/Employee';
 import { fetchMyNotifications, readNotification, readAllNotifications } from './api/me';
 import type { Notification } from './types/notification';
 import { NotificationPopover } from './components/Notification/NotificationPopover';
@@ -183,6 +184,9 @@ function App() {
     const basePath = import.meta.env.BASE_URL; // 末尾スラッシュあり (例: '/kint/' または '/kintai/')
     const baseWithoutTrailing = basePath.replace(/\/$/, ''); // 末尾スラッシュなし (例: '/kint' または '/kintai')
 
+    // ログイン状態の復元中は URL を書き換えない（従業員画面のタブ URL を直接開けるようにする）
+    if (auth.isLoading) return;
+
     if (!auth.token || !auth.user) {
       if (guestPage === 'punch') {
         if (!isPunchPath()) {
@@ -194,7 +198,8 @@ function App() {
           window.history.pushState({}, '', basePath);
         }
       }
-    } else {
+    } else if (isAdmin) {
+      // 一般従業員の URL は EmployeeApp が管理するため、ここでは管理者のみ同期する
       if (page === 'punch') {
         if (!isPunchPath()) {
           window.history.pushState({}, '', `${baseWithoutTrailing}/punch`);
@@ -205,7 +210,7 @@ function App() {
         }
       }
     }
-  }, [guestPage, page, auth.token, auth.user]);
+  }, [guestPage, page, auth.token, auth.user, auth.isLoading, isAdmin]);
 
   // popstate イベントハンドラー
   useEffect(() => {
@@ -358,6 +363,20 @@ function App() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // 一般従業員は専用の画面（スマートフォン向けの下部タブ構成）を表示する
+  if (!isAdmin) {
+    return (
+      <EmployeeApp
+        auth={auth}
+        siteName={siteName}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onReadNotification={handleReadNotification}
+        onReadAllNotifications={handleReadAllNotifications}
+      />
     );
   }
 

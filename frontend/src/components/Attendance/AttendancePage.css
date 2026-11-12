@@ -1667,3 +1667,56 @@
   }
 }
 
+
+/* ===== スマートフォンでページ全体が横にはみ出さないようにする ===== */
+
+/* .app（flex の縦並び）の子として、内容の最小幅に引っ張られて画面より広がるのを防ぐ */
+.attendance-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .attendance-page {
+    padding: 14px 12px;
+  }
+
+  .attendance-page__header,
+  .attendance-page__controls,
+  .att-requests-header,
+  .att-summary-header,
+  .att-summary-title-group {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .attendance-page__controls > .att-btn {
+    margin-right: 0 !important;
+  }
+
+  /* 絞り込みタブは折り返さず、横スクロールで全部見られるようにする */
+  .att-filter-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .att-filter-tab {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* 列の多い表は文字が縦に潰れないよう最小幅を持たせ、枠内で横スクロールさせる */
+  .att-requests-section .att-table {
+    min-width: 760px;
+  }
+
+  .att-edit-log-table {
+    min-width: 820px;
+  }
+
+  .att-table th {
+    white-space: nowrap;
+  }
+}
