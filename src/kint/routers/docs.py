@@ -15,6 +15,7 @@ router = APIRouter(prefix="/docs", tags=["docs"])
 # プロジェクトルートの docs ディレクトリ配下のパス
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _ATTENDANCE_GUIDE_PATH = _PROJECT_ROOT / "docs" / "attendance_guide.md"
+_EMPLOYEE_GUIDE_PATH = _PROJECT_ROOT / "docs" / "employee_guide.md"
 
 
 class GuideDocResponse(BaseModel):
@@ -38,5 +39,23 @@ async def get_attendance_guide(
     content = _ATTENDANCE_GUIDE_PATH.read_text(encoding="utf-8")
     return GuideDocResponse(
         title="勤怠一覧画面 使い方ガイド",
+        content=content,
+    )
+
+
+@router.get("/employee-guide", response_model=GuideDocResponse)
+async def get_employee_guide(
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> GuideDocResponse:
+    """従業員向け画面の使い方ガイド (docs/employee_guide.md) の内容を取得する。"""
+    if not _EMPLOYEE_GUIDE_PATH.exists():
+        raise KintNotFoundError(
+            code="DOC_NOT_FOUND",
+            message="使い方ガイドドキュメントが見つかりません。",
+        )
+
+    content = _EMPLOYEE_GUIDE_PATH.read_text(encoding="utf-8")
+    return GuideDocResponse(
+        title="従業員向け 使い方ガイド",
         content=content,
     )

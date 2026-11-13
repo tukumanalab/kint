@@ -459,3 +459,97 @@
   cursor: not-allowed;
 }
 
+
+/* ===== 長い値（所属・メールアドレスなど）が枠からはみ出さないようにする ===== */
+
+.myprofile-info-list {
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+}
+
+.myprofile-info-desc {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.myprofile-section__header {
+  gap: 0.75rem;
+}
+
+.myprofile-section__header .btn {
+  flex: none;
+  align-self: center;
+}
+
+/* ===== スマートフォン ===== */
+
+@media (max-width: 600px) {
+  .myprofile-page {
+    padding: 1rem;
+  }
+
+  .myprofile-section {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .myprofile-info-list {
+    grid-template-columns: 6.5em minmax(0, 1fr);
+    gap: 0.6rem 0.75rem;
+  }
+
+  .myprofile-info-term,
+  .myprofile-info-desc {
+    display: block;
+    line-height: 1.5;
+  }
+
+  /* iOS は 16px 未満の入力欄にフォーカスすると画面を拡大するため、16px にそろえる */
+  .form-input,
+  .form-input--sm {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .btn {
+    min-height: 42px;
+  }
+
+  .btn--sm {
+    min-height: 38px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .myprofile-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 92dvh;
+    margin: auto auto 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .myprofile-dialog__inner {
+    padding: 1.1rem 1rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .myprofile-dialog__close {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .myprofile-dialog__actions {
+    position: sticky;
+    bottom: 0;
+    padding-top: 0.5rem;
+    background: #fff;
+  }
+
+  .myprofile-dialog__actions .btn {
+    flex: 1;
+  }
+
+  .myprofile-card-item__date {
+    flex-basis: 100%;
+    order: 5;
+  }
+}

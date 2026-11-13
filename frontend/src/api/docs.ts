@@ -23,3 +23,20 @@ export async function fetchAttendanceGuide(token: string): Promise<GuideDocRespo
 
   return res.json();
 }
+
+export async function fetchEmployeeGuide(token: string): Promise<GuideDocResponse> {
+  const res = await fetch('/api/v1/docs/employee-guide', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || '使い方ガイドの取得に失敗しました。');
+  }
+
+  return res.json();
+}

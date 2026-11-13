@@ -349,6 +349,7 @@ sequenceDiagram
   - Firefox（WebUSB 非対応）
   - Safari（WebUSB 非対応）
   - モバイルブラウザ（USB 接続運用が前提外）
+- 上記は WebUSB を使う機能（打刻端末・NFC カード登録）についての方針である。従業員向け画面（勤怠の確認・修正申請・ヘルプ・マイページ）は WebUSB を使わないため、スマートフォンのブラウザ（iOS Safari / Android Chrome）も対象とする。ロールが `employee` のユーザーには管理者向け画面とは別の `EmployeeApp`（下部タブ構成、`/records` `/requests` `/help` `/me` のパスを持つ）を表示する。詳細は `docs/specification.md` の 5-17 を参照。
 
 ### 12-2. ブラウザ機能要件
 - `navigator.usb` が利用可能であること。

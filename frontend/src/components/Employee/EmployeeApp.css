@@ -1,0 +1,1897 @@
+/* 従業員向け画面のスタイル。スマートフォン（幅 320px〜）を基準に組み、広い画面では中央寄せにする。 */
+
+.emp-app {
+  --emp-bg: #f1f4f9;
+  --emp-card: #ffffff;
+  --emp-line: #e2e8f0;
+  --emp-text: #0f172a;
+  --emp-sub: #475569;
+  --emp-muted: #64748b;
+  --emp-primary: #2563eb;
+  --emp-primary-dark: #1d4ed8;
+  --emp-primary-soft: #eff6ff;
+  --emp-ok: #15803d;
+  --emp-ok-soft: #dcfce7;
+  --emp-warn: #b45309;
+  --emp-warn-soft: #fef3c7;
+  --emp-danger: #b91c1c;
+  --emp-danger-soft: #fee2e2;
+  --emp-info: #1d4ed8;
+  --emp-info-soft: #dbeafe;
+  --emp-topbar-h: 52px;
+  --emp-tabbar-h: 58px;
+  --emp-safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: light;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--emp-bg);
+  color: var(--emp-text);
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.emp-app *,
+.emp-app *::before,
+.emp-app *::after {
+  box-sizing: border-box;
+}
+
+:where(.emp-app) button {
+  font-family: inherit;
+  letter-spacing: 0;
+  color: inherit;
+  touch-action: manipulation;
+}
+
+.emp-app h1,
+.emp-app h2,
+.emp-app h3 {
+  font-family: inherit;
+  letter-spacing: 0;
+  color: var(--emp-text);
+}
+
+body.emp-scroll-lock {
+  overflow: hidden;
+}
+
+/* 共通レイアウト（#root）の左右の枠線と最大幅は、従業員画面では使わない */
+#root:has(.emp-app) {
+  max-width: none;
+  border-inline: none;
+}
+
+/* ---------- 上部バー ---------- */
+
+.emp-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: calc(var(--emp-topbar-h) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0
+    max(16px, env(safe-area-inset-left, 0px));
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.emp-topbar__brand {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emp-topbar__bell {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #e2e8f0 !important;
+  cursor: pointer;
+}
+
+.emp-topbar__bell:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.emp-topbar__badge,
+.emp-tabbar__badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ---------- 本文 ---------- */
+
+.emp-main {
+  padding-bottom: calc(var(--emp-tabbar-h) + var(--emp-safe-bottom) + 24px);
+}
+
+.emp-page {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+}
+
+.emp-page__head {
+  margin-bottom: 12px;
+}
+
+.emp-page__eyebrow {
+  margin: 0 0 2px;
+  color: var(--emp-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.emp-page__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.emp-section {
+  margin-top: 20px;
+}
+
+.emp-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emp-section__title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--emp-sub) !important;
+  line-height: 1.4;
+}
+
+.emp-section__head .emp-section__title {
+  margin-bottom: 8px;
+}
+
+.emp-section__head .emp-link {
+  margin-bottom: 8px;
+}
+
+.emp-card {
+  background: var(--emp-card);
+  border: 1px solid var(--emp-line);
+  border-radius: 14px;
+}
+
+.emp-card--list {
+  overflow: hidden;
+}
+
+.emp-card--list > * + * {
+  border-top: 1px solid var(--emp-line);
+}
+
+.emp-muted {
+  color: var(--emp-muted);
+}
+
+.emp-empty {
+  margin: 0;
+  padding: 28px 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  color: var(--emp-muted);
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.emp-note {
+  margin: 12px 0;
+  color: var(--emp-sub);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.emp-link {
+  flex: none;
+  padding: 6px 2px;
+  border: none;
+  background: none;
+  color: var(--emp-primary) !important;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- ボタン類 ---------- */
+
+.emp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+}
+
+.emp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.emp-btn--primary {
+  background: var(--emp-primary);
+  color: #fff !important;
+}
+
+.emp-btn--primary:active:not(:disabled) {
+  background: var(--emp-primary-dark);
+}
+
+.emp-btn--outline {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: var(--emp-text) !important;
+}
+
+.emp-btn--outline:active:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.emp-btn--ghost-danger {
+  background: #fff;
+  border-color: #fecaca;
+  color: var(--emp-danger) !important;
+}
+
+.emp-btn--small {
+  min-height: 38px;
+  padding: 6px 14px;
+  font-size: 0.88rem;
+  border-radius: 10px;
+}
+
+.emp-btn--grow {
+  flex: 1;
+}
+
+.emp-btn--block {
+  width: 100%;
+}
+
+.emp-icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--emp-sub) !important;
+  cursor: pointer;
+}
+
+.emp-icon-btn:active {
+  background: #e2e8f0;
+}
+
+.emp-icon-btn--outline {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+}
+
+.emp-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--emp-sub) !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.emp-chip--on {
+  background: var(--emp-primary);
+  border-color: var(--emp-primary);
+  color: #fff !important;
+}
+
+.emp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.emp-toolbar--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-inline: -16px;
+  padding-inline: 16px;
+  scrollbar-width: none;
+}
+
+.emp-toolbar--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- バッジ ---------- */
+
+.emp-badge {
+  flex: none;
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.emp-badge--ok {
+  background: var(--emp-ok-soft);
+  color: var(--emp-ok);
+}
+
+.emp-badge--info {
+  background: var(--emp-info-soft);
+  color: var(--emp-info);
+}
+
+.emp-badge--warn {
+  background: var(--emp-warn-soft);
+  color: var(--emp-warn);
+}
+
+.emp-badge--danger {
+  background: var(--emp-danger-soft);
+  color: var(--emp-danger);
+}
+
+.emp-badge--muted {
+  background: #e2e8f0;
+  color: var(--emp-sub);
+}
+
+.emp-flag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.emp-flag--pending {
+  background: var(--emp-warn-soft);
+  color: var(--emp-warn);
+}
+
+.emp-flag--alert {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.emp-flag--admin {
+  background: var(--emp-info-soft);
+  color: var(--emp-info);
+}
+
+.emp-flag--self {
+  background: #e2e8f0;
+  color: var(--emp-sub);
+}
+
+/* ---------- アラート ---------- */
+
+.emp-alert {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.emp-alert .emp-link {
+  display: inline;
+  margin-left: 8px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.emp-alert--danger {
+  background: var(--emp-danger-soft);
+  color: #991b1b;
+}
+
+.emp-alert--warn {
+  background: var(--emp-warn-soft);
+  color: #92400e;
+}
+
+.emp-alert--info {
+  background: var(--emp-info-soft);
+  color: #1e40af;
+}
+
+.emp-alert--list {
+  padding-left: 32px;
+}
+
+.emp-alert--list li + li {
+  margin-top: 2px;
+}
+
+.emp-alert--list .is-ack {
+  opacity: 0.7;
+}
+
+/* ---------- 今日のカード ---------- */
+
+.emp-today {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(140deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+  color: #fff !important;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+}
+
+.emp-today:active {
+  filter: brightness(0.96);
+}
+
+.emp-today__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emp-today__headline {
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.emp-today .emp-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.emp-today__times {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.emp-today__time {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.emp-today__time--hours {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.emp-today__label {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.emp-today__clock {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-today__time--hours .emp-today__clock {
+  font-size: 1.3rem;
+  line-height: 1.6;
+}
+
+.emp-today__sep {
+  padding-bottom: 6px;
+  opacity: 0.7;
+}
+
+.emp-today__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.85rem;
+}
+
+.emp-today__foot > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.emp-today__link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 700;
+}
+
+/* ---------- 対応が必要なこと ---------- */
+
+.emp-todo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 10px 10px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.emp-todo:active {
+  background: #f8fafc;
+}
+
+.emp-todo svg {
+  flex: none;
+  color: #94a3b8;
+}
+
+.emp-todo__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.emp-todo__dot--done {
+  background: #f59e0b;
+}
+
+.emp-todo__dot--info {
+  background: var(--emp-primary);
+}
+
+.emp-todo__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 集計 ---------- */
+
+.emp-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--emp-card);
+  border: 1px solid var(--emp-line);
+  border-radius: 14px;
+}
+
+.emp-stats--compact {
+  margin-top: 14px;
+}
+
+.emp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 6px;
+  text-align: center;
+}
+
+.emp-stat + .emp-stat {
+  border-left: 1px solid var(--emp-line);
+}
+
+.emp-stat__label {
+  color: var(--emp-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.emp-stat__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emp-stat__value small {
+  color: var(--emp-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.emp-stat__value--danger {
+  color: var(--emp-danger);
+}
+
+.emp-stat__note {
+  color: var(--emp-muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ---------- シフト予定 ---------- */
+
+.emp-shift {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+}
+
+.emp-shift__date {
+  flex: none;
+  font-weight: 600;
+}
+
+.emp-shift__time {
+  min-width: 0;
+  color: var(--emp-sub);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.emp-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--emp-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--emp-sub) !important;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.emp-disclosure__icon {
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+
+.emp-disclosure__icon--open {
+  transform: rotate(180deg);
+}
+
+/* ---------- 月の切り替え ---------- */
+
+.emp-month {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emp-month__label {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.emp-month__text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 見た目は「2026年11月」の文字にし、タップは透明な月入力欄で受ける */
+.emp-month__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* ---------- 1日1行 ---------- */
+
+.emp-week__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+
+.emp-week__label {
+  color: var(--emp-sub);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.emp-week__total {
+  color: var(--emp-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emp-week__alerts {
+  margin: 0 0 6px;
+  padding: 6px 10px 6px 28px;
+  border-radius: 10px;
+  background: #ffedd5;
+  color: #9a3412;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.emp-week__alerts .is-ack {
+  opacity: 0.7;
+}
+
+.emp-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 6px 8px 10px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.emp-day:active {
+  background: #f8fafc;
+}
+
+.emp-day--today {
+  background: var(--emp-primary-soft);
+}
+
+.emp-day__date {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 42px;
+}
+
+.emp-day__num {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emp-day__month {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--emp-muted);
+}
+
+.emp-day__wd {
+  color: var(--emp-muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.emp-day__wd--sun {
+  color: #dc2626;
+}
+
+.emp-day__wd--sat {
+  color: #2563eb;
+}
+
+.emp-day--today .emp-day__wd {
+  color: var(--emp-primary);
+  font-weight: 700;
+}
+
+.emp-day__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.emp-day__times {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-day__times--none {
+  color: var(--emp-muted);
+  font-weight: 500;
+}
+
+.emp-day__more {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--emp-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* 狭い画面では省略（…）せず折り返して、時刻を必ず読めるようにする */
+.emp-day__sub {
+  color: var(--emp-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-day__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.emp-day__side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.emp-day__hours {
+  min-height: 1.3em;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-day__chev {
+  flex: none;
+  display: inline-flex;
+  color: #cbd5e1;
+}
+
+/* ---------- 切り替えタブ ---------- */
+
+.emp-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #e2e8f0;
+}
+
+.emp-segment__btn {
+  min-height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--emp-sub) !important;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.emp-segment__btn.is-active {
+  background: #fff;
+  color: var(--emp-text) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+/* ---------- 修正申請の一覧 ---------- */
+
+.emp-reqs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.emp-req {
+  padding: 14px;
+}
+
+.emp-req__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emp-req__date {
+  font-size: 1.02rem;
+}
+
+.emp-req__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-req__reason {
+  margin: 8px 0 0;
+  color: var(--emp-sub);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.emp-req__reply {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--emp-ok);
+  border-radius: 0 8px 8px 0;
+  background: #f0fdf4;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.emp-req__reply--rejected {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.emp-req__reply p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.emp-req__replier {
+  display: block;
+  color: var(--emp-muted);
+  font-size: 0.78rem;
+}
+
+.emp-req__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  margin-top: 8px;
+  color: var(--emp-muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- 変更履歴 ---------- */
+
+.emp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.emp-change {
+  padding: 12px 14px;
+  border: 1px solid var(--emp-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.emp-change__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.emp-change__when {
+  margin-top: 2px;
+  color: var(--emp-muted);
+  font-size: 0.78rem;
+}
+
+.emp-change__diff {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.emp-change__before,
+.emp-change__after {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-change__before {
+  color: var(--emp-muted);
+}
+
+.emp-change__after {
+  background: var(--emp-primary-soft);
+  font-weight: 600;
+}
+
+.emp-change__tag {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.emp-change__sub {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.emp-change__reason {
+  margin: 8px 0 0;
+  color: var(--emp-sub);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- シート ---------- */
+
+/* キーボード表示中は Sheet.tsx が top / bottom / height を visualViewport に合わせて上書きする */
+.emp-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  animation: emp-fade 0.15s ease-out;
+}
+
+.emp-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100% - 40px - env(safe-area-inset-top, 0px));
+  border-radius: 18px 18px 0 0;
+  background: #fff;
+  color: var(--emp-text);
+  animation: emp-slide-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.emp-sheet--tall {
+  height: calc(100% - 40px - env(safe-area-inset-top, 0px));
+}
+
+.emp-sheet__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px 10px 18px;
+  border-bottom: 1px solid var(--emp-line);
+}
+
+.emp-sheet__titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.emp-sheet__title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.emp-sheet__subtitle {
+  display: inline-flex;
+  color: var(--emp-muted);
+  font-size: 0.85rem;
+}
+
+.emp-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 18px calc(18px + var(--emp-safe-bottom));
+}
+
+.emp-sheet__footer {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  padding: 10px 18px calc(12px + var(--emp-safe-bottom));
+  border-top: 1px solid var(--emp-line);
+  background: #fff;
+}
+
+.emp-sheet:has(.emp-sheet__footer) .emp-sheet__body {
+  padding-bottom: 18px;
+}
+
+@keyframes emp-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes emp-slide-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+/* ---------- 日の詳細 ---------- */
+
+.emp-kv {
+  margin: 0;
+}
+
+.emp-kv__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.emp-kv__row dt {
+  flex: none;
+  color: var(--emp-muted);
+  font-size: 0.88rem;
+}
+
+.emp-kv__row dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.emp-kv__strong {
+  font-size: 1.1rem !important;
+  font-weight: 700;
+}
+
+.emp-kv--small .emp-kv__row {
+  padding: 6px 0;
+}
+
+.emp-kv--small .emp-kv__row dd {
+  font-size: 0.88rem;
+}
+
+.emp-kv--small .emp-kv__row:last-child {
+  border-bottom: none;
+}
+
+.emp-punch {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--emp-line);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.emp-punch__title {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--emp-sub) !important;
+}
+
+.emp-punch__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.emp-punch__time {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--emp-line);
+}
+
+.emp-punch__label {
+  color: var(--emp-muted);
+  font-size: 0.75rem;
+}
+
+.emp-punch__clock {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-punch__clock--none {
+  color: var(--emp-danger);
+}
+
+.emp-punch__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.emp-punch__actions .emp-btn--primary {
+  grid-column: 1 / -1;
+}
+
+.emp-punch__actions .emp-btn:only-child {
+  grid-column: 1 / -1;
+}
+
+.emp-pending {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: #fffbeb;
+}
+
+.emp-pending__title {
+  color: var(--emp-warn);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.emp-pending__body {
+  margin-top: 2px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-pending__reason {
+  margin: 2px 0 8px;
+  color: var(--emp-sub);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 修正申請フォーム ---------- */
+
+.emp-form-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
+.emp-form-current__label {
+  color: var(--emp-muted);
+  font-size: 0.8rem;
+}
+
+.emp-form-current__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-form-current__shift {
+  flex-basis: 100%;
+  color: var(--emp-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-field {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.emp-field__label {
+  display: block;
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--emp-text);
+}
+
+.emp-required {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--emp-danger-soft);
+  color: var(--emp-danger);
+  font-size: 0.7rem;
+}
+
+/* iOS で入力欄にフォーカスしたときに画面が拡大しないよう、文字は 16px 以上にする */
+.emp-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--emp-text);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.emp-input:focus {
+  outline: 2px solid var(--emp-primary);
+  outline-offset: 1px;
+  border-color: var(--emp-primary);
+}
+
+.emp-datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.emp-input--date,
+.emp-input--time {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-input--time {
+  font-weight: 700;
+}
+
+/* iOS Safari は日付・時刻入力の中身を中央寄せにし、空のときは高さがつぶれる */
+.emp-input::-webkit-date-and-time-value {
+  min-height: 1.4em;
+  text-align: left;
+}
+
+.emp-field__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.emp-textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.emp-preview {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: var(--emp-primary-soft);
+}
+
+.emp-preview__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 0.88rem;
+}
+
+.emp-preview__row strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.emp-preview__warn,
+.emp-preview__hint {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.emp-preview__warn {
+  color: #92400e;
+}
+
+.emp-preview__hint {
+  color: var(--emp-muted);
+}
+
+.emp-diff {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: var(--emp-sub);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.emp-diff--plus {
+  background: var(--emp-ok-soft);
+  color: var(--emp-ok);
+}
+
+.emp-diff--minus {
+  background: var(--emp-danger-soft);
+  color: var(--emp-danger);
+}
+
+/* ---------- お知らせ ---------- */
+
+.emp-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.emp-notes li + li {
+  border-top: 1px solid #f1f5f9;
+}
+
+.emp-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 2px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.emp-notice:disabled {
+  cursor: default;
+}
+
+.emp-notice__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.emp-notice--unread .emp-notice__dot {
+  background: var(--emp-primary);
+}
+
+.emp-notice__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.emp-notice__msg {
+  color: var(--emp-sub);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.emp-notice--unread .emp-notice__msg {
+  color: var(--emp-text);
+  font-weight: 600;
+}
+
+.emp-notice__time {
+  color: var(--emp-muted);
+  font-size: 0.76rem;
+}
+
+/* ---------- ヘルプ ---------- */
+
+.emp-help-intro {
+  margin-bottom: 14px;
+}
+
+.emp-search {
+  margin-bottom: 12px;
+}
+
+.emp-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emp-acc {
+  border: 1px solid var(--emp-line);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.emp-acc__heading {
+  margin: 0;
+  font-size: inherit;
+}
+
+.emp-acc__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 12px 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.emp-acc__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.emp-acc__icon {
+  flex: none;
+  display: inline-flex;
+  color: #94a3b8;
+  transition: transform 0.15s;
+}
+
+.emp-acc.is-open .emp-acc__icon {
+  transform: rotate(180deg);
+}
+
+.emp-acc__body {
+  padding: 2px 16px 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.emp-acc__body .md {
+  padding-top: 10px;
+}
+
+/* ---------- 下部タブ ---------- */
+
+.emp-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: calc(var(--emp-tabbar-h) + var(--emp-safe-bottom));
+  padding: 0 max(4px, env(safe-area-inset-right, 0px)) var(--emp-safe-bottom)
+    max(4px, env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--emp-line);
+  background: rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.emp-tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: #64748b !important;
+  cursor: pointer;
+}
+
+.emp-tabbar__item.is-active {
+  color: var(--emp-primary) !important;
+}
+
+.emp-tabbar__icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.emp-tabbar__badge {
+  top: -4px;
+  right: -10px;
+}
+
+.emp-tabbar__label {
+  max-width: 100%;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* ---------- トースト ---------- */
+
+.emp-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--emp-tabbar-h) + var(--emp-safe-bottom) + 14px);
+  z-index: 400;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border-radius: 22px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  transform: translateX(-50%);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.3);
+  animation: emp-fade 0.15s ease-out;
+}
+
+.emp-toast--danger {
+  background: #b91c1c;
+}
+
+/* ---------- 読み込み中 ---------- */
+
+.emp-skeleton {
+  border-radius: 14px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #edf2f7 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: emp-shimmer 1.2s linear infinite;
+}
+
+.emp-skeleton--today {
+  height: 168px;
+}
+
+.emp-skeleton--stats {
+  height: 78px;
+}
+
+.emp-skeleton--list {
+  height: 180px;
+  margin-top: 12px;
+}
+
+@keyframes emp-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emp-sheet,
+  .emp-sheet-backdrop,
+  .emp-toast,
+  .emp-skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- 広い画面 ---------- */
+
+@media (min-width: 720px) {
+  .emp-sheet-backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .emp-sheet {
+    max-height: min(760px, 100%);
+    border-radius: 18px;
+  }
+
+  .emp-sheet--tall {
+    height: auto;
+  }
+
+  .emp-tabbar {
+    grid-template-columns: repeat(5, 120px);
+    justify-content: center;
+  }
+}
+
+/* ---------- マイページ（共通の MyProfilePage を従業員画面の体裁に合わせる） ---------- */
+
+.emp-profile .myprofile-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.emp-profile .myprofile-title {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.emp-profile .myprofile-section {
+  margin-bottom: 12px;
+  border-color: var(--emp-line);
+  border-radius: 14px;
+}
+
+.emp-profile .myprofile-loading {
+  padding: 40px 0;
+}
+
+/* ---------- 幅の狭い端末（〜360px） ---------- */
+
+@media (max-width: 360px) {
+  .emp-page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .emp-toolbar--scroll {
+    margin-inline: -12px;
+    padding-inline: 12px;
+  }
+
+  /* 行の右端の矢印を省いて、時刻とシフトの表示幅を確保する */
+  .emp-day {
+    gap: 8px;
+    padding-right: 10px;
+  }
+
+  .emp-day__chev {
+    display: none;
+  }
+
+  .emp-day__date {
+    width: 36px;
+  }
+
+  .emp-today__clock {
+    font-size: 1.5rem;
+  }
+
+  .emp-punch__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .emp-sheet__body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .emp-sheet__footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .emp-tabbar__label {
+    font-size: 0.62rem;
+  }
+}
+
+.emp-segment + .emp-month {
+  margin-top: 14px;
+}
