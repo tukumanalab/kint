@@ -54,3 +54,13 @@ def clear_punch_cache():
     _LAST_PUNCH_TIME.clear()
     yield
     _LAST_PUNCH_TIME.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_shift_sync_state():
+    """テスト実行ごとにシフト最終同期時刻（再同期のスロットル用）をクリアする。"""
+    from kint.services.calendar_sync import reset_sync_state
+
+    reset_sync_state()
+    yield
+    reset_sync_state()

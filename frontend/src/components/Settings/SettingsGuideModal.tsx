@@ -331,6 +331,16 @@ export function SettingsGuideModal({ onClose }: SettingsGuideModalProps) {
                 </p>
 
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
+                  日中の同期間隔 (shift_sync_interval_minutes)
+                </h4>
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>
+                  当日にシフトが変更・追加された場合に備え、指定した間隔（分）で iCal からシフトを取り込みます（既定 15 分）。
+                  さらに打刻時に「シフトなし」「シフト開始前の出勤」「シフト終了を超過した退勤」と判定されそうな場合は、直近 1 分以内に同期していなければその場でシフトを取り直してから判定します。
+                  <br />
+                  <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ 制限: 0〜1440 の整数。0 にすると間隔指定の同期は無効になります（打刻時の取り直しは行われます）。</span>
+                </p>
+
+                <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#1e293b', margin: '1rem 0 0.25rem 0' }}>
                   直ちに同期する (手動同期)
                 </h4>
                 <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>

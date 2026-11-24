@@ -20,7 +20,7 @@ iCal 内の `VEVENT`（イベント情報）をDBの `Shift` モデルへマッ�
 | `UID` | `google_event_id` | 一意となるイベントID。既存のカラム名（`google_event_id`）をそのまま流用し格納します。 |
 | `DTSTART` | `start_time` | シフトの開始日時。タイムゾーンが適用された日時として扱います。 |
 | `DTEND` | `end_time` | シフトの終了日時。 |
-| `DTSTART` (日付) | `shift_date` | `DTSTART` から日付のみを抽出して登録。 |
+| `DTSTART` (日付) | `shift_date` | `DTSTART` を **JST に変換した日付**を登録（勤怠の `work_date` と突き合わせるため。JST 9 時前に始まるシフトも当日扱い）。 |
 | `ATTENDEE;ROLE=REQ-PARTICIPANT:MAILTO:<mail>` | `user_id` | `<mail>` の部分を取り出し、システム内の `User.email` を検索。該当するユーザーのIDを保存します。 |
 
 ### ユーザーの紐付け (判別処理)
@@ -33,7 +33,7 @@ iCal 内の `VEVENT`（イベント情報）をDBの `Shift` モデルへマッ�
 
 ### 4.1 更新・追加 (Upsert)
 同期実行時、iCalデータ内のすべての `VEVENT` をパースし、以下のルールでデータベースに反映します。
-- **同期対象期間**: 同期実行日（`today = date.today()`）を基準とした**前後2週間（14日間）**（`today - 14日` 〜 `today + 14日`）。対象範囲外のイベントはスキップします。
+- **同期対象期間**: 同期実行日（`today` = JST の今日）を基準とした**前後2週間（14日間）**（`today - 14日` 〜 `today + 14日`）。対象範囲外のイベントはスキップします。
 - `UID` (`google_event_id`) をキーにして `shifts` テーブルを検索。
 - **データが存在しない場合**: `INSERT` して新規シフトとして登録。
 - **データが存在する場合**: `start_time` や `end_time` に変更がある場合のみ、データを `UPDATE`。変更がなければ何もしない。
@@ -157,3 +157,27 @@ async def upsert(db, updates, actor_id) -> SettingsResponse:
 - **レスポンス (失敗時: 400 Bad Request)**:
   - iCal URL未設定やHTTP取得失敗、パースエラーの際、`KintBadRequestError` を発生させ、エラー詳細（例: `code="CALENDAR_SYNC_FAILED"`, `message="SHIFT_ICAL_URL が設定されていません"`）を返却する。
 
+
+## 9. 当日のシフト変更への対応
+
+毎日 1 回の同期だけでは、当日にシフトを変更・追加すると次回同期まで古いシフトで打刻が判定される（「シフトなし」確認、古い開始時刻への丸め、超過理由の誤要求、顔認証のしきい値ずれ、古い終了時刻での退勤補完）。これを防ぐため次の 3 つを行う。
+
+### 9-1. 日中の定期同期
+- 設定 `shift_sync_interval_minutes`（既定 15、0 で無効、0〜1440）の間隔で `IntervalTrigger` のジョブ `calendar_sync_interval` を実行する。毎日の `shift_sync_time` の同期はそのまま残す。
+- ジョブは `CalendarSyncService.refresh_if_stale(max_age_seconds=30)` を呼ぶ。URL 未設定時は何もしない。
+- 設定変更・設定インポート時に `reschedule_calendar_sync_interval()` で再登録する。
+
+### 9-2. 打刻時の取り直し（`refresh_if_stale`）
+- `CalendarSyncService.refresh_if_stale(max_age_seconds=60, timeout=5)`: 最終同期（プロセス内メモリの `time.monotonic()`）から `max_age_seconds` 以上経っていれば同期する。`asyncio.Lock` で多重取得を防ぎ、待機中に他のリクエストが同期済みなら取り直さない。取得・解析の失敗は警告ログのみで例外を出さない（打刻を止めない）。
+- `PunchService._refresh_shifts()` は 1 リクエストにつき 1 回まで `refresh_if_stale` を呼ぶ。呼び出し条件:
+  - 出勤でシフトが見つからない、またはシフト開始時刻より前の打刻（開始時刻に丸められる）
+  - 退勤でシフト終了時刻 + `overtime_allowance_minutes` を超えている
+- 顔認証（`FaceService._get_shift_state(refresh_if_no_shift=True)`）: 一致距離がシフトありのしきい値以内なのにシフトが見つからない候補について取り直す。
+- 同期後は同じセッションで `shifts` を読み直すため、その後の丸め計算・レスポンスの `calculated_time` も新しいシフトで計算される。
+
+### 9-3. 退勤自動補完の前の同期
+- 毎日 4:00 の `_run_missing_checkout_auto_complete` は補完前に `refresh_if_stale(max_age_seconds=0)` を実行し、当日変更後の終了時刻で補完する（失敗時は登録済みのシフトで補完）。
+
+### 9-4. 補足
+- 月次集計・勤怠一覧の丸めは表示時に `shifts` から計算するため、同期後は自動で新しいシフトに基づく値になる。
+- 最終同期時刻はプロセスごとのメモリ保持。複数プロセス構成でも各プロセスが独立にスロットルするだけで、動作上の問題はない。

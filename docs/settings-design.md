@@ -33,6 +33,7 @@
 | `shift_checkin_early_minutes` | integer | 15 | 0 | 120 | シフト開始前チェックイン許容時間（分）|
 | `shift_ical_url` | string \| null | null | — | — | シフト iCal 同期 URL |
 | `shift_sync_time` | string \| null | `"03:00"` | — | — | iCal 自動同期の実行時刻（時・分セレクトボックス、バックエンドへの保存値はHH:MM）。null / 空文字で自動同期 OFF |
+| `shift_sync_interval_minutes` | integer | 15 | 0 | 1440 | 当日のシフト変更を反映するための日中の定期同期間隔（分）。0 で無効。変更時は `reschedule_calendar_sync_interval` でジョブ `calendar_sync_interval` を再登録 |
 | `site_name` | string | `"Kint"` | — | — | サイトの表示名称。1〜50文字 |
 | `site_subtitle` | string | `"NFC 勤怠管理システム"` | — | — | サイトのサブタイトル。1〜100文字 |
 | `punch_result_display_seconds` | integer | 30 | 1 | 300 | 打刻結果表示時間（秒）|
@@ -101,7 +102,7 @@ graph TD
 - `ix_system_settings_key` — UNIQUE インデックス（キー検索）
 
 運用ルール:
-- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "monthly_report_subject", "monthly_report_body", "login_token_expire_hours", "enable_google_signup", "overtime_allowance_minutes", "attendance_alert_rules"}` のみ許容する。
+- `key` の値は `ALLOWED_SETTING_KEYS = {"punch_cooldown_seconds", "shift_checkin_early_minutes", "shift_ical_url", "shift_sync_time", "shift_sync_interval_minutes", "site_name", "site_subtitle", "punch_result_display_seconds", "monthly_report_time", "monthly_report_subject", "monthly_report_body", "login_token_expire_hours", "enable_google_signup", "overtime_allowance_minutes", "attendance_alert_rules"}` のみ許容する。
 - `value` は文字列として格納し、サービス層で型変換（int / str / None）を行う。
 - `shift_ical_url` の空文字列 `""` は `null`（未設定）として扱う。
 - `shift_sync_time` の空文字列 `""` は `null`（自動同期 OFF）として扱う。

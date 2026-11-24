@@ -255,3 +255,27 @@ async def test_google_login_inactive_user_returns_error(
     assert resp.status_code == 401
     assert resp.json()["code"] == "USER_INACTIVE"
     assert resp.json()["message"] == "アカウントが無効化されています"
+
+
+async def test_shift_sync_interval_minutes(client: AsyncClient, session) -> None:
+    """日中のシフト同期間隔の既定値・更新・範囲チェックとジョブの再登録。"""
+    from unittest.mock import patch
+
+    await _create_user(session, id="admin", email="admin@example.com", role="admin")
+    headers = {"Authorization": f"Bearer {await _login('admin')}"}
+
+    resp = await client.get("/api/v1/settings", headers=headers)
+    assert resp.json()["shift_sync_interval_minutes"] == 15
+
+    with patch("kint.scheduler.reschedule_calendar_sync_interval") as resched:
+        resp = await client.patch(
+            "/api/v1/settings", headers=headers, json={"shift_sync_interval_minutes": 0}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["shift_sync_interval_minutes"] == 0
+    resched.assert_called_once_with(0)
+
+    resp = await client.patch(
+        "/api/v1/settings", headers=headers, json={"shift_sync_interval_minutes": 1441}
+    )
+    assert resp.status_code == 422

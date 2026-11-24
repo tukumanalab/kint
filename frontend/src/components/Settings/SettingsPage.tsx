@@ -133,6 +133,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [earlyMinutes, setEarlyMinutes] = useState('');
   const [icalUrl, setIcalUrl] = useState('');
   const [syncTime, setSyncTime] = useState('');
+  const [syncIntervalMinutes, setSyncIntervalMinutes] = useState('');
   const [siteName, setSiteName] = useState('');
   const [siteSubtitle, setSiteSubtitle] = useState('');
   const [punchResultDisplaySeconds, setPunchResultDisplaySeconds] = useState('');
@@ -269,6 +270,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setEarlyMinutes(String(s.shift_checkin_early_minutes));
       setIcalUrl(s.shift_ical_url ?? '');
       setSyncTime(s.shift_sync_time ?? '');
+      setSyncIntervalMinutes(String(s.shift_sync_interval_minutes));
       setSiteName(s.site_name ?? 'Kint');
       onSiteNameChange(s.site_name ?? 'Kint');
       setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
@@ -304,6 +306,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEarlyMinutes(String(s.shift_checkin_early_minutes));
         setIcalUrl(s.shift_ical_url ?? '');
         setSyncTime(s.shift_sync_time ?? '');
+        setSyncIntervalMinutes(String(s.shift_sync_interval_minutes));
         setSiteName(s.site_name ?? 'Kint');
         setSiteSubtitle(s.site_subtitle ?? 'NFC 勤怠管理システム');
         setPunchResultDisplaySeconds(String(s.punch_result_display_seconds));
@@ -355,6 +358,10 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
     if (syncTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(syncTime)) {
       return '自動同期時刻は HH:MM 形式（例: 03:00）で入力してください';
     }
+    const si = Number(syncIntervalMinutes);
+    if (!Number.isInteger(si) || si < 0 || si > 1440) {
+      return '日中の同期間隔は 0〜1440 の整数で入力してください';
+    }
     if (enabledMonthlyReport) {
       if (monthlyReportTime.trim() === '') {
         return '自動通知時刻を入力してください';
@@ -405,6 +412,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         shift_checkin_early_minutes: Number(earlyMinutes),
         shift_ical_url: icalUrl || null,
         shift_sync_time: syncTime || null,
+        shift_sync_interval_minutes: Number(syncIntervalMinutes),
         site_name: siteName.trim(),
         site_subtitle: siteSubtitle.trim(),
         punch_result_display_seconds: Number(punchResultDisplaySeconds),
@@ -489,6 +497,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setEarlyMinutes(String(result.applied.shift_checkin_early_minutes));
         setIcalUrl(result.applied.shift_ical_url ?? '');
         setSyncTime(result.applied.shift_sync_time ?? '');
+        setSyncIntervalMinutes(String(result.applied.shift_sync_interval_minutes));
         setSiteName(result.applied.site_name ?? 'Kint');
         onSiteNameChange(result.applied.site_name ?? 'Kint');
         setSiteSubtitle(result.applied.site_subtitle ?? 'NFC 勤怠管理システム');
@@ -784,6 +793,27 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
               <span className="settings-field__unit">分（両方選択で有効、未選択で自動同期 OFF）</span>
             </div>
             <p className="settings-field__hint">毎日この時刻に iCal からシフトを自動取り込みします</p>
+          </div>
+
+          <div className="settings-field">
+            <label htmlFor="syncIntervalMinutes" className="settings-field__label">
+              日中の同期間隔
+            </label>
+            <div className="settings-field__input-row">
+              <input
+                id="syncIntervalMinutes"
+                type="number"
+                className="settings-field__input"
+                min={0}
+                max={1440}
+                value={syncIntervalMinutes}
+                onChange={(e) => setSyncIntervalMinutes(e.target.value)}
+              />
+              <span className="settings-field__unit">分ごと（0〜1440、0 で無効）</span>
+            </div>
+            <p className="settings-field__hint">
+              当日のシフト変更を反映するため、この間隔で iCal を取り込みます。打刻時に「シフトなし」「シフト開始前」「超過」と判定されそうな場合も、その場で最新のシフトを取り直して判定します
+            </p>
           </div>
 
           <div className="settings-field" style={{ marginTop: '1.25rem' }}>

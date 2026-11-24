@@ -22,6 +22,7 @@ ALLOWED_SETTING_KEYS = {
     "shift_checkin_early_minutes",
     "shift_ical_url",
     "shift_sync_time",
+    "shift_sync_interval_minutes",
     "site_name",
     "site_subtitle",
     "punch_result_display_seconds",
@@ -60,6 +61,7 @@ class SettingsService:
         early_raw = db_map.get("shift_checkin_early_minutes")
         ical_raw = db_map.get("shift_ical_url")
         sync_time_raw = db_map.get("shift_sync_time")
+        sync_interval_raw = db_map.get("shift_sync_interval_minutes")
         site_name_raw = db_map.get("site_name")
         site_subtitle_raw = db_map.get("site_subtitle")
         display_seconds_raw = db_map.get("punch_result_display_seconds")
@@ -87,6 +89,11 @@ class SettingsService:
         if ical == "":
             ical = None
         sync_time = sync_time_raw if sync_time_raw else None
+        sync_interval = (
+            int(sync_interval_raw)
+            if sync_interval_raw
+            else env_settings.shift_sync_interval_minutes
+        )
         site_name = site_name_raw if site_name_raw is not None else env_settings.site_name
         site_subtitle = (
             site_subtitle_raw if site_subtitle_raw is not None else env_settings.site_subtitle
@@ -178,6 +185,7 @@ class SettingsService:
             shift_checkin_early_minutes=early,
             shift_ical_url=ical,
             shift_sync_time=sync_time,
+            shift_sync_interval_minutes=sync_interval,
             site_name=site_name,
             site_subtitle=site_subtitle,
             punch_result_display_seconds=display_seconds,
@@ -248,6 +256,8 @@ class SettingsService:
         elif "shift_ical_url" in updates.model_fields_set:
             # 明示的に null が送られた場合
             fields["shift_ical_url"] = ""
+        if updates.shift_sync_interval_minutes is not None:
+            fields["shift_sync_interval_minutes"] = str(updates.shift_sync_interval_minutes)
         if updates.shift_sync_time is not None:
             fields["shift_sync_time"] = updates.shift_sync_time
         elif "shift_sync_time" in updates.model_fields_set:
@@ -312,6 +322,10 @@ class SettingsService:
             from kint.scheduler import reschedule_calendar_sync
 
             reschedule_calendar_sync(result_settings.shift_sync_time)
+        if "shift_sync_interval_minutes" in fields:
+            from kint.scheduler import reschedule_calendar_sync_interval
+
+            reschedule_calendar_sync_interval(result_settings.shift_sync_interval_minutes)
         if "monthly_report_time" in fields:
             from kint.scheduler import reschedule_monthly_report
 
@@ -357,6 +371,7 @@ class SettingsService:
             "shift_checkin_early_minutes": current.shift_checkin_early_minutes,
             "shift_ical_url": current.shift_ical_url,
             "shift_sync_time": current.shift_sync_time,
+            "shift_sync_interval_minutes": current.shift_sync_interval_minutes,
             "site_name": current.site_name,
             "site_subtitle": current.site_subtitle,
             "punch_result_display_seconds": current.punch_result_display_seconds,
@@ -487,6 +502,10 @@ class SettingsService:
                     row.updated_at = now
             await self.session.commit()
             applied = await self.get_all()
+            if "shift_sync_interval_minutes" in valid_updates:
+                from kint.scheduler import reschedule_calendar_sync_interval
+
+                reschedule_calendar_sync_interval(applied.shift_sync_interval_minutes)
         elif apply:
             applied = current
 
