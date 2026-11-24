@@ -39,6 +39,7 @@ class SettingsResponse(BaseModel):
     shift_checkin_early_minutes: int
     shift_ical_url: str | None
     shift_sync_time: str | None
+    shift_sync_interval_minutes: int
     site_name: str
     site_subtitle: str
     punch_result_display_seconds: int
@@ -63,6 +64,7 @@ class SettingsPatchRequest(BaseModel):
     shift_checkin_early_minutes: int | None = Field(default=None, ge=0, le=120)
     shift_ical_url: str | None = None
     shift_sync_time: str | None = None
+    shift_sync_interval_minutes: int | None = Field(default=None, ge=0, le=1440)
     site_name: str | None = Field(default=None, min_length=1, max_length=50)
     site_subtitle: str | None = Field(default=None, min_length=1, max_length=100)
     punch_result_display_seconds: int | None = Field(default=None, ge=1, le=300)
@@ -107,6 +109,7 @@ class SettingsPatchRequest(BaseModel):
             and self.shift_checkin_early_minutes is None
             and self.shift_ical_url is None
             and self.shift_sync_time is None
+            and self.shift_sync_interval_minutes is None
             and self.site_name is None
             and self.site_subtitle is None
             and self.punch_result_display_seconds is None

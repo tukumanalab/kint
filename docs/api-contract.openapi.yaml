@@ -2306,6 +2306,12 @@ components:
           nullable: true
           description: iCal 自動同期の実行時刻（HH:MM 形式、24時間表記）。null / 未設定で自動同期 OFF
           example: "03:00"
+        shift_sync_interval_minutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: 当日のシフト変更を反映するための日中の定期同期間隔（分）。0 で無効
+          example: 15
         site_name:
           type: string
           description: サイト名
@@ -2368,6 +2374,11 @@ components:
           minimum: 1
           maximum: 300
           description: 打刻結果表示時間（秒）
+        shift_sync_interval_minutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: 日中の定期同期間隔（分）。0 で無効
         shift_sync_time:
           type: string
           nullable: true

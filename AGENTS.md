@@ -274,6 +274,8 @@ cp .env.example .env
 - Google Calendar API v3 でシフトカレンダーの予定を取得
 - サービスアカウントまたは OAuth2 で認証
 - シフト予定と実際の出退勤を照合してレポート生成
+- 実装は iCal（`SHIFT_ICAL_URL` / 設定 `shift_ical_url`）の取り込み（`services/calendar_sync.py`）。`shift_date` は JST の日付。
+- **当日のシフト変更への対応**: 毎日の同期（`shift_sync_time`）に加え、日中も `shift_sync_interval_minutes`（既定 15 分、0 で無効）ごとに同期します。打刻時に「シフトなし」「シフト開始前の出勤」「超過退勤」、顔認証で「シフトなし」と判定されそうな場合は、直近 1 分以内に同期していなければ `CalendarSyncService.refresh_if_stale` でその場で取り直して判定し直します（取得失敗時は登録済みのシフトで判定）。退勤自動補完（4:00）も補完前に同期します。詳細は `docs/shift-calendar-design.md` の「当日のシフト変更への対応」。
 
 ## 月次勤怠レポートの自動メール通知機能
 

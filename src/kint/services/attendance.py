@@ -61,6 +61,7 @@ from kint.schemas.working_hours_report import (
     WorkingHoursReportResponse,
     WorkingHoursReportUserInfo,
 )
+from kint.services.calendar_sync import CalendarSyncService
 from kint.services.settings import SettingsService
 
 # ユーザーごとの最終打刻完了時刻（取り消しを含む）を一時キャッシュするメモリ辞書。
@@ -137,6 +138,17 @@ class PunchService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self._shifts_refreshed = False
+
+    async def _refresh_shifts(self) -> bool:
+        """当日のシフト変更を反映するため iCal を再同期する（1 リクエスト 1 回まで）。
+
+        最終同期から間もない場合や URL 未設定・取得失敗時は何もしない。同期したら True。
+        """
+        if self._shifts_refreshed:
+            return False
+        self._shifts_refreshed = True
+        return await CalendarSyncService(self.session).refresh_if_stale()
 
     # ------------------------------------------------------------------
     # BE-02: 利用者解決メソッド
@@ -484,34 +496,48 @@ class PunchService:
                 )
 
             # 超過勤務チェック
-            active_shift = await self._find_active_shift(user.id, request.occurred_at)
-            shift_end = active_shift.end_time if active_shift else None
-            if shift_end is not None:
-                settings_svc = SettingsService(self.session)
-                overtime_allowance = await settings_svc.get_int("overtime_allowance_minutes")
-                occurred_utc = self._as_utc(request.occurred_at)
-                shift_end_utc = self._as_utc(shift_end)
-                if occurred_utc > (shift_end_utc + timedelta(minutes=overtime_allowance)):
-                    if (
-                        not request.confirm_no_overtime
-                        and not attendance.overtime_reason
-                        and (not request.overtime_reason or not request.overtime_reason.strip())
-                    ):
-                        from kint.services.notification import NotificationService
+            settings_svc = SettingsService(self.session)
+            overtime_allowance = await settings_svc.get_int("overtime_allowance_minutes")
+            occurred_utc = self._as_utc(request.occurred_at)
 
-                        notif_svc = NotificationService(self.session)
-                        has_unread = await notif_svc.has_unread_notifications(user.id)
-                        return PunchResponse(
-                            status="requires_overtime_reason",
-                            attendance_id=attendance.id,
-                            user_id=user.id,
-                            user_name=user.name,
-                            action="check_out",
-                            occurred_at=request.occurred_at,
-                            method=method,  # type: ignore[arg-type]
-                            message=f"シフト終了時刻を {overtime_allowance} 分以上超過しています。許可済みの超過勤務の場合は、理由を入力して申請してください。",
-                            has_unread_notifications=has_unread,
-                        )
+            async def _overtime_shift_end() -> datetime | None:
+                """超過許容を超えている場合、そのシフト終了時刻を返す。"""
+                shift = await self._find_active_shift(user.id, request.occurred_at)
+                if shift is None:
+                    return None
+                end_utc = self._as_utc(shift.end_time)
+                if occurred_utc > end_utc + timedelta(minutes=overtime_allowance):
+                    return end_utc
+                return None
+
+            shift_end = await _overtime_shift_end()
+            # 当日にシフトが延長されている可能性があるため、超過と判定されたら取り直して再判定
+            if shift_end is not None and await self._refresh_shifts():
+                shift_end = await _overtime_shift_end()
+            if shift_end is not None:
+                if (
+                    not request.confirm_no_overtime
+                    and not attendance.overtime_reason
+                    and (not request.overtime_reason or not request.overtime_reason.strip())
+                ):
+                    from kint.services.notification import NotificationService
+
+                    notif_svc = NotificationService(self.session)
+                    has_unread = await notif_svc.has_unread_notifications(user.id)
+                    return PunchResponse(
+                        status="requires_overtime_reason",
+                        attendance_id=attendance.id,
+                        user_id=user.id,
+                        user_name=user.name,
+                        action="check_out",
+                        occurred_at=request.occurred_at,
+                        method=method,  # type: ignore[arg-type]
+                        message=(
+                            f"シフト終了時刻を {overtime_allowance} 分以上超過しています。"
+                            "許可済みの超過勤務の場合は、理由を入力して申請してください。"
+                        ),
+                        has_unread_notifications=has_unread,
+                    )
 
             await self._do_check_out(
                 attendance=attendance,
@@ -532,7 +558,15 @@ class PunchService:
                     message="対象年月の勤怠は締め処理が完了しているため、出勤打刻は行えません。",
                 )
 
-            has_shift = await self._has_shift_for_check_in(user.id, request.occurred_at)
+            check_in_shift = await self._find_check_in_shift(user.id, request.occurred_at)
+            # 当日のシフト追加・前倒しを反映するため、シフトなし、またはシフト開始前の出勤
+            # （シフト開始時刻に丸められる）ときは iCal を取り直して再判定する
+            if (
+                check_in_shift is None
+                or self._as_utc(request.occurred_at) < self._as_utc(check_in_shift.start_time)
+            ) and await self._refresh_shifts():
+                check_in_shift = await self._find_check_in_shift(user.id, request.occurred_at)
+            has_shift = check_in_shift is not None
             if not has_shift and not request.confirm:
                 settings_svc = SettingsService(self.session)
                 ical_url = await settings_svc.get_str("shift_ical_url")

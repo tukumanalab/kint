@@ -4,6 +4,7 @@ import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from kint.db import AsyncSessionLocal
 
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 CALENDAR_SYNC_JOB_ID = "calendar_sync_daily"
+CALENDAR_SYNC_INTERVAL_JOB_ID = "calendar_sync_interval"
 AUTO_COMPLETE_JOB_ID = "missing_checkout_auto_complete_daily"
 NOTIFICATION_CLEANUP_JOB_ID = "notification_cleanup_daily"
 MONTHLY_REPORT_JOB_ID = "monthly_attendance_report"
@@ -32,11 +34,22 @@ async def _run_calendar_sync() -> None:
             logger.exception("定期同期で予期しないエラー: %s", exc)
 
 
-async def _run_missing_checkout_auto_complete() -> None:
-    """スケジューラから呼ばれる退勤自動補完ジョブ。"""
-    from kint.services.attendance import AttendanceService
+async def _run_calendar_sync_interval() -> None:
+    """日中の定期同期ジョブ。URL 未設定時は何もせず、直前に同期済みならスキップする。"""
+    from kint.services.calendar_sync import CalendarSyncService
 
     async with AsyncSessionLocal() as session:
+        await CalendarSyncService(session).refresh_if_stale(max_age_seconds=30, timeout=30)
+
+
+async def _run_missing_checkout_auto_complete() -> None:
+    """スケジューラから呼ばれる退勤自動補完ジョブ。補完前にシフトを最新化する。"""
+    from kint.services.attendance import AttendanceService
+    from kint.services.calendar_sync import CalendarSyncService
+
+    async with AsyncSessionLocal() as session:
+        # 当日に変更されたシフトの終了時刻で補完するため、先に同期する（失敗しても続行）
+        await CalendarSyncService(session).refresh_if_stale(max_age_seconds=0, timeout=30)
         service = AttendanceService(session)
         try:
             stats = await service.auto_complete_missing_checkouts()
@@ -99,6 +112,27 @@ def reschedule_calendar_sync(time_str: str | None) -> None:
     logger.info("定期同期ジョブを登録しました: %s", time_str)
 
 
+def reschedule_calendar_sync_interval(minutes: int | None) -> None:
+    """日中の定期同期ジョブを指定間隔（分）で再登録する。0 / None の場合は削除のみ。"""
+    if scheduler.get_job(CALENDAR_SYNC_INTERVAL_JOB_ID):
+        scheduler.remove_job(CALENDAR_SYNC_INTERVAL_JOB_ID)
+        logger.info("間隔指定の定期同期ジョブを削除しました")
+
+    if not minutes or minutes <= 0:
+        logger.info("shift_sync_interval_minutes が 0 のため間隔指定の定期同期を無効にしました")
+        return
+
+    scheduler.add_job(
+        _run_calendar_sync_interval,
+        trigger=IntervalTrigger(minutes=minutes),
+        id=CALENDAR_SYNC_INTERVAL_JOB_ID,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    logger.info("間隔指定の定期同期ジョブを登録しました: %d 分ごと", minutes)
+
+
 def reschedule_monthly_report(time_str: str | None) -> None:
     """既存ジョブを削除し、指定時刻で再登録する。None の場合はジョブ削除のみ。"""
     if scheduler.get_job(MONTHLY_REPORT_JOB_ID):
@@ -134,6 +168,15 @@ async def init_scheduler() -> None:
         reschedule_calendar_sync(sync_time)
     else:
         logger.info("shift_sync_time が未設定のため定期同期は無効です")
+
+    # 当日のシフト変更を反映するための日中の定期同期
+    try:
+        async with AsyncSessionLocal() as session:
+            sync_interval = (await SettingsService(session).get_all()).shift_sync_interval_minutes
+    except Exception as exc:
+        logger.warning("shift_sync_interval_minutes 取得失敗。間隔同期を無効にします: %s", exc)
+        sync_interval = 0
+    reschedule_calendar_sync_interval(sync_interval)
 
     try:
         async with AsyncSessionLocal() as session:
