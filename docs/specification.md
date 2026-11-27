@@ -321,9 +321,14 @@
   - 管理者ユーザー (`role == 'admin'`) への登録は不可（打刻対象外のため）。
 - **照合と打刻方式**:
   - 登録済みディスクリプタとのユークリッド距離が最も近いユーザーを候補とする。
-  - 当日シフトがある、または24時間以内の未退勤勤怠があるユーザーは `face_match_threshold`（既定 0.45）で判定し、一致すればカウントダウン後に自動打刻する（カウントダウン中はキャンセル可能）。
+  - 当日シフトがある、または24時間以内の未退勤勤怠があるユーザーは `face_match_threshold`（既定 0.40）で判定し、出勤であればカウントダウン後に自動打刻する（カウントダウン中はキャンセル可能）。
   - シフト外のユーザーはより厳しい `face_match_threshold_no_shift`（既定 0.38）で判定し、一致してもボタン押下による確認を求める。
   - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し不一致として扱う。
+  - **誤認識対策**:
+    - 退勤系（`punch_kind` が `check_out` / `check_out_update`）はシフト内でも `requires_confirmation: true` とし、確認ボタン（「〇〇さんで退勤する」）押下時のみ打刻する。
+    - 端末は同じユーザーと 3 回連続で一致したときに認識を確定する。認識後（カウントダウン・確認待ち）も照合を続け、別ユーザーと照合された、本人が 2 秒間検出されない（複数の顔を含む）、または NFC カード打刻が始まった場合は認識を取り消す。
+    - 照合結果（一致・不一致の候補ユーザー、1位・2位の距離、しきい値、シフト判定、打刻種別、確認要否）をサーバーログに記録する（不一致は距離 0.6 以下のみ INFO）。顔認証打刻の確定もユーザー・種別・距離とともにログに記録する。
+    - 照合距離を `face_match_token` の `dist` クレームに埋め込み、打刻時に勤怠レコードの `check_in_face_distance` / `check_out_face_distance` に保存する。
   - 照合成功時は 60 秒間のみ有効な `face_match_token`（JWT）を発行し、打刻 API にはこのトークンのみを送信する（打刻方式 `method: "face"`、打刻元 `source: "webcam_face"`）。
 - **顔認証テスト**: 顔データ登録済みのユーザーは、登録ダイアログから `POST /api/v1/me/face/verify`（管理者は `POST /api/v1/users/{user_id}/face/verify`、管理者専用）で現在の顔が本人として認識されるかを確認できる。
   - リクエストは `FaceIdentifyRequest`（128次元 `descriptor`）。レスポンス `FaceVerifyResponse` は `result`（`recognized` / `recognized_with_confirmation` / `not_recognized`）、`reason`（`ok` / `too_far` / `other_user_closer` / `ambiguous`）、`distance`（本人の登録データとの最小距離）、`threshold`、`threshold_no_shift`、`has_shift`。

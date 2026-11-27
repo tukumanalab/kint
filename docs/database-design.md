@@ -92,6 +92,8 @@
 | `remarks`                  | TEXT     | NULL                                                   | 備考（報告書PDF等に反映）            |
 | `source`                   | TEXT     | NOT NULL, CHECK(source IN ('webusb_nfc','web_user_id','admin_manual','self_service','webcam_face')) | 打刻元 |
 | `device_name`              | TEXT     | NULL                                                   | 打刻端末の登録名 |
+| `check_in_face_distance`   | REAL     | NULL                                                   | 顔認証で出勤したときの照合距離（誤認識の事後調査用。顔認証以外は NULL） |
+| `check_out_face_distance`  | REAL     | NULL                                                   | 顔認証で退勤（退勤時刻更新を含む）したときの照合距離 |
 | `updated_reason`           | TEXT     | NULL                                                   | 最新修正理由（最終 log の reason を参照用にコピー） |
 | `last_updated_by_user_id`  | TEXT     | NULL, FK → users.id ON DELETE SET NULL                 | 最終修正者                           |
 | `last_updated_at`          | DATETIME | NULL                                                   | 最終修正日時                         |
@@ -259,7 +261,7 @@ token は平文では保存せず、ハッシュ値のみ保持する。
 | `monthly_report_time` | string (文字列) | `"20:00"` | 月次勤怠レポートの自動メール通知時刻（HH:MM、24時間表記） |
 | `login_token_expire_hours` | integer (文字列) | 168 | ログイン継続時間（時間） |
 | `face_punch_enabled` | boolean (文字列) | false | 顔認証打刻の有効化フラグ |
-| `face_match_threshold` | float (文字列) | 0.45 | 顔認証一致判定しきい値（シフトあり、0.2〜0.8） |
+| `face_match_threshold` | float (文字列) | 0.40 | 顔認証一致判定しきい値（シフトあり、0.2〜0.8） |
 | `face_match_threshold_no_shift` | float (文字列) | 0.38 | 顔認証一致判定しきい値（シフト外、0.2〜0.8） |
 | `face_punch_countdown_seconds` | integer (文字列) | 3 | 顔認証打刻の自動打刻までのカウントダウン秒数 |
 
@@ -388,6 +390,8 @@ erDiagram
     TEXT overtime_reason
     TEXT remarks
     TEXT updated_reason
+    REAL check_in_face_distance
+    REAL check_out_face_distance
     INTEGER is_auto_completed
     DATETIME auto_completed_at
     TEXT last_updated_by_user_id FK

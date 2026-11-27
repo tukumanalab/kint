@@ -1,7 +1,9 @@
 """顔認証打刻機能のテスト。"""
 
+import logging
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
 from jose import jwt
 from sqlalchemy import select
@@ -590,7 +592,7 @@ class TestFaceVerify:
         assert data["reason"] == "ok"
         assert data["has_shift"] is True
         assert data["distance"] == 0.1
-        assert data["threshold"] == 0.45
+        assert data["threshold"] == 0.40
         assert data["threshold_no_shift"] == 0.38
 
     async def test_recognized_with_confirmation_without_shift(
@@ -887,4 +889,116 @@ class TestFacePunchKinds:
         assert await kinds(self._BASE + timedelta(hours=3)) == (
             "check_out_update",
             "check_out",
+        )
+
+
+class TestFacePunchMisrecognitionGuards:
+    """誤認識対策（退勤の確認必須・照合距離の記録・照合ログ）のテスト。"""
+
+    _BASE = datetime(2026, 5, 18, 9, 0, tzinfo=UTC)
+
+    async def _setup_user_with_shift(
+        self, client: AsyncClient, session: AsyncSession, user_id: str
+    ) -> str:
+        """顔データとシフトを持つユーザーを作り、端末トークンを返す。"""
+        device_token = await _get_device_token(client, session)
+        admin_token = await _login("device-admin")
+        await _create_user(session, id=user_id, email=f"{user_id}@example.com")
+        await client.put(
+            f"/api/v1/users/{user_id}/face",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"descriptors": [_vec(0.0)]},
+        )
+        session.add(
+            Shift(
+                id=f"{user_id}-shift",
+                user_id=user_id,
+                shift_date=self._BASE.date(),
+                start_time=self._BASE,
+                end_time=self._BASE + timedelta(hours=8),
+                google_event_id=f"{user_id}-event",
+            )
+        )
+        await session.commit()
+        return device_token
+
+    async def _punch(
+        self, client: AsyncClient, device_token: str, token: str, at: datetime
+    ) -> dict:
+        resp = await client.post(
+            "/api/v1/punches",
+            headers={"X-Punch-Device-Token": device_token},
+            json={"device_id": "kiosk-1", "occurred_at": at.isoformat(), "face_match_token": token},
+        )
+        assert resp.status_code == 200
+        return resp.json()
+
+    async def test_check_out_requires_confirmation_even_on_shift(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        from kint.services.face import FaceService
+
+        device_token = await self._setup_user_with_shift(client, session, "guard-u1")
+        svc = FaceService(session)
+
+        check_in = await svc.identify(_vec(0.0), self._BASE)
+        assert check_in.punch_kind == "check_in"
+        assert check_in.requires_confirmation is False  # シフト内の出勤は従来どおり自動
+        assert check_in.face_match_token
+        await self._punch(client, device_token, check_in.face_match_token, self._BASE)
+
+        later = self._BASE + timedelta(hours=1)
+        check_out = await svc.identify(_vec(0.0), later)
+        assert check_out.punch_kind == "check_out"
+        assert check_out.has_shift is True
+        assert check_out.requires_confirmation is True
+
+    async def test_face_distance_is_recorded_on_attendance(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        from kint.services.face import FaceService
+
+        device_token = await self._setup_user_with_shift(client, session, "guard-u2")
+        svc = FaceService(session)
+
+        r_in = await svc.identify(_vec(0.01), self._BASE)
+        assert r_in.face_match_token and r_in.distance is not None
+        await self._punch(client, device_token, r_in.face_match_token, self._BASE)
+
+        out_at = self._BASE + timedelta(hours=2)
+        r_out = await svc.identify(_vec(0.02), out_at)
+        assert r_out.face_match_token and r_out.distance is not None
+        data = await self._punch(client, device_token, r_out.face_match_token, out_at)
+        assert data["action"] == "check_out"
+
+        session.expire_all()
+        att = (
+            await session.execute(select(Attendance).where(Attendance.user_id == "guard-u2"))
+        ).scalar_one()
+        assert att.check_in_face_distance == pytest.approx(r_in.distance, abs=1e-4)
+        assert att.check_out_face_distance == pytest.approx(r_out.distance, abs=1e-4)
+
+    async def test_token_without_distance_returns_none(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        from kint.services.face import FaceService
+
+        token = FaceService(session)._create_face_match_token("someone")
+        user_id, distance = FaceService.verify_face_match_token_with_distance(token)
+        assert user_id == "someone"
+        assert distance is None
+
+    async def test_identify_result_is_logged(
+        self, client: AsyncClient, session: AsyncSession, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from kint.services.face import FaceService
+
+        await self._setup_user_with_shift(client, session, "guard-u3")
+        svc = FaceService(session)
+        with caplog.at_level(logging.INFO, logger="kint.services.face"):
+            matched = await svc.identify(_vec(0.0), self._BASE)
+            assert matched.matched is True
+        assert any(
+            "顔照合 matched" in r.getMessage() and "guard-u3" in r.getMessage()
+            for r in caplog.records
         )

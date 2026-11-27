@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     working_report_default_content: str = "青学つくまなラボ 利用者対応"
     # 顔認証打刻設定
     face_punch_enabled: bool = False
-    face_match_threshold: float = 0.45
+    face_match_threshold: float = 0.40
     face_match_threshold_no_shift: float = 0.38
     face_punch_countdown_seconds: int = 3
 

@@ -2,7 +2,17 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kint.db import Base
@@ -46,6 +56,9 @@ class Attendance(Base):
     overtime_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     remarks: Mapped[str | None] = mapped_column(String, nullable=True)
     device_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 顔認証打刻時の照合距離（誤認識の事後調査用。顔認証以外の打刻では NULL）
+    check_in_face_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    check_out_face_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_auto_completed: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="0", nullable=False
     )

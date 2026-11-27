@@ -16,6 +16,11 @@ const UNMATCHED_HINT_THRESHOLD = 6; // 約3秒間 (500ms x 6) 不一致が続い
 const RESULT_DISPLAY_MS = 3000;
 const DEFAULT_COOLDOWN_SECONDS = 5;
 const ABSENCE_RESET_MS = 5000; // 顔が検出されなくなってからこの時間が経つまでは同じ人を再認識しない
+/** 同じ人と連続してこの回数一致したら認識を確定する（1フレームだけの偶然の一致を除く） */
+export const CONSENSUS_FRAMES = 3;
+/** 認識後（カウントダウン・確認待ち）に本人がこの時間写らなければ取り消す */
+export const LOST_FACE_CANCEL_MS = 2000;
+const CANCEL_NOTICE_MS = 4000;
 
 type PanelState = 'stopped' | 'scanning' | 'recognized' | 'punching' | 'result';
 
@@ -46,12 +51,19 @@ export function FacePunchPanel({
   const [recognized, setRecognized] = useState<FaceIdentifyResponse | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [unmatchedCount, setUnmatchedCount] = useState(0);
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
 
   const busyRef = useRef(false);
   const countdownTimerRef = useRef<number | null>(null);
   const resultTimerRef = useRef<number | null>(null);
   const suppressRef = useRef<{ userId: string; until: number; lastSeen: number } | null>(null);
   const panelStateRef = useRef<PanelState>('stopped');
+  // 認識確定前の候補（同じ人と何回連続で一致したか）
+  const candidateRef = useRef<{ userId: string; count: number } | null>(null);
+  // 認識後の再照合で更新する最新の照合結果（打刻トークンを新しいものに差し替える）
+  const recognizedRef = useRef<FaceIdentifyResponse | null>(null);
+  const recognizedLastSeenRef = useRef(0);
+  const cancelNoticeTimerRef = useRef<number | null>(null);
   panelStateRef.current = panelState;
   // setInterval 内の tick から最新値を参照するための ref
   const isPunchingRef = useRef(false);
@@ -78,6 +90,7 @@ export function FacePunchPanel({
     return () => {
       clearCountdownTimer();
       clearResultTimer();
+      if (cancelNoticeTimerRef.current !== null) window.clearTimeout(cancelNoticeTimerRef.current);
       camera.stop();
       setBaseState('idle');
     };
@@ -97,6 +110,8 @@ export function FacePunchPanel({
   function backToScanning() {
     clearCountdownTimer();
     clearResultTimer();
+    candidateRef.current = null;
+    recognizedRef.current = null;
     setRecognized(null);
     setCountdown(null);
     setPanelState('scanning');
@@ -104,14 +119,33 @@ export function FacePunchPanel({
     clearSpeech();
   }
 
+  /** 認識した本人が写らなくなった・別の人が写った・NFC 打刻が始まったときに認識を取り消す */
+  function cancelRecognition(notice: string) {
+    backToScanning();
+    setCancelNotice(notice);
+    if (cancelNoticeTimerRef.current !== null) window.clearTimeout(cancelNoticeTimerRef.current);
+    cancelNoticeTimerRef.current = window.setTimeout(() => setCancelNotice(null), CANCEL_NOTICE_MS);
+  }
+
   function suppressUser(userId: string) {
     const now = Date.now();
     suppressRef.current = { userId, until: now + cooldownSeconds * 1000, lastSeen: now };
   }
 
-  // ===== 検出ループ =====
+  // 認識中（カウントダウン・確認待ち）に NFC カードの打刻が始まったら、端末の前に別の人が
+  // いるとみなして顔認証の打刻を取り消す（自分の doPunch 中は panelState が punching）
   useEffect(() => {
-    if (paused || panelState !== 'scanning' || camera.status !== 'streaming') return;
+    if (punchSubmission.isPunching && panelStateRef.current === 'recognized') {
+      cancelRecognition('カードの打刻があったため、顔認証の打刻を取り消しました');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [punchSubmission.isPunching]);
+
+  // ===== 検出ループ =====
+  // 認識後も照合を続け、本人が写り続けていることを確かめる
+  useEffect(() => {
+    if (paused || camera.status !== 'streaming') return;
+    if (panelState !== 'scanning' && panelState !== 'recognized') return;
     const id = window.setInterval(() => {
       void tick();
     }, DETECT_INTERVAL_MS);
@@ -128,30 +162,46 @@ export function FacePunchPanel({
     busyRef.current = true;
     try {
       const result = await detectSingleDescriptor(video);
-      if (!result.ok) {
-        setUnmatchedCount((c) => c + 1);
+      const resp = result.ok
+        ? await identifyFace({ descriptor: result.descriptor }, deviceToken())
+        : null;
+      const matchedUserId = resp && resp.matched && resp.user_id ? resp.user_id : null;
+
+      if (panelStateRef.current === 'recognized') {
+        verifyRecognizedStillPresent(resp, matchedUserId);
         return;
       }
-      const resp = await identifyFace({ descriptor: result.descriptor }, deviceToken());
-      if (!resp.matched || !resp.user_id) {
+      if (panelStateRef.current !== 'scanning') return;
+
+      if (!resp || !matchedUserId) {
+        candidateRef.current = null;
         setUnmatchedCount((c) => c + 1);
         return;
       }
       const suppress = suppressRef.current;
-      if (suppress && suppress.userId === resp.user_id) {
+      if (suppress && suppress.userId === matchedUserId) {
         const now = Date.now();
         // 写り続けている間は抑止を延長するため、検出のたびに lastSeen を更新する
         const suppressed = now < suppress.until || now - suppress.lastSeen < ABSENCE_RESET_MS;
         suppress.lastSeen = now;
-        if (suppressed) return;
+        if (suppressed) {
+          candidateRef.current = null;
+          return;
+        }
       }
-      if (panelStateRef.current !== 'scanning') return;
       if (resp.punch_kind === 'ignored') {
         // 出勤直後 (5分以内) は何もしない。その人を抑止してスキャンを続ける
-        suppressUser(resp.user_id);
+        candidateRef.current = null;
+        suppressUser(matchedUserId);
         return;
       }
       setUnmatchedCount(0);
+      // 同じ人と CONSENSUS_FRAMES 回連続で一致して初めて認識を確定する
+      const candidate = candidateRef.current;
+      const count = candidate && candidate.userId === matchedUserId ? candidate.count + 1 : 1;
+      candidateRef.current = { userId: matchedUserId, count };
+      if (count < CONSENSUS_FRAMES) return;
+      candidateRef.current = null;
       handleRecognized(resp);
     } catch (e) {
       console.warn('[FacePunch] detection failed:', e);
@@ -160,7 +210,38 @@ export function FacePunchPanel({
     }
   }
 
+  /** 認識後の再照合。別の人が写った、または本人がしばらく写らなければ取り消す */
+  function verifyRecognizedStillPresent(
+    resp: FaceIdentifyResponse | null,
+    matchedUserId: string | null,
+  ) {
+    const current = recognizedRef.current;
+    if (!current) return;
+    const now = Date.now();
+    if (matchedUserId === current.user_id && resp) {
+      recognizedLastSeenRef.current = now;
+      // 打刻トークン (60秒) を最新の照合結果のものに差し替える
+      if (resp.face_match_token) {
+        recognizedRef.current = {
+          ...current,
+          face_match_token: resp.face_match_token,
+        };
+      }
+      return;
+    }
+    if (matchedUserId !== null) {
+      cancelRecognition('別の方が写ったため、打刻を取り消しました');
+      return;
+    }
+    if (now - recognizedLastSeenRef.current > LOST_FACE_CANCEL_MS) {
+      cancelRecognition('認識した方が見えなくなったため、打刻を取り消しました');
+    }
+  }
+
   function handleRecognized(resp: FaceIdentifyResponse) {
+    recognizedRef.current = resp;
+    recognizedLastSeenRef.current = Date.now();
+    setCancelNotice(null);
     setRecognized(resp);
     setPanelState('recognized');
     setAvatarState('greeting');
@@ -176,7 +257,7 @@ export function FacePunchPanel({
         if (remaining <= 0) {
           clearCountdownTimer();
           setCountdown(0);
-          void doPunch(resp);
+          void doPunch(recognizedRef.current ?? resp);
         } else {
           setCountdown(remaining);
         }
@@ -189,6 +270,8 @@ export function FacePunchPanel({
   async function doPunch(resp: FaceIdentifyResponse, options?: { forceCheckIn?: boolean }) {
     if (!resp.face_match_token) return;
     clearCountdownTimer();
+    // NFC 打刻検知の effect が自分の打刻を取消と誤解しないよう、ref も即座に更新する
+    panelStateRef.current = 'punching';
     setPanelState('punching');
     const result = await punchSubmission.executePunch({
       face_match_token: resp.face_match_token,
@@ -237,18 +320,22 @@ export function FacePunchPanel({
   }
 
   function handleConfirmPunch() {
-    if (recognized) {
-      void doPunch(recognized);
+    const latest = recognizedRef.current ?? recognized;
+    if (latest) {
+      void doPunch(latest);
     }
   }
 
   function handleForceCheckIn() {
-    if (recognized) {
-      void doPunch(recognized, { forceCheckIn: true });
+    const latest = recognizedRef.current ?? recognized;
+    if (latest) {
+      void doPunch(latest, { forceCheckIn: true });
     }
   }
 
   const isCheckOutUpdate = recognized?.punch_kind === 'check_out_update';
+  const isCheckOut = recognized?.punch_kind === 'check_out';
+  const confirmLabel = isCheckOutUpdate ? '退勤時刻を更新' : isCheckOut ? '退勤する' : '打刻する';
 
   const showUnmatchedHint = unmatchedCount >= UNMATCHED_HINT_THRESHOLD && panelState === 'scanning';
 
@@ -296,6 +383,12 @@ export function FacePunchPanel({
             <p className="face-punch-panel__status">顔を認識しています...</p>
           )}
 
+          {cancelNotice && panelState === 'scanning' && (
+            <p className="face-punch-panel__hint face-punch-panel__hint--warn" role="status">
+              {cancelNotice}
+            </p>
+          )}
+
           {showUnmatchedHint && (
             <p className="face-punch-panel__hint face-punch-panel__hint--warn">
               登録されていない方はNFCカードをご利用ください。
@@ -323,7 +416,7 @@ export function FacePunchPanel({
           {panelState === 'recognized' && recognized && recognized.requires_confirmation && (
             <div className="face-punch-panel__actions">
               <button type="button" className="btn btn--primary" onClick={handleConfirmPunch}>
-                {recognized.user_name}さんで{isCheckOutUpdate ? '退勤時刻を更新' : '打刻する'}
+                {recognized.user_name}さんで{confirmLabel}
               </button>
               {isCheckOutUpdate && (
                 <button type="button" className="btn btn--primary" onClick={handleForceCheckIn}>

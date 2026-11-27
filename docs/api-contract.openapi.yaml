@@ -812,6 +812,8 @@ paths:
       description: >-
         ブラウザ側で算出した顔ディスクリプタから最も一致するユーザーを照合します。
         一致した場合は、60秒間のみ有効な `face_match_token`（JWT）を発行します。
+        トークンには照合距離（`dist` クレーム）が含まれ、打刻時に勤怠レコードへ記録されます。
+        照合結果はサーバーログにも記録されます。
         写真自体は送信されず、128次元の数値ディスクリプタのみを受け取ります。
         このエンドポイントは認証不要ですが、打刻端末トークンの検証が必須です。
         顔認証打刻機能が無効化されている場合は 403 を返します。
@@ -2053,7 +2055,9 @@ components:
           description: 当日シフトあり、または24時間以内の未退勤勤怠がある（＝シフトあり相当）か
         requires_confirmation:
           type: boolean
-          description: true の場合、自動打刻は行わずボタン押下による確認が必要
+          description: >-
+            true の場合、自動打刻は行わずボタン押下による確認が必要。
+            シフト外のとき、および punch_kind が check_out / check_out_update（退勤系。誤認識時の被害が大きいため）のとき true。
         face_match_token:
           type: string
           nullable: true
@@ -2340,7 +2344,7 @@ components:
         face_match_threshold:
           type: number
           description: 顔認証一致判定しきい値（シフトあり、0.2〜0.8、小さいほど厳しい）
-          example: 0.45
+          example: 0.40
         face_match_threshold_no_shift:
           type: number
           description: 顔認証一致判定しきい値（シフト外、0.2〜0.8、小さいほど厳しい）

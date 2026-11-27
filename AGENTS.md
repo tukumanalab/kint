@@ -228,7 +228,7 @@ cp .env.example .env
 
 - **User**: 管理者・従業員 (role, name, email, password_hash, google_calendar_id)
 - **Card**: NFCカード (card_idm, user_id, is_active) — FeliCa IDm で識別
-- **Attendance**: 出退勤記録 (user_id, check_in, check_out, date, card_idm)
+- **Attendance**: 出退勤記録 (user_id, check_in, check_out, date, card_idm, check_in_face_distance, check_out_face_distance)
 - **Shift**: シフト情報 (user_id, date, start_time, end_time, google_event_id)
 - **AttendanceMonthlyComment**: 月次勤務サマリーの管理者共有メモ (year_month PK, body, updated_by_user_id)
 - **FaceDescriptor**: 顔認証用の128次元特徴量ディスクリプタ (user_id, descriptor(float32バイナリ), created_at) — 写真は保存しない
@@ -320,7 +320,7 @@ cp .env.example .env
   - 結果は `recognized`（自動打刻）/ `recognized_with_confirmation`（シフト外のため確認ボタン表示）/ `not_recognized`（理由: `too_far` / `other_user_closer` / `ambiguous`）と一致度の距離・しきい値のみを返し、他ユーザーの情報は含みません。トークン発行・打刻は行わず、顔認証打刻設定が無効でも利用できます。顔データ未登録の場合は 404 `FACE_NOT_REGISTERED`。画面では距離を色分けメーター（`FaceDistanceMeter`）で表示します。
 - **照合ロジック**:
   - 取得したディスクリプタと、登録済み全ユーザー（有効かつ非管理者）の顔ディスクリプタとのユークリッド距離を計算し、最も距離が近いユーザーを候補とします。
-  - 当日シフトがある、または24時間以内の未退勤（オープン）勤怠があるユーザーは「シフトあり」として扱われ、しきい値 `face_match_threshold`（デフォルト 0.45）で判定し、一致すればカウントダウン（`face_punch_countdown_seconds`）後に自動打刻します（カウントダウン中は「取消」ボタンでキャンセル可能）。
+  - 当日シフトがある、または24時間以内の未退勤（オープン）勤怠があるユーザーは「シフトあり」として扱われ、しきい値 `face_match_threshold`（デフォルト 0.40）で判定し、出勤であればカウントダウン（`face_punch_countdown_seconds`）後に自動打刻します（カウントダウン中は「取消」ボタンでキャンセル可能）。退勤は下記「誤認識対策」のとおり確認ボタン必須です。
   - それ以外の「シフト外」ユーザーはより厳しいしきい値 `face_match_threshold_no_shift`（デフォルト 0.38）で判定し、一致した場合も自動打刻はせず「〇〇さんで打刻する / 違う」の確認ボタンで本人確認を求めます。
   - **打刻種別（`punch_kind`）**: 顔認証打刻では「5分以内の退勤 = 取消」は行わず、`PunchService.resolve_face_punch_kind` で次のとおり判定します（`/face-punch/identify` が `punch_kind` を返し、`greeting_kind` は `check_in` 以外なら `check_out`）。NFC / user_id 打刻の取消挙動は変更しません。
     - 24時間以内の未退勤があり出勤から5分以内: `ignored`（何もしない。取消もしない）
@@ -328,9 +328,15 @@ cp .env.example .env
     - 当日の最新レコードが退勤済みで、今の時刻が「その退勤より後に始まる当日シフト」（開始前許容を含む）にかかる: `check_in`（途中退勤後の再出勤）
     - 当日の最新レコードが退勤済みでそれ以外: `check_out_update`（退勤時刻を今に上書き。当日最後の顔認証が退勤時刻になる。メッセージ「退勤時刻を更新しました」）
     - それ以外: `check_in`
-  - **「出勤として打刻」ボタン**: `check_out_update` のとき、カウントダウン/確認ボタンと並んで「出勤として打刻」が表示され、押すと打刻リクエストに `face_force_check_in: true` が付き新規出勤になります（シフト未登録の中抜けに対応）。
+  - **「出勤として打刻」ボタン**: `check_out_update` のとき、確認ボタンと並んで「出勤として打刻」が表示され、押すと打刻リクエストに `face_force_check_in: true` が付き新規出勤になります（シフト未登録の中抜けに対応）。
   - **写り続けている間は再認識しない**: 打刻・取消・`ignored` 後はその人を抑止し、クールダウン経過後も顔が写り続けている間（最後の検出から 5 秒未満）は再認識しません。
   - 上位2候補の距離差が 0.05 未満の場合は「あいまい」と判定し、いずれのしきい値を満たしていても不一致として扱います（誤認識防止）。
+  - **誤認識対策**（2026-11-27 に未登録の人の顔が別の登録者と誤認識され退勤が打刻された事例を受けて追加）:
+    - **連続一致で確定**: 端末側で同じ人と 3 回連続（約 1.5 秒）一致して初めて認識を確定します（`CONSENSUS_FRAMES`）。1 フレームだけの偶然の一致では反応しません。
+    - **認識後も照合を継続**: カウントダウン・確認待ちの間も照合を続け、別の人と照合された場合、または本人が 2 秒間（`LOST_FACE_CANCEL_MS`）写らなかった場合（複数の顔が写った場合を含む）は自動で取り消し、「別の方が写ったため、打刻を取り消しました」等を表示します。打刻トークンは再照合のたびに新しいものへ差し替えます。
+    - **退勤は確認ボタン必須**: `punch_kind` が `check_out` / `check_out_update` のときはシフト内でも `requires_confirmation: true` となり、カウントダウンによる自動打刻はせず「〇〇さんで退勤する（退勤時刻を更新）/ 違う」のボタンでのみ打刻します。シフト内の出勤は従来どおりカウントダウン後に自動打刻します。
+    - **NFC 打刻で取消**: 認識中に NFC カードの打刻が始まった場合は、端末の前に別の人がいるとみなして顔認証の打刻を取り消します。
+    - **照合ログと距離の記録**: `/face-punch/identify` の結果（一致した人・1位と2位の距離・しきい値・シフト判定・打刻種別・確認要否。不一致は距離 0.6 以下のみ）をサーバーログ（`kint.services.face`、INFO）に、顔認証打刻の確定を `kint.services.attendance` に時刻付きで記録します。照合距離は `face_match_token` に埋め込まれ、勤怠レコードの `check_in_face_distance` / `check_out_face_distance` に保存されます。
   - 照合に成功すると、60秒間のみ有効な短命トークン `face_match_token`（JWT）を発行し、打刻 API (`POST /api/v1/punches`) にはこのトークンのみを送信します（打刻方式 `method: "face"`、打刻元 `source: 'webcam_face'`）。
 - **アバターと音声案内**:
   - アバターは顔認証の有効・無効にかかわらずメインタブに常に表示されます（カメラ開始前も表示。アバター状態は `usePunchAvatar` フックで PunchPage が保持し `FacePunchPanel` と共有）。NFC カード打刻の結果（成功時は「おはようございます、〇〇さん。出勤を記録しました」等、エラー時は「打刻できませんでした」）もアバターが読み上げます。「PaSoRi に接続」のクリックで音声合成の自動再生制限も解除します。

@@ -147,7 +147,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
   const [attendanceAlertRules, setAttendanceAlertRules] = useState<AlertRule[]>([]);
   const [workingReportDefaultContent, setWorkingReportDefaultContent] = useState('青学つくまなラボ 利用者対応');
   const [facePunchEnabled, setFacePunchEnabled] = useState(false);
-  const [faceMatchThreshold, setFaceMatchThreshold] = useState('0.45');
+  const [faceMatchThreshold, setFaceMatchThreshold] = useState('0.40');
   const [faceMatchThresholdNoShift, setFaceMatchThresholdNoShift] = useState('0.38');
   const [facePunchCountdownSeconds, setFacePunchCountdownSeconds] = useState('3');
 
@@ -286,7 +286,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
       setAttendanceAlertRules(s.attendance_alert_rules || []);
       setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
       setFacePunchEnabled(s.face_punch_enabled ?? false);
-      setFaceMatchThreshold(String(s.face_match_threshold ?? 0.45));
+      setFaceMatchThreshold(String(s.face_match_threshold ?? 0.4));
       setFaceMatchThresholdNoShift(String(s.face_match_threshold_no_shift ?? 0.38));
       setFacePunchCountdownSeconds(String(s.face_punch_countdown_seconds ?? 3));
     } catch (err: unknown) {
@@ -320,7 +320,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setAttendanceAlertRules(s.attendance_alert_rules || []);
         setWorkingReportDefaultContent(s.working_report_default_content ?? '青学つくまなラボ 利用者対応');
         setFacePunchEnabled(s.face_punch_enabled ?? false);
-        setFaceMatchThreshold(String(s.face_match_threshold ?? 0.45));
+        setFaceMatchThreshold(String(s.face_match_threshold ?? 0.4));
         setFaceMatchThresholdNoShift(String(s.face_match_threshold_no_shift ?? 0.38));
         setFacePunchCountdownSeconds(String(s.face_punch_countdown_seconds ?? 3));
       })
@@ -512,7 +512,7 @@ export function SettingsPage({ auth, onSiteNameChange, onSiteSubtitleChange }: P
         setOvertimeAllowanceMinutes(String(result.applied.overtime_allowance_minutes ?? 30));
         setAttendanceAlertRules(result.applied.attendance_alert_rules || []);
         setFacePunchEnabled(result.applied.face_punch_enabled ?? false);
-        setFaceMatchThreshold(String(result.applied.face_match_threshold ?? 0.45));
+        setFaceMatchThreshold(String(result.applied.face_match_threshold ?? 0.4));
         setFaceMatchThresholdNoShift(String(result.applied.face_match_threshold_no_shift ?? 0.38));
         setFacePunchCountdownSeconds(String(result.applied.face_punch_countdown_seconds ?? 3));
       }

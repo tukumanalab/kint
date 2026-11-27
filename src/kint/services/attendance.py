@@ -345,6 +345,7 @@ class PunchService:
     async def punch(self, request: PunchRequest, device_name: str | None = None) -> PunchResponse:
         """打刻を処理する。check_in / check_out を自動判定する。"""
         # BE-02: 利用者解決
+        face_distance: float | None = None
         if request.card_idm is not None:
             user = await self._get_user_by_card_idm(request.card_idm)
             source = "webusb_nfc"
@@ -352,7 +353,9 @@ class PunchService:
         elif request.face_match_token is not None:
             from kint.services.face import FaceService
 
-            face_user_id = FaceService.verify_face_match_token(request.face_match_token)
+            face_user_id, face_distance = FaceService.verify_face_match_token_with_distance(
+                request.face_match_token
+            )
             user = await self._get_user_by_user_id(face_user_id)
             source = "webcam_face"
             method = "face"
@@ -547,6 +550,8 @@ class PunchService:
                 overtime_reason=request.overtime_reason,
                 actor_user=user,
             )
+            if method == "face":
+                attendance.check_out_face_distance = face_distance
             action = "check_out"
         else:
             # 締め（ロック）チェック
@@ -603,6 +608,8 @@ class PunchService:
                 reason=request.reason,
                 device_name=device_name,
             )
+            if method == "face":
+                attendance.check_in_face_distance = face_distance
             action = "check_in"
 
         # 丸め処理後の勤務出勤/退勤時刻および労働時間の計算
@@ -661,6 +668,18 @@ class PunchService:
 
         _LAST_PUNCH_TIME[user.id] = request.occurred_at
         await self.session.commit()
+
+        if method == "face":
+            # 誤認識の事後調査のため、顔認証打刻は照合距離とともに必ずログに残す
+            logger.info(
+                "顔認証打刻: user=%s action=%s%s attendance=%s dist=%s device=%s",
+                user.id,
+                action,
+                "(update)" if is_check_out_update else "",
+                attendance.id,
+                f"{face_distance:.4f}" if face_distance is not None else "-",
+                device_name or "-",
+            )
 
         from kint.services.notification import NotificationService
 

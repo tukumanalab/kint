@@ -1,5 +1,6 @@
 """顔認証打刻サービス。ディスクリプタの登録・照合・打刻トークン発行を行う。"""
 
+import logging
 import math
 import struct
 import uuid
@@ -23,6 +24,12 @@ _DESCRIPTOR_DIM = 128
 _AMBIGUOUS_MARGIN = 0.05
 _FACE_MATCH_TOKEN_TYPE = "face_match"
 _FACE_MATCH_TOKEN_EXPIRE_SECONDS = 60
+# 照合結果を INFO でログに残す距離の上限（これより遠い＝明らかな他人の顔は DEBUG のみ）
+_LOG_NEAR_MISS_DISTANCE = 0.6
+# 退勤系の打刻種別。誤認識時の被害が大きいため自動打刻せず、確認ボタンでのみ打刻する
+_CONFIRM_REQUIRED_PUNCH_KINDS = frozenset({"check_out", "check_out_update"})
+
+logger = logging.getLogger(__name__)
 
 
 def _encode_descriptor(values: list[float]) -> bytes:
@@ -104,19 +111,27 @@ class FaceService:
         await self.session.execute(delete(FaceDescriptor).where(FaceDescriptor.user_id == user_id))
         await self.session.commit()
 
-    def _create_face_match_token(self, user_id: str) -> str:
-        """短命（60秒）の顔認証打刻トークン (JWT) を発行する。"""
+    def _create_face_match_token(self, user_id: str, distance: float | None = None) -> str:
+        """短命（60秒）の顔認証打刻トークン (JWT) を発行する。照合距離も記録用に埋め込む。"""
         now = datetime.now(tz=UTC)
-        payload = {
+        payload: dict[str, object] = {
             "sub": user_id,
             "type": _FACE_MATCH_TOKEN_TYPE,
             "exp": now + timedelta(seconds=_FACE_MATCH_TOKEN_EXPIRE_SECONDS),
         }
+        if distance is not None:
+            payload["dist"] = round(distance, 4)
         return jwt.encode(payload, env_settings.secret_key, algorithm=_ALGORITHM)
 
     @staticmethod
     def verify_face_match_token(token: str) -> str:
         """顔認証打刻トークンを検証し user_id を返す。無効・期限切れなら KintUnauthorizedError。"""
+        user_id, _ = FaceService.verify_face_match_token_with_distance(token)
+        return user_id
+
+    @staticmethod
+    def verify_face_match_token_with_distance(token: str) -> tuple[str, float | None]:
+        """顔認証打刻トークンを検証し (user_id, 照合距離) を返す。距離が無いトークンは None。"""
         try:
             payload = jwt.decode(token, env_settings.secret_key, algorithms=[_ALGORITHM])
         except JWTError:
@@ -128,7 +143,9 @@ class FaceService:
             raise KintUnauthorizedError(
                 code="FACE_MATCH_TOKEN_INVALID", message="顔認証トークンが無効です"
             )
-        return user_id
+        dist = payload.get("dist")
+        distance = float(dist) if isinstance(dist, int | float) else None
+        return str(user_id), distance
 
     async def _rank_users(
         self, descriptor: list[float]
@@ -262,6 +279,16 @@ class FaceService:
         ambiguous = second_dist is not None and (second_dist - best_dist) < _AMBIGUOUS_MARGIN
 
         if best_dist > threshold or ambiguous:
+            reason = "ambiguous" if ambiguous and best_dist <= threshold else "too_far"
+            self._log_identify(
+                "rejected",
+                best_user_id,
+                best_dist,
+                second_dist,
+                threshold,
+                on_shift_like,
+                reason=reason,
+            )
             return FaceIdentifyResponse(
                 matched=False,
                 user_id=None,
@@ -278,7 +305,19 @@ class FaceService:
 
         punch_kind, _ = await PunchService(self.session).resolve_face_punch_kind(best_user_id, now)
         greeting_kind = "check_in" if punch_kind == "check_in" else "check_out"
-        token = self._create_face_match_token(best_user_id)
+        token = self._create_face_match_token(best_user_id, best_dist)
+        # シフト外、または退勤系（誤認識で他人を退勤させる被害が大きい）は確認ボタン必須
+        requires_confirmation = (not on_shift_like) or punch_kind in _CONFIRM_REQUIRED_PUNCH_KINDS
+        self._log_identify(
+            "matched",
+            best_user_id,
+            best_dist,
+            second_dist,
+            threshold,
+            on_shift_like,
+            punch_kind=punch_kind,
+            requires_confirmation=requires_confirmation,
+        )
 
         return FaceIdentifyResponse(
             matched=True,
@@ -286,8 +325,43 @@ class FaceService:
             user_name=user.name,
             distance=round(best_dist, 4),
             has_shift=on_shift_like,
-            requires_confirmation=not on_shift_like,
+            requires_confirmation=requires_confirmation,
             face_match_token=token,
             greeting_kind=greeting_kind,
             punch_kind=punch_kind,
+        )
+
+    @staticmethod
+    def _log_identify(
+        outcome: Literal["matched", "rejected"],
+        best_user_id: str,
+        best_dist: float,
+        second_dist: float | None,
+        threshold: float,
+        on_shift_like: bool,
+        *,
+        reason: str | None = None,
+        punch_kind: str | None = None,
+        requires_confirmation: bool | None = None,
+    ) -> None:
+        """照合結果を監査用にログへ残す。明らかな他人（遠い距離）の不一致は DEBUG に留める。"""
+        level = (
+            logging.INFO
+            if outcome == "matched" or best_dist <= _LOG_NEAR_MISS_DISTANCE
+            else logging.DEBUG
+        )
+        second = f"{second_dist:.4f}" if second_dist is not None else "-"
+        logger.log(
+            level,
+            "顔照合 %s: best_user=%s dist=%.4f second_dist=%s threshold=%.2f shift=%s "
+            "reason=%s punch_kind=%s confirm=%s",
+            outcome,
+            best_user_id,
+            best_dist,
+            second,
+            threshold,
+            on_shift_like,
+            reason or "-",
+            punch_kind or "-",
+            requires_confirmation if requires_confirmation is not None else "-",
         )
